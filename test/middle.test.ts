@@ -57,3 +57,39 @@ test('the start is the longest that fits before the end', () => {
 // joined (here 'ts' kerns across them), so the start stopped a grapheme short.
 test('a start is measured without its soft hyphens', () =>
   assert.equal(truncateMiddle(prepareLabel('at\u00ADsat\u00ADsat\u00ADs zz yy', '20px Kern'), 100), 'atsat…zz yy'))
+
+// Review round 1 of the evaluation: a cut at code points rather than grapheme clusters passed every
+// test and the browser sweep. Each label here puts a multi-code-point grapheme where cuts fall: a ZWJ
+// family, a flag, a skin-tone sequence, decomposed accents, Hangul jamo.
+test('the start and the end are cut only at grapheme boundaries', () => {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+  const labels = [
+    'photos/👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦/family-👨‍👩‍👧‍👦.png',
+    'trips/🇯🇵🇫🇷🇩🇪🇧🇷🇨🇦/flags-🇯🇵🇫🇷.txt',
+    'team/👋🏽👋🏿👍🏻👍🏾/hello-👋🏽.md',
+    'docs/résumé-café-née/fiancéé.txt',
+    'ko/한글한/한.txt',
+  ]
+  for (const text of labels) {
+    const boundaries = new Set([0, text.length])
+    for (const g of segmenter.segment(text)) boundaries.add(g.index)
+    const label = prepareLabel(text, '20px Test')
+    for (let width = 20; width <= 400; width += 3) {
+      for (const keepEnd of [undefined, { from: text.lastIndexOf('/') }]) {
+        const out = truncateMiddle(label, width, keepEnd)
+        if (out === text) continue
+        const cut = out.indexOf('…')
+        assert.ok(cut > 0, `${out}: no ellipsis`)
+        const head = out.slice(0, cut)
+        const tail = out.slice(cut + 1)
+        assert.ok(text.startsWith(head) && boundaries.has(head.length), `${JSON.stringify(out)} at ${width}: the start ends inside a grapheme`)
+        assert.ok(text.endsWith(tail) && boundaries.has(text.length - tail.length), `${JSON.stringify(out)} at ${width}: the end starts inside a grapheme`)
+        const oneGrapheme = [...segmenter.segment(head)].length === 1
+        if (!oneGrapheme) {
+          const w = measureNaturalWidth(prepareWithSegments(out, '20px Test'))
+          assert.ok(w <= width + 1 / 64, `${JSON.stringify(out)} is ${w} wide at ${width}`)
+        }
+      }
+    }
+  }
+})

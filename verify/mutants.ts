@@ -6,7 +6,7 @@
 // writes no RESULTS.md and no baseline). A control run of the unmutated worktree comes first. The worktree is
 // removed at the end. A mutant the sweep does not catch makes the exit code 1.
 //
-//   node verify/mutants.ts [--browser=chromium] [--factor=1]
+//   node verify/mutants.ts [--browser=chromium] [--factor=1] [--mutant=<part of a name>]
 //
 // Takes about 15 minutes for Chromium at factor 1. Its output is committed as verify/results/mutants.txt. Run it with no other Playwright browser open.
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -19,6 +19,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const browser = args.find(a => a.startsWith('--browser='))?.slice(10) ?? 'chromium'
 const factor = args.find(a => a.startsWith('--factor='))?.slice(9) ?? '1'
+// --mutant=<text> runs only the mutants whose name contains it (and the control of their helpers).
+const only = args.find(a => a.startsWith('--mutant='))?.slice(9)
 
 // subtle: a bug that changes answers by at most a fraction of a pixel or a single grapheme, which a weak check could miss.
 type Mutant = { name: string, helpers: string[], file: string, from: string, to: string, subtle?: boolean }
@@ -81,6 +83,9 @@ const MUTANTS: Mutant[] = [
   },
 ]
 
+const chosen = MUTANTS.filter(m => only === undefined || m.name.includes(only))
+if (chosen.length === 0) throw new Error(`no mutant named like ${only}`)
+
 const dir = mkdtempSync(join(tmpdir(), 'pretext-kit-mutants-'))
 const tree = join(dir, 'kit')
 const git = (...a: string[]): string => execFileSync('git', a, { cwd: root, encoding: 'utf8' })
@@ -110,7 +115,7 @@ const rows: string[] = []
 let escaped = 0
 try {
   console.log(`worktree of ${head} at ${tree}; ${browser}@${factor}`)
-  const helpers = [...new Set(MUTANTS.flatMap(m => m.helpers))]
+  const helpers = [...new Set(chosen.flatMap(m => m.helpers))]
   const control = sweep(helpers)
   const controlTests = unitTests()
   for (const h of helpers) {
@@ -119,7 +124,7 @@ try {
     console.log(`control ${h}: ${t.cases} cases, ${t.mismatch} kit-mismatch; npm test ${controlTests}`)
     if (t.mismatch !== 0) throw new Error(`control: ${h} has kit-mismatch cases without a mutant`)
   }
-  for (const m of MUTANTS) {
+  for (const m of chosen) {
     execFileSync('git', ['checkout', '--', 'src'], { cwd: tree })
     const path = join(tree, m.file)
     const source = readFileSync(path, 'utf8')

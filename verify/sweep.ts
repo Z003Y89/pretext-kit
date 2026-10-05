@@ -570,6 +570,11 @@ type CaseVerdict = { outcome: Outcome, lines?: number, detail?: string, cause?: 
 
 const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+function isGraphemeBoundary(text: string, at: number): boolean {
+  if (at === 0 || at === text.length) return true
+  for (const g of graphemes.segment(text)) if (g.index === at) return true
+  return false
+}
 function graphemeCount(text: string): number {
   let n = 0
   for (const _ of graphemes.segment(text)) n++
@@ -769,6 +774,11 @@ function truncateMiddleCase(stack: FontStack, text: string, width: number): Case
   const tail = cut.slice(at + ELLIPSIS.length)
   if (!plain.startsWith(head) || !plain.endsWith(tail) || head.length + tail.length >= plain.length) {
     return { outcome: 'kit-mismatch', detail: `${said}: not a start, '…' and an end of the label` }
+  }
+  // Both cuts fall between graphemes (Intl.Segmenter here, independent of the kit's): a cut inside an
+  // emoji sequence or a base and its combining mark paints a broken glyph even when it fits.
+  if (!isGraphemeBoundary(plain, head.length) || !isGraphemeBoundary(plain, plain.length - tail.length)) {
+    return { outcome: 'kit-mismatch', detail: `${said}: cuts inside a grapheme` }
   }
   const outWidth = naturalWidth(out, f)
   if (outWidth > width + FIT) return { outcome: 'kit-mismatch', detail: `${said}, ${outWidth} wide` }

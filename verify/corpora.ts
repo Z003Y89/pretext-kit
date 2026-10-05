@@ -209,6 +209,13 @@ export const LABELS: Corpus = {
     { label: 'Arabic', text: 'وثائق/التقارير السنوية/التقرير المالي للربع الثالث.pdf' },
     { label: 'Unbroken name', text: 'lib/extremely_long_filename_without_any_breaks_whatsoever_v2_final.config.js' },
     { label: 'Short', text: 'docs/README.md' },
+    // Added in the evaluation's review: multi-code-point graphemes where cuts fall, which no label above had
+    // (a cut at code points instead of graphemes passed the sweep). ZWJ families, flags, skin tones;
+    // decomposed accents (NFD); conjoining Hangul jamo.
+    { label: 'Family photo', text: 'Photos/2026/👨‍👩‍👧‍👦 Familie 👨‍👩‍👧‍👦 Sommer/IMG_0042 👨‍👩‍👧‍👦👋🏽.HEIC' },
+    { label: 'Flags', text: 'Travel/🇯🇵🇫🇷🇩🇪🇧🇷🇨🇦 itinerary 🇯🇵🇫🇷/notes 🇩🇪🇧🇷.md' },
+    { label: 'Decomposed accents', text: 'Documents/Re\u0301sume\u0301s/Cafe\u0301 – fiance\u0301e – ne\u0301e – e\u0301te\u0301.pdf' },
+    { label: 'Hangul jamo', text: '\u1112\u1161\u11AB\u1100\u1173\u11AF/\u1106\u116E\u11AB\u1109\u1165/\u1112\u1161\u11AB\u1100\u1173\u11AF \u1106\u116E\u11AB\u1109\u1165 \u1112\u116A\u11A8\u110B\u1175\u11AB.txt' },
   ],
 }
 
