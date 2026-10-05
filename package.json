@@ -1,0 +1,26 @@
+{
+  "name": "pretext-kit",
+  "version": "0.0.0",
+  "description": "Exact text-sizing helpers built on Pretext",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "node --test --import ./test/setup.ts test/*.test.ts",
+    "check": "tsc --noEmit",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+  },
+  "peerDependencies": {
+    "@chenglou/pretext": ">=0.0.10"
+  },
+  "devDependencies": {
+    "@chenglou/pretext": "file:../pretext",
+    "@types/node": "^26.6.4",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.2"
+  }
+}
