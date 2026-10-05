@@ -2,9 +2,9 @@
 
 Run on 2026-10-05 by `npm run verify`, headed, `<html lang="en">`.
 Widths 120-600px (truncateMiddle 80-400px), at Playwright deviceScaleFactor 1, 1.25, 2.
-Width step per helper at factor 1: shrinkwrap 1, balance 1, fitFontSize 1, clamp 1, truncateMiddle 1.
-Width step per helper at factor 1.25: shrinkwrap 4, balance 4, fitFontSize 4, clamp 4, truncateMiddle 4.
-Width step per helper at factor 2: shrinkwrap 4, balance 4, fitFontSize 4, clamp 4, truncateMiddle 4.
+Width step per helper at factor 1: shrinkwrap 1, balance 1, fitFontSize 1, fitFontSizeRich 1, clamp 1, truncateMiddle 1.
+Width step per helper at factor 1.25: shrinkwrap 4, balance 4, fitFontSize 4, fitFontSizeRich 4, clamp 4, truncateMiddle 4.
+Width step per helper at factor 2: shrinkwrap 4, balance 4, fitFontSize 4, fitFontSizeRich 4, clamp 4, truncateMiddle 4.
 fontFromStyle cases are one per font stack and pinned size (16px/24px, then 8-48px at 1.5 line height); their
 "width" column is the font size.
 
@@ -37,6 +37,20 @@ grapheme (with any white space before it; a soft hyphen's hyphen is none) would 
 painting, in a `display: -webkit-box; -webkit-line-clamp: N` box: truncation (scrollHeight > clientHeight) and
 clamped height must match, and every line painted in a `white-space: pre` span (the cut one followed by `…`) must
 be no wider than W + 1/64.
+
+fitFontSizeRich sizes an icon and its label as one row, at 8-32px with line height round(1.5·px): an
+`inline-block; vertical-align: top` icon round(1.25·px) wide and px tall, then the label with
+`margin-left: round(0.5·px)px` (the row's `extraWidth`, and `box-decoration-break: clone`, since Pretext charges
+a wrapped item's extraWidth on every line), in a `white-space: normal; overflow-wrap: break-word` box of width W,
+with the boxes { width: W, maxLines: 1 } and { width: W, height: 72 } (three 24px lines). Corpora: latin, german,
+french, emoji-chat and ui-labels (real labels such as "Zahlungspflichtig abonnieren", not hyphenated). By Pretext,
+computed in the harness from `prepareRichInline` and `measureRichInlineStats` (never the kit): the handle and
+lineCount must match Pretext's count at W, the size must fit (no line past W + 1/64 unless no unbreakable piece,
+the row at width 0, is wider than that; the count within maxLines or count × line height within the height) and
+the next size must not; null only when 8px does not fit. Then the painting: at the answer and the next size, the
+painted line count must match Pretext's (else pretext-gap), and the answer must fit the box (lines or height,
+scrollWidth ≤ W and, where Pretext reports a line past W, the widest painted line, from the box's left edge to
+the rightmost icon or text fragment on it, within W + 1/64) while the next size must not.
 
 truncateMiddle runs on path labels, and on the German and French corpora, at widths 80-400px, with
 keepEnd from the last `/` where there is one. By Pretext: the whole label exactly when its natural width fits;
@@ -82,7 +96,7 @@ For exact fits in Safari 26, use whole-px line heights.
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 1.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 2.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -90,27 +104,29 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
 | shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
-| balance (13s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
-| fitFontSize (21s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| clamp (56s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
+| balance (12s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
+| fitFontSize (22s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
+| fitFontSizeRich (20s) | 203944 | 203723 | 221 | 0 | 0 | 0 |
+| clamp (57s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
 | truncateMiddle (5s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 184668 | 36 | 0 | 0 | 0 |
+| latin | 230880 | 230840 | 40 | 0 | 0 | 0 |
 | cjk | 184704 | 182243 | 2461 | 0 | 0 | 0 |
 | arabic | 184704 | 183243 | 1461 | 0 | 0 | 0 |
-| emoji-chat | 184704 | 184128 | 576 | 0 | 0 | 0 |
+| emoji-chat | 230880 | 230180 | 700 | 0 | 0 | 0 |
 | urls | 184704 | 180866 | 3838 | 0 | 0 | 0 |
-| german | 200112 | 199428 | 684 | 0 | 0 | 0 |
-| french | 200112 | 198575 | 1537 | 0 | 0 | 0 |
+| german | 246288 | 245536 | 752 | 0 | 0 | 0 |
+| french | 246288 | 244727 | 1561 | 0 | 0 | 0 |
+| ui-labels | 19240 | 19239 | 1 | 0 | 0 | 0 |
 | labels | 25680 | 25678 | 2 | 0 | 0 | 0 |
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 0.6 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 0.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -120,165 +136,177 @@ By helper:
 | shrinkwrap (5s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
 | balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
 | fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| clamp (15s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
+| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 46464 | 46450 | 14 | 0 | 0 | 0 |
+| latin | 58080 | 58065 | 15 | 0 | 0 | 0 |
 | cjk | 46464 | 45856 | 608 | 0 | 0 | 0 |
 | arabic | 46464 | 46090 | 374 | 0 | 0 | 0 |
-| emoji-chat | 46464 | 46325 | 139 | 0 | 0 | 0 |
+| emoji-chat | 58080 | 57909 | 171 | 0 | 0 | 0 |
 | urls | 46464 | 45501 | 963 | 0 | 0 | 0 |
-| german | 50352 | 50166 | 186 | 0 | 0 | 0 |
-| french | 50352 | 49971 | 381 | 0 | 0 | 0 |
+| german | 61968 | 61762 | 206 | 0 | 0 | 0 |
+| french | 61968 | 61580 | 388 | 0 | 0 | 0 |
+| ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
 | labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 0.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 0.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (4s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
+| shrinkwrap (5s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
 | balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
 | fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| clamp (15s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
+| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 46464 | 46450 | 14 | 0 | 0 | 0 |
+| latin | 58080 | 58065 | 15 | 0 | 0 | 0 |
 | cjk | 46464 | 45856 | 608 | 0 | 0 | 0 |
 | arabic | 46464 | 46090 | 374 | 0 | 0 | 0 |
-| emoji-chat | 46464 | 46325 | 139 | 0 | 0 | 0 |
+| emoji-chat | 58080 | 57909 | 171 | 0 | 0 | 0 |
 | urls | 46464 | 45501 | 963 | 0 | 0 | 0 |
-| german | 50352 | 50166 | 186 | 0 | 0 | 0 |
-| french | 50352 | 49971 | 381 | 0 | 0 | 0 |
+| german | 61968 | 61762 | 206 | 0 | 0 | 0 |
+| french | 61968 | 61580 | 388 | 0 | 0 | 0 |
+| ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
 | labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 4.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 7.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (76s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (39s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (42s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| clamp (85s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
-| truncateMiddle (5s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+| shrinkwrap (80s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
+| balance (56s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
+| fitFontSize (91s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
+| fitFontSizeRich (55s) | 203944 | 203944 | 0 | 0 | 0 | 0 |
+| clamp (142s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
+| truncateMiddle (7s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 182337 | 0 | 2367 | 0 | 0 |
+| latin | 230880 | 228513 | 0 | 2367 | 0 | 0 |
 | cjk | 184704 | 183915 | 0 | 789 | 0 | 0 |
 | arabic | 184704 | 183852 | 0 | 852 | 0 | 0 |
-| emoji-chat | 184704 | 184584 | 11 | 109 | 0 | 0 |
+| emoji-chat | 230880 | 230760 | 11 | 109 | 0 | 0 |
 | urls | 184704 | 182193 | 81 | 2430 | 0 | 0 |
-| german | 200112 | 198354 | 470 | 1288 | 0 | 0 |
-| french | 200112 | 198852 | 536 | 724 | 0 | 0 |
+| german | 246288 | 244530 | 470 | 1288 | 0 | 0 |
+| french | 246288 | 245028 | 536 | 724 | 0 | 0 |
+| ui-labels | 19240 | 19240 | 0 | 0 | 0 | 0 |
 | labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 1.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 2.0 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (20s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
-| balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (13s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| clamp (24s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
-| truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| shrinkwrap (30s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (17s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (21s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSizeRich (13s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
+| clamp (38s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 46464 | 45866 | 0 | 598 | 0 | 0 |
+| latin | 58080 | 57482 | 0 | 598 | 0 | 0 |
 | cjk | 46464 | 46253 | 0 | 211 | 0 | 0 |
 | arabic | 46464 | 46242 | 0 | 222 | 0 | 0 |
-| emoji-chat | 46464 | 46424 | 8 | 32 | 0 | 0 |
+| emoji-chat | 58080 | 58040 | 8 | 32 | 0 | 0 |
 | urls | 46464 | 45838 | 18 | 608 | 0 | 0 |
-| german | 50352 | 49908 | 121 | 323 | 0 | 0 |
-| french | 50352 | 50022 | 138 | 192 | 0 | 0 |
+| german | 61968 | 61524 | 121 | 323 | 0 | 0 |
+| french | 61968 | 61638 | 138 | 192 | 0 | 0 |
+| ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
 | labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 1.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 1.6 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (20s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
-| balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (13s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| clamp (26s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| shrinkwrap (26s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (13s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (16s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSizeRich (10s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
+| clamp (28s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 46464 | 45866 | 0 | 598 | 0 | 0 |
+| latin | 58080 | 57482 | 0 | 598 | 0 | 0 |
 | cjk | 46464 | 46253 | 0 | 211 | 0 | 0 |
 | arabic | 46464 | 46242 | 0 | 222 | 0 | 0 |
-| emoji-chat | 46464 | 46424 | 8 | 32 | 0 | 0 |
+| emoji-chat | 58080 | 58040 | 8 | 32 | 0 | 0 |
 | urls | 46464 | 45838 | 18 | 608 | 0 | 0 |
-| german | 50352 | 49908 | 121 | 323 | 0 | 0 |
-| french | 50352 | 50022 | 138 | 192 | 0 | 0 |
+| german | 61968 | 61524 | 121 | 323 | 0 | 0 |
+| french | 61968 | 61638 | 138 | 192 | 0 | 0 |
+| ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
 | labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 2.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 3.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (24s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
-| fitFontSize (27s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| clamp (87s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
-| truncateMiddle (8s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+| shrinkwrap (23s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
+| balance (25s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
+| fitFontSize (28s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
+| fitFontSizeRich (27s) | 203944 | 203718 | 226 | 0 | 0 | 0 |
+| clamp (98s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
+| truncateMiddle (9s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 184704 | 0 | 0 | 0 | 0 |
+| latin | 230880 | 230880 | 0 | 0 | 0 | 0 |
 | cjk | 184704 | 184704 | 0 | 0 | 0 | 0 |
 | arabic | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| emoji-chat | 184704 | 184704 | 0 | 0 | 0 | 0 |
+| emoji-chat | 230880 | 230727 | 153 | 0 | 0 | 0 |
 | urls | 184704 | 184378 | 326 | 0 | 0 | 0 |
-| german | 200112 | 199175 | 937 | 0 | 0 | 0 |
-| french | 200112 | 198909 | 1203 | 0 | 0 | 0 |
+| german | 246288 | 245306 | 982 | 0 | 0 | 0 |
+| french | 246288 | 245057 | 1231 | 0 | 0 | 0 |
+| ui-labels | 19240 | 19240 | 0 | 0 | 0 | 0 |
 | labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 0.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 1.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -286,50 +314,54 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
 | shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
-| balance (7s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
-| fitFontSize (8s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
-| clamp (24s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
+| clamp (29s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| truncateMiddle (4s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| latin | 58080 | 58080 | 0 | 0 | 0 | 0 |
 | cjk | 46464 | 46464 | 0 | 0 | 0 | 0 |
 | arabic | 46464 | 46464 | 0 | 0 | 0 | 0 |
-| emoji-chat | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| emoji-chat | 58080 | 58041 | 39 | 0 | 0 | 0 |
 | urls | 46464 | 46383 | 81 | 0 | 0 | 0 |
-| german | 50352 | 50112 | 240 | 0 | 0 | 0 |
-| french | 50352 | 50054 | 298 | 0 | 0 | 0 |
+| german | 61968 | 61717 | 251 | 0 | 0 | 0 |
+| french | 61968 | 61663 | 305 | 0 | 0 | 0 |
+| ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
 | labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 0.9 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 1.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (6s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
-| balance (7s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
-| fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
-| clamp (25s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
+| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| fitFontSize (10s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
+| clamp (28s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
 | truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| latin | 58080 | 58080 | 0 | 0 | 0 | 0 |
 | cjk | 46464 | 46464 | 0 | 0 | 0 | 0 |
 | arabic | 46464 | 46464 | 0 | 0 | 0 | 0 |
-| emoji-chat | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| emoji-chat | 58080 | 58041 | 39 | 0 | 0 | 0 |
 | urls | 46464 | 46383 | 81 | 0 | 0 | 0 |
-| german | 50352 | 50112 | 240 | 0 | 0 | 0 |
-| french | 50352 | 50054 | 298 | 0 | 0 | 0 |
+| german | 61968 | 61717 | 251 | 0 | 0 | 0 |
+| french | 61968 | 61663 | 305 | 0 | 0 | 0 |
+| ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
 | labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## kit-mismatch cases
@@ -410,7 +442,7 @@ None.
 
 ## pretext-gap cases
 
-21297 cases in 1782 distinct findings, grouped by text and pattern, with the cases per browser@factor.
+21978 cases in 1893 distinct findings, grouped by text and pattern, with the cases per browser@factor.
 
 - shrinkwrap latin "Gatsby decencies": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Helvetica Neue; 375-375px). E.g. chromium@1 Helvetica Neue @ 375px: widest line: DOM 375.0078125px (wants 375), Pretext 367.6477355957031px (gave 368)
 - shrinkwrap latin "Latin compatibility": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Arial; 317-317px). E.g. chromium@1 Arial @ 317px: widest line: DOM 317.0078125px (wants 317), Pretext 283.6875px (gave 284)
@@ -564,6 +596,36 @@ None.
 - fitFontSize french "Syndicats": baseline: DOM N lines, Pretext N (chromium@1 16, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 134-155px). E.g. chromium@1 Helvetica Neue @ 150px: baseline: DOM 6 lines, Pretext 5
 - fitFontSize french "Récit": baseline: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 302-302px). E.g. chromium@1 Helvetica Neue @ 302px: baseline: DOM 3 lines, Pretext 4
 - fitFontSize french "Récit": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 415-415px). E.g. chromium@1 Helvetica Neue @ 415px: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- fitFontSizeRich latin "Latin short": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue; 395-526px). E.g. chromium@1 Helvetica Neue @ 395px box height 72: returned 17px, at 18px: DOM 2 lines, Pretext 3
+- fitFontSizeRich latin "Latin punctuation": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1; Helvetica Neue; 259-259px). E.g. chromium@1 Helvetica Neue @ 259px box height 72: returned 12px, at 12px: DOM 3 lines, Pretext 4
+- fitFontSizeRich latin "Gatsby reserve": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1; Times New Roman; 148-148px). E.g. chromium@1 Times New Roman @ 148px box height 72: returned 9px, at 10px: DOM 5 lines, Pretext 6
+- fitFontSizeRich emoji-chat "Emoji mixed": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 8, chromium@1.25 2, chromium@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 330-361px). E.g. chromium@1 Helvetica Neue @ 360px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Emoji dense": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 11, chromium@1.25 2, chromium@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 287-311px). E.g. chromium@1 Helvetica Neue @ 310px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Status emoji": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 7, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 320-398px). E.g. chromium@1 Helvetica Neue @ 352px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Lunch plans": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 6, chromium@1.25 2, chromium@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 203-222px). E.g. chromium@1 Helvetica Neue @ 221px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Ship it": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 8, chromium@1.25 1, chromium@2 1; Helvetica Neue, Arial, Georgia, Times New Roman; 321-349px). E.g. chromium@1 Helvetica Neue @ 348px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Reactions only": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 24, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 153-158px). E.g. chromium@1 Helvetica Neue @ 153px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Skin tones": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 8, chromium@1.25 1, chromium@2 1; Helvetica Neue, Arial, Georgia, Times New Roman; 209-227px). E.g. chromium@1 Helvetica Neue @ 226px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Flags": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 18, chromium@1.25 5, chromium@2 5; Helvetica Neue, Arial, Georgia, Times New Roman; 192-563px). E.g. chromium@1 Helvetica Neue @ 333px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Keycaps": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 8, chromium@1.25 2, chromium@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 227-243px). E.g. chromium@1 Helvetica Neue @ 241px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "ZWJ family": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 9, chromium@1.25 2, chromium@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 284-307px). E.g. chromium@1 Helvetica Neue @ 306px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Glued emoji": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 8, chromium@1.25 3, chromium@2 3; Helvetica Neue, Arial, Georgia, Times New Roman; 195-212px). E.g. chromium@1 Helvetica Neue @ 211px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Weather report": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 9, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 256-272px). E.g. chromium@1 Helvetica Neue @ 268px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich german "Datenschutz": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 2, chromium@2 2, firefox@1 2, firefox@1.25 1, firefox@2 1; Helvetica Neue, Arial; 190-524px). E.g. chromium@1 Helvetica Neue @ 524px box maxLines 1: returned 9px, at 10px: DOM 1 lines, Pretext 2
+- fitFontSizeRich german "Kapitän": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 7, chromium@1.25 2, chromium@2 2, firefox@1 6, firefox@1.25 3, firefox@2 3; Helvetica Neue, Arial, Times New Roman; 244-595px). E.g. chromium@1 Helvetica Neue @ 455px box maxLines 1: returned 9px, at 9px: DOM 2 lines, Pretext 1
+- fitFontSizeRich german "Fehlermeldung": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 1, firefox@2 1; Helvetica Neue; 165-389px). E.g. chromium@1 Helvetica Neue @ 350px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich german "Förderung": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 26, chromium@1.25 6, chromium@2 6, firefox@1 27, firefox@1.25 6, firefox@2 6; Helvetica Neue, Arial, Times New Roman; 219-587px). E.g. chromium@1 Helvetica Neue @ 463px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich german "One word": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 3, chromium@1.25 1, chromium@2 1, firefox@1 3; Helvetica Neue; 354-566px). E.g. chromium@1 Helvetica Neue @ 354px box maxLines 1: returned 9px, at 10px: DOM 1 lines, Pretext 2
+- fitFontSizeRich german "Portal": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1; Arial; 418-418px). E.g. chromium@1 Arial @ 418px box height 72: returned 16px, at 16px: DOM 2 lines, Pretext 3
+- fitFontSizeRich german "Nebenrollen": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 25, chromium@1.25 8, chromium@2 8; Georgia, Times New Roman; 120-169px). E.g. chromium@1 Georgia @ 128px box height 72: returned 10px, at 10px: DOM 5 lines, Pretext 4
+- fitFontSizeRich french "Synchroniser": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 7, chromium@1.25 1, chromium@2 1, firefox@1 7, firefox@1.25 1, firefox@2 1; Helvetica Neue; 209-593px). E.g. chromium@1 Helvetica Neue @ 593px box maxLines 1: returned 14px, at 14px: DOM 2 lines, Pretext 1
+- fitFontSizeRich french "Justificatifs": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 5, chromium@1.25 1, chromium@2 1, firefox@1 7, firefox@1.25 2, firefox@2 2; Helvetica Neue, Times New Roman; 284-432px). E.g. chromium@1 Helvetica Neue @ 294px box height 72: returned 16px, at 17px: DOM 2 lines, Pretext 3
+- fitFontSizeRich french "Responsabilité": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1, firefox@1 5, firefox@1.25 1, firefox@2 1; Helvetica Neue; 179-568px). E.g. chromium@1 Helvetica Neue @ 554px box maxLines 1: returned 10px, at 10px: DOM 2 lines, Pretext 1
+- fitFontSizeRich french "Syndicats": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 2, chromium@2 2, firefox@1 5, firefox@1.25 2, firefox@2 2; Helvetica Neue; 396-554px). E.g. chromium@1 Helvetica Neue @ 462px box maxLines 1: returned 9px, at 10px: DOM 1 lines, Pretext 2
+- fitFontSizeRich french "Récit": null, at Npx: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 455-455px). E.g. chromium@1 Helvetica Neue @ 455px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich french "Récit": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1, firefox@1 2, firefox@1.25 1, firefox@2 1; Helvetica Neue; 203-512px). E.g. chromium@1 Helvetica Neue @ 512px box maxLines 1: returned 8px, at 9px: DOM 1 lines, Pretext 2
+- fitFontSizeRich french "Anticonstitutionnalité": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1; Arial; 208-208px). E.g. chromium@1 Arial @ 208px box height 72: returned 13px, at 13px: DOM 4 lines, Pretext 3
+- fitFontSizeRich ui-labels "Speichern": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1; Helvetica Neue; 126-126px). E.g. chromium@1 Helvetica Neue @ 126px box height 72: returned 24px, at 25px: DOM 3 lines, Pretext 2
 - clamp latin "Latin update": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1; Helvetica Neue; 462-462px). E.g. chromium@1 Helvetica Neue @ 462px maxLines 2: line 2 "performance improvements are really noticeable, especially on…" paints 462.0234375px, Pretext 462.015625px, box 462px
 - clamp latin "Latin hyphenation": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1, chromium@1.25 1, chromium@2 1; Helvetica Neue; 492-492px). E.g. chromium@1 Helvetica Neue @ 492px maxLines 1: line 1 "One thing I noticed is that the line breaking algorithm doesn't hand…" paints 492.0234375px, Pretext 492.0155792236328px, box 492px
 - clamp latin "Gatsby reserve": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1, chromium@1.25 1, chromium@2 1; Georgia; 592-592px). E.g. chromium@1 Georgia @ 592px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
@@ -629,6 +691,23 @@ None.
 - balance german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
 - balance german "One word": at Npx: DOM N lines, Pretext N (firefox@1 62, firefox@1.25 16, firefox@2 16; Helvetica Neue; 539-600px). E.g. firefox@1 Helvetica Neue @ 539px: at 538px: DOM 1 lines, Pretext 2
 - fitFontSize german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Emoji mixed": null, at Npx: DOM N lines, Pretext N (firefox@1 13, firefox@1.25 1, firefox@2 1; Helvetica Neue, Arial, Georgia, Times New Roman; 120-326px). E.g. firefox@1 Helvetica Neue @ 120px box maxLines 1: null, at 8px: DOM 3 lines, Pretext 4
+- fitFontSizeRich emoji-chat "Emoji dense": null, at Npx: DOM N lines, Pretext N (firefox@1 16, firefox@1.25 2, firefox@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 136-283px). E.g. firefox@1 Helvetica Neue @ 142px box maxLines 1: null, at 8px: DOM 2 lines, Pretext 3
+- fitFontSizeRich emoji-chat "Status emoji": null, at Npx: DOM N lines, Pretext N (firefox@1 11, firefox@1.25 5, firefox@2 5; Helvetica Neue, Arial, Georgia, Times New Roman; 123-317px). E.g. firefox@1 Helvetica Neue @ 123px box maxLines 1: null, at 8px: DOM 3 lines, Pretext 4
+- fitFontSizeRich emoji-chat "Lunch plans": null, at Npx: DOM N lines, Pretext N (firefox@1 5, firefox@1.25 3, firefox@2 3; Helvetica Neue, Arial, Georgia, Times New Roman; 184-201px). E.g. firefox@1 Helvetica Neue @ 200px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Ship it": null, at Npx: DOM N lines, Pretext N (firefox@1 12, firefox@1.25 3, firefox@2 3; Helvetica Neue, Arial, Georgia, Times New Roman; 153-315px). E.g. firefox@1 Helvetica Neue @ 166px box maxLines 1: null, at 8px: DOM 2 lines, Pretext 3
+- fitFontSizeRich emoji-chat "Reactions only": null, at Npx: DOM N lines, Pretext N (firefox@1 24, firefox@1.25 8, firefox@2 8; Helvetica Neue, Arial, Georgia, Times New Roman; 151-156px). E.g. firefox@1 Helvetica Neue @ 151px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Skin tones": null, at Npx: DOM N lines, Pretext N (firefox@1 8, firefox@1.25 1, firefox@2 1; Helvetica Neue, Arial, Georgia, Times New Roman; 190-206px). E.g. firefox@1 Helvetica Neue @ 205px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Flags": null, at Npx: DOM N lines, Pretext N (firefox@1 26, firefox@1.25 6, firefox@2 6; Helvetica Neue, Arial, Georgia, Times New Roman; 148-308px). E.g. firefox@1 Helvetica Neue @ 158px box maxLines 1: null, at 8px: DOM 2 lines, Pretext 3
+- fitFontSizeRich emoji-chat "Keycaps": null, at Npx: DOM N lines, Pretext N (firefox@1 8, firefox@1.25 3, firefox@2 3; Helvetica Neue, Arial, Georgia, Times New Roman; 207-220px). E.g. firefox@1 Helvetica Neue @ 219px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "ZWJ family": null, at Npx: DOM N lines, Pretext N (firefox@1 10, firefox@1.25 2, firefox@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 258-279px). E.g. firefox@1 Helvetica Neue @ 277px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Glued emoji": null, at Npx: DOM N lines, Pretext N (firefox@1 7, firefox@1.25 2, firefox@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 177-192px). E.g. firefox@1 Helvetica Neue @ 191px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich emoji-chat "Weather report": null, at Npx: DOM N lines, Pretext N (firefox@1 13, firefox@1.25 3, firefox@2 3; Helvetica Neue, Arial, Georgia, Times New Roman; 121-248px). E.g. firefox@1 Helvetica Neue @ 126px box maxLines 1: null, at 8px: DOM 2 lines, Pretext 3
+- fitFontSizeRich german "Datenschutz": null, at Npx: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 419-419px). E.g. firefox@1 Helvetica Neue @ 419px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich german "Fehlermeldung": null, at Npx: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 311-311px). E.g. firefox@1 Helvetica Neue @ 311px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich german "Förderung": null, at Npx: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 147-147px). E.g. firefox@1 Helvetica Neue @ 147px box maxLines 1: null, at 8px: DOM 3 lines, Pretext 4
+- fitFontSizeRich german "One word": null, at Npx: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 283-283px). E.g. firefox@1 Helvetica Neue @ 283px box maxLines 1: null, at 8px: DOM 1 lines, Pretext 2
+- fitFontSizeRich french "Justificatifs": null, at Npx: DOM N lines, Pretext N (firefox@1 1; Times New Roman; 126-126px). E.g. firefox@1 Times New Roman @ 126px box maxLines 1: null, at 8px: DOM 2 lines, Pretext 3
 - clamp urls "Query string": line N "…" paints Npx, Pretext Npx, box Npx (firefox@1 1; Helvetica Neue; 213-213px). E.g. firefox@1 Helvetica Neue @ 213px maxLines 5: line 4 "elevance&page=3&utm_sourc" paints 213.28334045410156px, Pretext 212.9833221435547px, box 213px
 - clamp german "Kapitän": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (firefox@1 2; Helvetica Neue; 262-262px). E.g. firefox@1 Helvetica Neue @ 262px maxLines 4: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
 - clamp german "One word": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px maxLines 1: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)

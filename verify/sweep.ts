@@ -1,14 +1,16 @@
 import { layout, layoutNextLine, measureLineStats, measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
 import type { LayoutCursor, PreparedTextWithSegments } from '@chenglou/pretext'
+import { measureRichInlineStats, prepareRichInline } from '@chenglou/pretext/rich-inline'
+import type { PreparedRichInline, RichInlineBox, RichInlineItem } from '@chenglou/pretext/rich-inline'
 import {
-  balance, clamp, clampStats, fitFontSize, fontFromStyle, measureTail, prepareLabel, prepareSizes, shrinkwrap, truncateMiddle,
+  balance, clamp, clampStats, fitFontSize, fitFontSizeRich, fontFromStyle, measureTail, prepareLabel, prepareSizes, prepareSizesRich, shrinkwrap, truncateMiddle,
 } from '../src/index.ts'
-import type { Clamped, FitResult, PreparedLabel, StyleFont, Tail } from '../src/index.ts'
-import { CORPORA, FONT_SIZE, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, LINE_HEIGHT, widths } from './corpora.ts'
+import type { Clamped, FitResult, FitResultRich, PreparedLabel, PreparedSizesRich, StyleFont, Tail } from '../src/index.ts'
+import { CORPORA, FONT_SIZE, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, LINE_HEIGHT, UI_LABELS, widths } from './corpora.ts'
 import type { FontStack } from './corpora.ts'
 import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
 
-export type Helper = 'shrinkwrap' | 'balance' | 'fitFontSize' | 'fontFromStyle' | 'clamp' | 'truncateMiddle'
+export type Helper = 'shrinkwrap' | 'balance' | 'fitFontSize' | 'fitFontSizeRich' | 'fontFromStyle' | 'clamp' | 'truncateMiddle'
 // 'platform' is a case the kit got wrong only because the browser paints something its CSS does
 // not say, with the mechanism proven for that case; cause names the mechanism. 'unreliable' is a
 // case whose painted height matched no line count, so the sweep could not count lines at all.
@@ -20,6 +22,8 @@ export type CaseResult = {
   width: number
   // clamp only: the maxLines the case was run with.
   maxLines?: number
+  // fitFontSizeRich only: the box the case was run with, 'maxLines 1' or 'height N'.
+  box?: string
   lines?: number
   outcome: Outcome
   detail?: string
@@ -54,7 +58,7 @@ const ELLIPSIS = '…'
 const CLAMP_MAX_LINES = 5
 
 // Step 1 everywhere unless a run overrides it; run.ts sets this when a browser is too slow at step 1.
-window.sweepWidthStep = { shrinkwrap: 1, balance: 1, fitFontSize: 1, clamp: 1, truncateMiddle: 1 }
+window.sweepWidthStep = { shrinkwrap: 1, balance: 1, fitFontSize: 1, fitFontSizeRich: 1, clamp: 1, truncateMiddle: 1 }
 window.sweepBrowser = ''
 
 const probe = document.getElementById('probe') as HTMLDivElement
@@ -398,6 +402,176 @@ function fitCase(stack: FontStack, text: string, width: number): Verdict & { cau
   return { ...v, outcome: 'platform', cause: WEBKIT_LINE_HEIGHT_FLOOR }
 }
 
+// ---- fitFontSizeRich: an icon and its label scaling together ----
+
+// Sizes 8-32 with whole-px line heights, so the WebKit 26 floor (a fractional line height) has
+// nothing to act on here. The height box holds three lines of the sweep's base 16px/24px text, so it
+// is fixed across the sizes searched, as a real box is.
+const RICH_MIN = 8
+const RICH_MAX = 32
+const RICH_HEIGHT = 3 * LINE_HEIGHT
+type RichBox = { width: number, maxLines?: number, height?: number }
+const RICH_BOXES: { name: string, of: (width: number) => RichBox }[] = [
+  { name: 'maxLines 1', of: width => ({ width, maxLines: 1 }) },
+  { name: `height ${RICH_HEIGHT}`, of: width => ({ width, height: RICH_HEIGHT }) },
+]
+const richLh = (px: number): number => Math.round(px * 1.5)
+const iconWidth = (px: number): number => Math.round(px * 1.25)
+const iconGap = (px: number): number => Math.round(px * 0.5)
+
+const rich = document.getElementById('rich') as HTMLDivElement
+const richIcon = document.getElementById('rich-icon') as HTMLSpanElement
+const richLabel = document.getElementById('rich-label') as HTMLSpanElement
+
+// The row as the kit is handed it and as the harness measures it: the icon's box, then the label
+// with its gap as extraWidth, in the font computed style gives at that size.
+function richRow(stack: FontStack, text: string, px: number): Array<RichInlineItem | RichInlineBox> {
+  const f = fontAt(stack, px, richLh(px))
+  return [{ width: iconWidth(px) }, { text, font: f.font, letterSpacing: f.letterSpacing, extraWidth: iconGap(px) }]
+}
+
+// Pretext's own preparation of the row, made here and never taken from the kit.
+const richCache = new Map<string, { p: PreparedRichInline, unit: number }>()
+function richModel(stack: FontStack, text: string, px: number): { p: PreparedRichInline, unit: number } {
+  const key = `${stack.label}|${px}|${text}`
+  let m = richCache.get(key)
+  if (m === undefined) {
+    const p = prepareRichInline(richRow(stack, text, px))
+    // The widest piece no width breaks: the row laid out at width 0.
+    m = { p, unit: measureRichInlineStats(p, 0).maxLineWidth }
+    richCache.set(key, m)
+  }
+  return m
+}
+
+function paintRich(stack: FontStack, text: string, px: number, width: number): Painted {
+  const lh = richLh(px)
+  styleEl(rich, stack, px, lh)
+  rich.style.width = `${width}px`
+  richIcon.style.width = `${iconWidth(px)}px`
+  richIcon.style.height = `${px}px`
+  richLabel.style.marginLeft = `${iconGap(px)}px`
+  if (richLabel.textContent !== text) richLabel.textContent = text
+  const height = rich.getBoundingClientRect().height
+  return { ...countLines(height, lh), height, scrollWidth: rich.scrollWidth }
+}
+
+// The widest painted line of the row, measured from the container's left edge (the row is left to
+// right and every line starts there: the icon on the first, the cloned margin on the rest) to the
+// rightmost fragment of the icon or of a non-white-space run on that line. Fragments are assigned to
+// lines by their vertical centre.
+function widestPaintedRow(lh: number): number {
+  const box = rich.getBoundingClientRect()
+  const right = new Map<number, number>()
+  const add = (r: DOMRect): void => {
+    if (r.width === 0) return
+    const line = Math.floor((r.top + r.height / 2 - box.top) / lh)
+    right.set(line, Math.max(right.get(line) ?? -Infinity, r.right))
+  }
+  add(richIcon.getBoundingClientRect())
+  const node = richLabel.firstChild
+  if (node !== null) {
+    const text = node.textContent ?? ''
+    const range = document.createRange()
+    for (const m of text.matchAll(NON_SPACE)) {
+      range.setStart(node, m.index)
+      range.setEnd(node, m.index + m[0].length)
+      for (const r of range.getClientRects()) add(r)
+    }
+  }
+  let widest = 0
+  for (const r of right.values()) widest = Math.max(widest, r - box.left)
+  return widest
+}
+
+// The kit's "fits", mirrored from Pretext's numbers: no line overflows (every line within W + 1/64,
+// or no unbreakable piece wider than that) and the line count within the box.
+function richModelFits(stack: FontStack, text: string, px: number, box: RichBox): boolean {
+  const { p, unit } = richModel(stack, text, px)
+  const s = measureRichInlineStats(p, box.width)
+  if (s.maxLineWidth > box.width + FIT && unit > box.width + FIT) return false
+  if (box.maxLines !== undefined && s.lineCount > box.maxLines) return false
+  if (box.height !== undefined && s.lineCount * richLh(px) > box.height) return false
+  return true
+}
+
+function judgeRichModel(result: FitResultRich | null, stack: FontStack, text: string, box: RichBox): Verdict | undefined {
+  if (result === null) {
+    return richModelFits(stack, text, RICH_MIN, box) ? { outcome: 'kit-mismatch', detail: `null, but Pretext fits ${RICH_MIN}px` } : undefined
+  }
+  const px = result.px
+  const said = `returned ${px}px with ${result.lineCount} lines`
+  if (!Number.isInteger(px) || px < RICH_MIN || px > RICH_MAX) return { outcome: 'kit-mismatch', detail: `${said}, outside ${RICH_MIN}-${RICH_MAX}` }
+  const model = measureRichInlineStats(richModel(stack, text, px).p, box.width).lineCount
+  const handle = measureRichInlineStats(result.prepared, box.width).lineCount
+  if (result.lineCount !== model || handle !== model) {
+    return { outcome: 'kit-mismatch', detail: `${said}, its handle lays out ${handle}, Pretext ${model}` }
+  }
+  if (!richModelFits(stack, text, px, box)) return { outcome: 'kit-mismatch', detail: `${said}, which Pretext does not fit` }
+  if (px < RICH_MAX && richModelFits(stack, text, px + 1, box)) return { outcome: 'kit-mismatch', detail: `${said}, but Pretext fits ${px + 1}px` }
+  return undefined
+}
+
+// The painted row at one size judged as the box would judge it, with Pretext's count beside it.
+function checkRich(stack: FontStack, text: string, px: number, box: RichBox): SizeCheck {
+  const lh = richLh(px)
+  const painted = paintRich(stack, text, px, box.width)
+  let fits = painted.scrollWidth <= box.width
+  if (box.maxLines !== undefined) fits = fits && painted.lines <= box.maxLines
+  if (box.height !== undefined) fits = fits && painted.height <= box.height
+  const { p } = richModel(stack, text, px)
+  const s = measureRichInlineStats(p, box.width)
+  let widest: number | undefined
+  if (s.maxLineWidth > box.width + FIT) {
+    widest = widestPaintedRow(lh)
+    fits = fits && widest <= box.width + FIT
+  }
+  const check: SizeCheck = { fits, painted }
+  if (widest !== undefined) check.widest = widest
+  const gap = gapAt(painted.lines, s.lineCount, `at ${px}px`)
+  if (gap !== undefined) check.gap = gap
+  return check
+}
+
+function describeRich(px: number, c: SizeCheck, width: number): string {
+  const overflow = (c.painted.scrollWidth > width ? `, scrollWidth ${c.painted.scrollWidth}` : '')
+    + (c.widest !== undefined ? `, widest painted line ${c.widest}` : '')
+  return `${px}px paints ${c.painted.lines} lines of ${richLh(px)} = ${c.painted.height}${overflow}`
+}
+
+function judgeRichDom(result: FitResultRich | null, stack: FontStack, text: string, box: RichBox): Verdict {
+  if (result === null) {
+    const at = checkRich(stack, text, RICH_MIN, box)
+    if (at.gap !== undefined) return { outcome: 'pretext-gap', detail: `null, ${at.gap}` }
+    if (!at.fits) return { outcome: 'pass', lines: at.painted.lines }
+    return { outcome: 'kit-mismatch', lines: at.painted.lines, detail: `null, but ${describeRich(RICH_MIN, at, box.width)}` }
+  }
+  const at = checkRich(stack, text, result.px, box)
+  if (at.gap !== undefined) return { outcome: 'pretext-gap', detail: `returned ${result.px}px, ${at.gap}` }
+  const lines = at.painted.lines
+  if (!at.fits) return { outcome: 'kit-mismatch', lines, detail: `returned ${result.px}px, but ${describeRich(result.px, at, box.width)}` }
+  if (result.px < RICH_MAX) {
+    const next = checkRich(stack, text, result.px + 1, box)
+    if (next.gap !== undefined) return { outcome: 'pretext-gap', detail: `returned ${result.px}px, ${next.gap}` }
+    if (next.fits) return { outcome: 'kit-mismatch', lines, detail: `returned ${result.px}px, but ${describeRich(result.px + 1, next, box.width)} and fits` }
+  }
+  return { outcome: 'pass', lines }
+}
+
+const richSizesCache = new Map<string, PreparedSizesRich>()
+function richCase(stack: FontStack, text: string, box: RichBox): Verdict {
+  // Prepared once per text and font and reused across widths and boxes, as the kit intends.
+  const key = `${stack.label}|${text}`
+  let sizes = richSizesCache.get(key)
+  if (sizes === undefined) {
+    sizes = prepareSizesRich(px => richRow(stack, text, px), { min: RICH_MIN, max: RICH_MAX })
+    richSizesCache.set(key, sizes)
+  }
+  const lineHeight = (px: number): number => fontAt(stack, px, richLh(px)).lineHeight
+  const result = fitFontSizeRich(sizes, box, lineHeight)
+  return judgeRichModel(result, stack, text, box) ?? judgeRichDom(result, stack, text, box)
+}
+
 // ---- clamp and truncateMiddle ----
 
 type CaseVerdict = { outcome: Outcome, lines?: number, detail?: string, cause?: string }
@@ -699,7 +873,12 @@ window.fontPresence = async (): Promise<FontPresence[]> => {
 // truncateMiddle sweeps the labels it is for, and the soft-hyphenated corpora as every helper does.
 const MIDDLE_CORPORA = [LABELS, ...CORPORA.filter(c => c.name === 'german' || c.name === 'french')]
 
-const corporaFor = (helper: Helper) => helper === 'truncateMiddle' ? MIDDLE_CORPORA : helper === 'fontFromStyle' ? [] : CORPORA
+// fitFontSizeRich sweeps the left-to-right corpora an icon row holds, and real UI labels.
+const RICH_CORPORA = [...CORPORA.filter(c => ['latin', 'german', 'french', 'emoji-chat'].includes(c.name)), UI_LABELS]
+
+const corporaFor = (helper: Helper) => helper === 'truncateMiddle' ? MIDDLE_CORPORA
+  : helper === 'fitFontSizeRich' ? RICH_CORPORA
+  : helper === 'fontFromStyle' ? [] : CORPORA
 window.sweepCorpora = (helper: Helper): string[] => corporaFor(helper).map(c => c.name)
 
 window.sweep = async (helper: Helper, only?: string): Promise<CaseResult[]> => {
@@ -708,17 +887,20 @@ window.sweep = async (helper: Helper, only?: string): Promise<CaseResult[]> => {
   const step = window.sweepWidthStep[helper] ?? 1
   const ws = helper === 'truncateMiddle' ? widths(step, LABEL_WIDTH_MIN, LABEL_WIDTH_MAX) : widths(step)
   const maxLinesList = helper === 'clamp' ? Array.from({ length: CLAMP_MAX_LINES }, (_, i) => i + 1) : [undefined]
+  const boxes = helper === 'fitFontSizeRich' ? RICH_BOXES : [undefined]
   const out: CaseResult[] = []
   for (const corpus of corporaFor(helper).filter(c => only === undefined || c.name === only)) {
     for (const stack of FONT_STACKS) {
       for (const { label, text } of corpus.texts) {
-        for (const maxLines of maxLinesList) {
+        for (const maxLines of maxLinesList) for (const box of boxes) {
           for (const w of ws) {
             const base: CaseResult = { helper, corpus: corpus.name, font: stack.label, width: w, outcome: 'pass' }
             if (maxLines !== undefined) base.maxLines = maxLines
+            if (box !== undefined) base.box = box.name
             let v: CaseVerdict
             try {
               if (helper === 'fitFontSize') v = fitCase(stack, text, w)
+              else if (helper === 'fitFontSizeRich') v = richCase(stack, text, box!.of(w))
               else if (helper === 'clamp') v = clampCase(stack, text, w, maxLines!)
               else if (helper === 'truncateMiddle') v = truncateMiddleCase(stack, text, w)
               else v = widthCase(helper, stack, text, w)

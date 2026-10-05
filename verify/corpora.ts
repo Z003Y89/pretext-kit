@@ -211,3 +211,16 @@ export const LABELS: Corpus = {
     { label: 'Short', text: 'docs/README.md' },
   ],
 }
+
+// fitFontSizeRich's own labels: real UI labels set beside an icon, as given (not hyphenated: a
+// button label carries no soft hyphens unless its author put them in). Written for the sweep.
+export const UI_LABELS: Corpus = {
+  name: 'ui-labels',
+  texts: [
+    { label: 'Record', text: '207/0011 Dr. Lind' },
+    { label: 'Abonnieren', text: 'Zahlungspflichtig abonnieren' },
+    { label: 'Tagesabschlussbericht', text: '„Tagesabschlussbericht“' },
+    { label: 'Enregistrer', text: 'Enregistrer les modifications' },
+    { label: 'Speichern', text: 'Speichern' },
+  ],
+}

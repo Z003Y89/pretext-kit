@@ -15,6 +15,10 @@
     "pretext-gap": 304,
     "unreliable": 0
   },
+  "chromium@1/fitFontSizeRich": {
+    "pretext-gap": 221,
+    "unreliable": 0
+  },
   "chromium@1/clamp": {
     "pretext-gap": 577,
     "unreliable": 0
@@ -37,6 +41,10 @@
   },
   "chromium@1.25/fitFontSize": {
     "pretext-gap": 71,
+    "unreliable": 0
+  },
+  "chromium@1.25/fitFontSizeRich": {
+    "pretext-gap": 60,
     "unreliable": 0
   },
   "chromium@1.25/clamp": {
@@ -63,6 +71,10 @@
     "pretext-gap": 71,
     "unreliable": 0
   },
+  "chromium@2/fitFontSizeRich": {
+    "pretext-gap": 60,
+    "unreliable": 0
+  },
   "chromium@2/clamp": {
     "pretext-gap": 148,
     "unreliable": 0
@@ -84,6 +96,10 @@
     "unreliable": 0
   },
   "webkit@1/fitFontSize": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
+  "webkit@1/fitFontSizeRich": {
     "pretext-gap": 0,
     "unreliable": 0
   },
@@ -111,6 +127,10 @@
     "pretext-gap": 0,
     "unreliable": 0
   },
+  "webkit@1.25/fitFontSizeRich": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
   "webkit@1.25/clamp": {
     "pretext-gap": 25,
     "unreliable": 0
@@ -132,6 +152,10 @@
     "unreliable": 0
   },
   "webkit@2/fitFontSize": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
+  "webkit@2/fitFontSizeRich": {
     "pretext-gap": 0,
     "unreliable": 0
   },
@@ -159,6 +183,10 @@
     "pretext-gap": 51,
     "unreliable": 0
   },
+  "firefox@1/fitFontSizeRich": {
+    "pretext-gap": 226,
+    "unreliable": 0
+  },
   "firefox@1/clamp": {
     "pretext-gap": 89,
     "unreliable": 0
@@ -183,6 +211,10 @@
     "pretext-gap": 12,
     "unreliable": 0
   },
+  "firefox@1.25/fitFontSizeRich": {
+    "pretext-gap": 57,
+    "unreliable": 0
+  },
   "firefox@1.25/clamp": {
     "pretext-gap": 22,
     "unreliable": 0
@@ -205,6 +237,10 @@
   },
   "firefox@2/fitFontSize": {
     "pretext-gap": 12,
+    "unreliable": 0
+  },
+  "firefox@2/fitFontSizeRich": {
+    "pretext-gap": 57,
     "unreliable": 0
   },
   "firefox@2/clamp": {

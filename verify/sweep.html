@@ -6,7 +6,7 @@
 <style>
   /* Every property Pretext models is pinned here or set per case, so the probe paints only what was measured. */
   body { margin: 0; }
-  #probe, #clamp, #line {
+  #probe, #clamp, #line, #rich {
     position: absolute;
     top: 0;
     left: 0;
@@ -38,12 +38,30 @@
   #line {
     white-space: pre;
   }
+  /* An icon and its label as one row: widths, heights and the label's margin-left are set per case. */
+  #rich-icon {
+    display: inline-block;
+    vertical-align: top;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  /* Pretext charges a wrapped item's extraWidth on every line it reaches (its README), as clone pads
+     each fragment of a span; the default (slice) would give the margin to the first line only. */
+  #rich-label {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
 </style>
 </head>
 <body>
 <div id="probe"></div>
 <div id="clamp"></div>
 <span id="line"></span>
+<div id="rich"><span id="rich-icon"></span><span id="rich-label"></span></div>
 <script src="dist/sweep.js"></script>
 </body>
 </html>

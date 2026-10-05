@@ -30,7 +30,7 @@ const only = args.find(a => a.startsWith('--only='))?.slice(7).split(',')
 const helperArg = args.find(a => a.startsWith('--helpers='))?.slice(10).split(',') as Helper[] | undefined
 // Width steps per helper, e.g. --steps=fitFontSize:4, for when step 1 is too slow in a browser.
 const stepArg = args.find(a => a.startsWith('--steps='))?.slice(8).split(',')
-const steps: Record<string, number> = { shrinkwrap: 1, balance: 1, fitFontSize: 1, clamp: 1, truncateMiddle: 1 }
+const steps: Record<string, number> = { shrinkwrap: 1, balance: 1, fitFontSize: 1, fitFontSizeRich: 1, clamp: 1, truncateMiddle: 1 }
 for (const s of stepArg ?? []) {
   const [k, v] = s.split(':')
   if (k !== undefined && v !== undefined) steps[k] = Number(v)
@@ -51,7 +51,7 @@ const stepsAt = (factor: number): Record<string, number> =>
 const updateBaseline = args.includes('--update-baseline') || process.env.npm_config_update_baseline === 'true'
 
 const BROWSERS: [string, BrowserType][] = [['chromium', chromium], ['webkit', webkit], ['firefox', firefox]]
-const HELPERS: Helper[] = helperArg ?? ['fontFromStyle', 'shrinkwrap', 'balance', 'fitFontSize', 'clamp', 'truncateMiddle']
+const HELPERS: Helper[] = helperArg ?? ['fontFromStyle', 'shrinkwrap', 'balance', 'fitFontSize', 'fitFontSizeRich', 'clamp', 'truncateMiddle']
 const OUTCOMES = ['pass', 'pretext-gap', 'platform', 'unreliable', 'kit-mismatch'] as const
 // Outcomes that hide whether the kit is right; a rise in either could be a kit bug in disguise,
 // so their counts are held to a committed baseline.
@@ -131,7 +131,7 @@ function grouped(cases: Located[]): string[] {
     const key = `${head}|${pattern}`
     let g = groups.get(key)
     if (g === undefined) {
-      g = { head, pattern, where: new Map(), fonts: new Set(), min: c.width, max: c.width, example: `${browser}@${factor} ${c.font} @ ${c.width}px${c.maxLines === undefined ? '' : ` maxLines ${c.maxLines}`}: ${rest}` }
+      g = { head, pattern, where: new Map(), fonts: new Set(), min: c.width, max: c.width, example: `${browser}@${factor} ${c.font} @ ${c.width}px${c.maxLines === undefined ? '' : ` maxLines ${c.maxLines}`}${c.box === undefined ? '' : ` box ${c.box}`}: ${rest}` }
       groups.set(key, g)
     }
     const at = `${browser}@${factor}`
@@ -223,6 +223,20 @@ if (full) {
     'clamped height must match, and every line painted in a `white-space: pre` span (the cut one followed by `…`) must',
     'be no wider than W + 1/64.',
     '',
+    'fitFontSizeRich sizes an icon and its label as one row, at 8-32px with line height round(1.5·px): an',
+    '`inline-block; vertical-align: top` icon round(1.25·px) wide and px tall, then the label with',
+    '`margin-left: round(0.5·px)px` (the row\'s `extraWidth`, and `box-decoration-break: clone`, since Pretext charges',
+    'a wrapped item\'s extraWidth on every line), in a `white-space: normal; overflow-wrap: break-word` box of width W,',
+    `with the boxes { width: W, maxLines: 1 } and { width: W, height: 72 } (three 24px lines). Corpora: latin, german,`,
+    'french, emoji-chat and ui-labels (real labels such as "Zahlungspflichtig abonnieren", not hyphenated). By Pretext,',
+    'computed in the harness from `prepareRichInline` and `measureRichInlineStats` (never the kit): the handle and',
+    'lineCount must match Pretext\'s count at W, the size must fit (no line past W + 1/64 unless no unbreakable piece,',
+    'the row at width 0, is wider than that; the count within maxLines or count × line height within the height) and',
+    'the next size must not; null only when 8px does not fit. Then the painting: at the answer and the next size, the',
+    'painted line count must match Pretext\'s (else pretext-gap), and the answer must fit the box (lines or height,',
+    'scrollWidth ≤ W and, where Pretext reports a line past W, the widest painted line, from the box\'s left edge to',
+    'the rightmost icon or text fragment on it, within W + 1/64) while the next size must not.',
+    '',
     `truncateMiddle runs on path labels, and on the German and French corpora, at widths ${LABEL_WIDTH_MIN}-${LABEL_WIDTH_MAX}px, with`,
     'keepEnd from the last `/` where there is one. By Pretext: the whole label exactly when its natural width fits;',
     'otherwise a start of the label, `…` and an end of it (compared without soft hyphens, which Pretext\'s line text',
@@ -302,7 +316,7 @@ if (full) {
 }
 
 for (const { browser, factor, c } of mismatches.slice(0, 50)) {
-  const maxLines = c.maxLines === undefined ? '' : ` maxLines ${c.maxLines}`
+  const maxLines = (c.maxLines === undefined ? '' : ` maxLines ${c.maxLines}`) + (c.box === undefined ? '' : ` box ${c.box}`)
   console.log(`kit-mismatch ${browser}@${factor} ${c.helper}${maxLines} ${c.corpus} / ${c.font} @ ${c.width}px: ${c.detail}`)
 }
 for (const f of failures) console.log(`FAIL ${f}`)
