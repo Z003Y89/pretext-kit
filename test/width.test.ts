@@ -18,6 +18,22 @@ test('never wider than a fractional maxWidth', () => {
   assert.deepEqual(shrinkwrap(nine, 94.5), { width: 94.5, lineCount: 1 })
   assert.deepEqual(balance(p('aa bb cc dd ee'), 94.5), { width: 70, lineCount: 2 })
 })
+test('balance keeps a width whose line Pretext fits within its tolerance', () => {
+  // 'aa bb cc' measures 70.003px: Pretext fits it at 70, so 71 would be a pixel wider than needed.
+  const t = prepareWithSegments('aa bb cc dd ee', `${70.003 / 3.5}px Test`)
+  assert.equal(measureLineStats(t, 70).lineCount, 2)
+  assert.deepEqual(balance(t, 100), { width: 70, lineCount: 2 })
+})
+test('shrinkwrap keeps a whole pixel its widest line overshoots within tolerance', () => {
+  const t = prepareWithSegments('aa bb cc dd ee', `${70.003 / 3.5}px Test`)
+  assert.deepEqual(shrinkwrap(t, 80), { width: 70, lineCount: 2 })
+})
+test('shrinkwrap rounds up when the pixel below would change the lines', () => {
+  // 70.01px is past the slack Pretext gives a line, so 70 would break 'aa bb cc'.
+  const t = prepareWithSegments('aa bb cc dd ee', `${70.01 / 3.5}px Test`)
+  assert.equal(measureLineStats(t, 70).lineCount, 3)
+  assert.deepEqual(shrinkwrap(t, 80), { width: 71, lineCount: 2 })
+})
 test('narrower than a grapheme terminates with one grapheme a line', () =>
   assert.deepEqual(balance(p('abc'), 5), { width: 5, lineCount: 3 }))
 test('pre-wrap hard breaks keep their count', () => {

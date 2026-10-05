@@ -1,15 +1,16 @@
-import { layout, prepareWithSegments } from '@chenglou/pretext'
+import { layout, measureLineStats, prepareWithSegments } from '@chenglou/pretext'
 import type { PreparedTextWithSegments } from '@chenglou/pretext'
-import { balance, fitFontSize, fontFromStyle, prepareSizes, shrinkwrap } from '../src/index.ts'
-import type { StyleFont } from '../src/index.ts'
+import { balance, FIT_TOLERANCE, fitFontSize, fontFromStyle, prepareSizes, shrinkwrap } from '../src/index.ts'
+import type { FitResult, StyleFont } from '../src/index.ts'
 import { CORPORA, FONT_SIZE, FONT_STACKS, LINE_HEIGHT, widths } from './corpora.ts'
 import type { FontStack } from './corpora.ts'
 import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
 
-export type Helper = 'shrinkwrap' | 'balance' | 'fitFontSize' | 'clamp' | 'truncateMiddle'
+export type Helper = 'shrinkwrap' | 'balance' | 'fitFontSize' | 'fontFromStyle' | 'clamp' | 'truncateMiddle'
 // 'platform' is a case the kit got wrong only because the browser paints something its CSS does
-// not say, with the mechanism proven for that case; cause names the mechanism.
-export type Outcome = 'pass' | 'pretext-gap' | 'kit-mismatch' | 'platform'
+// not say, with the mechanism proven for that case; cause names the mechanism. 'unreliable' is a
+// case whose painted height matched no line count, so the sweep could not count lines at all.
+export type Outcome = 'pass' | 'pretext-gap' | 'kit-mismatch' | 'platform' | 'unreliable'
 export type CaseResult = {
   helper: string
   corpus: string
@@ -20,12 +21,15 @@ export type CaseResult = {
   detail?: string
   cause?: string
 }
-
+export type FontPresence = { family: string, present: boolean }
 
 declare global {
   interface Window {
     sweep: (helper: Helper) => Promise<CaseResult[]>
     sweepWidthStep: Record<string, number>
+    // Set by run.ts: a platform cause is only credited in the engine known to have it.
+    sweepBrowser: string
+    fontPresence: () => Promise<FontPresence[]>
   }
 }
 
@@ -35,9 +39,12 @@ const FIT_HEIGHT = 96
 const FIT_MIN = 8
 const FIT_MAX = 48
 const FIT_LINE_HEIGHT_RATIO = 1.5
+// Line boxes sit on at most a 1/64 px grid in every engine, so a height within this of n lines is n lines.
+const GRID = 1 / 64
 
 // Step 1 everywhere unless a run overrides it; run.ts sets this when a browser is too slow at step 1.
 window.sweepWidthStep = { shrinkwrap: 1, balance: 1, fitFontSize: 1 }
+window.sweepBrowser = ''
 
 const probe = document.getElementById('probe') as HTMLDivElement
 
@@ -75,45 +82,135 @@ function prepared(text: string, f: StyleFont): PreparedTextWithSegments {
   return p
 }
 
-type Painted = { lines: number, height: number, scrollWidth: number }
+// Thrown when a painted height is no whole number of lines, so the case is reported instead of
+// being judged on a rounded guess.
+class Unreliable extends Error {}
+
+// 'floor' means the height is lines × floor(line-height): an engine laying lines on whole pixels.
+type Painted = { lines: number, height: number, scrollWidth: number, grid: 'exact' | 'floor' }
+
+function countLines(height: number, lineHeight: number): { lines: number, grid: 'exact' | 'floor' } {
+  const exact = Math.round(height / lineHeight)
+  if (Math.abs(height - exact * lineHeight) <= GRID) return { lines: exact, grid: 'exact' }
+  const whole = Math.floor(lineHeight)
+  if (whole > 0) {
+    const floored = Math.round(height / whole)
+    if (Math.abs(height - floored * whole) <= GRID) return { lines: floored, grid: 'floor' }
+  }
+  throw new Unreliable(`height ${height} is no whole number of ${lineHeight}px or ${whole}px lines`)
+}
 
 function paint(stack: FontStack, text: string, px: number, lineHeight: number, width: number): Painted {
   styleProbe(stack, px, lineHeight)
   probe.style.width = `${width}px`
   if (probe.textContent !== text) probe.textContent = text
   const height = probe.getBoundingClientRect().height
-  return { lines: Math.round(height / lineHeight), height, scrollWidth: probe.scrollWidth }
+  return { ...countLines(height, lineHeight), height, scrollWidth: probe.scrollWidth }
 }
 
-// Wrapping, the line count, is all a height depends on, so a case where Pretext's own count at
-// the container width differs from the browser's cannot say anything about the kit.
-function baselineGap(stack: FontStack, text: string, f: StyleFont, width: number): string | undefined {
-  const dom = paint(stack, text, FONT_SIZE, LINE_HEIGHT, width).lines
-  const model = layout(prepared(text, f), width, LINE_HEIGHT).lineCount
-  return dom === model ? undefined : `baseline at ${width}px: DOM ${dom} lines, Pretext ${model}`
+// The widest painted line, from the fragments of each run of non-white-space characters. A
+// range over the whole text would include the white space a line ends with, which hangs past the
+// line and is not part of its width (as Pretext's widths leave it out). A line can be split into
+// several rects (bidi runs, fallback fonts), so its extent runs from its leftmost to rightmost
+// fragment; fragments are assigned to a line by their vertical centre, since fallback fonts give
+// fragments of one line different tops.
+const NON_SPACE = /\S+/g
+function widestPaintedLine(lineHeight: number): number {
+  const node = probe.firstChild
+  if (node === null) return 0
+  const text = node.textContent ?? ''
+  const range = document.createRange()
+  const top = probe.getBoundingClientRect().top
+  const extents = new Map<number, { left: number, right: number }>()
+  for (const m of text.matchAll(NON_SPACE)) {
+    range.setStart(node, m.index)
+    range.setEnd(node, m.index + m[0].length)
+    for (const r of range.getClientRects()) {
+      if (r.width === 0) continue
+      const line = Math.floor((r.top + r.height / 2 - top) / lineHeight)
+      const e = extents.get(line)
+      if (e === undefined) extents.set(line, { left: r.left, right: r.right })
+      else {
+        e.left = Math.min(e.left, r.left)
+        e.right = Math.max(e.right, r.right)
+      }
+    }
+  }
+  let widest = 0
+  for (const e of extents.values()) widest = Math.max(widest, e.right - e.left)
+  return widest
+}
+
+// Pretext's own count beside the browser's: where they differ the kit, which only builds on
+// Pretext's counts, cannot be judged.
+function gapAt(dom: number, model: number, where: string): string | undefined {
+  return dom === model ? undefined : `${where}: DOM ${dom} lines, Pretext ${model}`
 }
 
 function widthCase(
   helper: 'shrinkwrap' | 'balance',
-  corpus: string,
   stack: FontStack,
-  label: string,
   text: string,
   width: number,
-): CaseResult {
+): { outcome: Outcome, lines?: number, detail?: string } {
   const f = fontAt(stack, FONT_SIZE, LINE_HEIGHT)
-  const base = { helper, corpus, font: stack.label, width }
-  const gap = baselineGap(stack, text, f, width)
-  if (gap !== undefined) return { ...base, outcome: 'pretext-gap', detail: `${label}: ${gap}` }
-  const fit = (helper === 'shrinkwrap' ? shrinkwrap : balance)(prepared(text, f), width)
-  const dom = paint(stack, text, FONT_SIZE, LINE_HEIGHT, fit.width).lines
-  if (dom === fit.lineCount) return { ...base, lines: dom, outcome: 'pass' }
-  return {
-    ...base,
-    lines: dom,
-    outcome: 'kit-mismatch',
-    detail: `${label}: returned width ${fit.width} with ${fit.lineCount} lines, DOM paints ${dom} lines there`,
+  const p = prepared(text, f)
+  const atW = paint(stack, text, FONT_SIZE, LINE_HEIGHT, width)
+  const widest = helper === 'shrinkwrap' ? widestPaintedLine(LINE_HEIGHT) : 0
+  const gapW = gapAt(atW.lines, layout(p, width, LINE_HEIGHT).lineCount, 'baseline')
+  if (gapW !== undefined) return { outcome: 'pretext-gap', detail: gapW }
+
+  const fit = (helper === 'shrinkwrap' ? shrinkwrap : balance)(p, width)
+  const said = `returned width ${fit.width} with ${fit.lineCount} lines`
+  if (!(fit.width <= width)) return { outcome: 'kit-mismatch', detail: `${said}, wider than the box` }
+  if (fit.lineCount !== atW.lines) {
+    return { outcome: 'kit-mismatch', detail: `${said}, but the box paints ${atW.lines} lines` }
   }
+
+  const atFit = paint(stack, text, FONT_SIZE, LINE_HEIGHT, fit.width)
+  const gapFit = gapAt(atFit.lines, layout(p, fit.width, LINE_HEIGHT).lineCount, `at returned ${fit.width}px`)
+  if (gapFit !== undefined) return { outcome: 'pretext-gap', detail: gapFit }
+  if (atFit.lines !== fit.lineCount) {
+    return { outcome: 'kit-mismatch', lines: atFit.lines, detail: `${said}, DOM paints ${atFit.lines} lines there` }
+  }
+
+  if (helper === 'shrinkwrap') {
+    // Pretext's widest line must agree with the painted one, as its line counts must: a width
+    // Pretext measures differently is Pretext's gap. Agreement is within the slack Pretext itself
+    // allows a line, so a kit that rounds Pretext's width wrongly still shows as a mismatch.
+    const modelWidest = measureLineStats(p, width).maxLineWidth
+    if (Math.abs(modelWidest - widest) > FIT_TOLERANCE) {
+      return { outcome: 'pretext-gap', detail: `widest line: DOM ${widest}px, Pretext ${modelWidest}px` }
+    }
+    // Firefox hands app-unit positions back through floats with noise near 1e-5 px; 1/1024 px is
+    // far below any engine's layout unit, so it removes the noise without hiding a real overshoot.
+    const expected = Math.min(width, Math.ceil(widest - 1 / 1024))
+    if (fit.width === expected - 1) {
+      // Engines let a line overshoot its box by a sliver (Chromium 1/128 px, WebKit 1/64 px seen
+      // here), so a line painted 1/64 px past a pixel can still sit at that pixel. The answer is then
+      // right exactly when the browser paints the identical layout there: the same lines and the
+      // same widest line.
+      const same = widestPaintedLine(LINE_HEIGHT)
+      if (Math.abs(same - widest) <= 1 / 1024) return { outcome: 'pass', lines: atFit.lines }
+    }
+    if (fit.width !== expected) {
+      // The browser's answer must also be one Pretext reproduces: at the expected width Pretext
+      // must keep the painted lines, or the kit could not have answered it.
+      const atExpected = paint(stack, text, FONT_SIZE, LINE_HEIGHT, expected)
+      const gapE = gapAt(atExpected.lines, layout(p, expected, LINE_HEIGHT).lineCount, `at painted widest ${expected}px`)
+      if (gapE !== undefined) return { outcome: 'pretext-gap', detail: gapE }
+      return { outcome: 'kit-mismatch', lines: atFit.lines, detail: `${said}, widest painted line is ${widest}px` }
+    }
+  } else if (fit.width > 1) {
+    // Balance's claim is minimality: one pixel narrower must cost a line.
+    const narrower = paint(stack, text, FONT_SIZE, LINE_HEIGHT, fit.width - 1)
+    const gapN = gapAt(narrower.lines, layout(p, fit.width - 1, LINE_HEIGHT).lineCount, `at ${fit.width - 1}px`)
+    if (gapN !== undefined) return { outcome: 'pretext-gap', detail: gapN }
+    if (narrower.lines <= fit.lineCount) {
+      return { outcome: 'kit-mismatch', lines: atFit.lines, detail: `${said}, but ${fit.width - 1}px paints ${narrower.lines} lines` }
+    }
+  }
+  return { outcome: 'pass', lines: atFit.lines }
 }
 
 type SizeCheck = { fits: boolean, gap?: string, painted: Painted }
@@ -125,10 +222,9 @@ function checkSize(stack: FontStack, text: string, px: number, width: number): S
   const lh = px * FIT_LINE_HEIGHT_RATIO
   const f = fontAt(stack, px, lh)
   const painted = paint(stack, text, px, lh, width)
-  const model = layout(prepared(text, f), width, lh).lineCount
   const fits = painted.height <= FIT_HEIGHT && painted.scrollWidth <= width
-  if (painted.lines !== model) return { fits, painted, gap: `at ${px}px: DOM ${painted.lines} lines, Pretext ${model}` }
-  return { fits, painted }
+  const gap = gapAt(painted.lines, layout(prepared(text, f), width, lh).lineCount, `at ${px}px`)
+  return gap === undefined ? { fits, painted } : { fits, painted, gap }
 }
 
 // Reports the painted per-line height beside the CSS one, since an engine that snaps line boxes
@@ -150,7 +246,7 @@ type Verdict = {
   evidence?: { px: number, check: SizeCheck }
 }
 
-function judgeFit(result: ReturnType<typeof fitFontSize>, stack: FontStack, text: string, width: number): Verdict {
+function judgeFit(result: FitResult | null, stack: FontStack, text: string, width: number): Verdict {
   if (result === null) {
     const at = checkSize(stack, text, FIT_MIN, width)
     if (at.gap !== undefined) return { outcome: 'pretext-gap', detail: `null, ${at.gap}` }
@@ -159,13 +255,18 @@ function judgeFit(result: ReturnType<typeof fitFontSize>, stack: FontStack, text
   }
   const at = checkSize(stack, text, result.px, width)
   if (at.gap !== undefined) return { outcome: 'pretext-gap', detail: `returned ${result.px}px, ${at.gap}` }
-  if (!at.fits) {
+  const lines = at.painted.lines
+  // The result's own count and handle must describe what is painted, not only the chosen size.
+  const handleLines = layout(result.prepared, width, result.px * FIT_LINE_HEIGHT_RATIO).lineCount
+  if (result.lineCount !== lines || handleLines !== lines) {
     return {
       outcome: 'kit-mismatch',
-      lines: at.painted.lines,
-      detail: `returned ${result.px}px, but ${describe(result.px, at, width)}`,
-      evidence: { px: result.px, check: at },
+      lines,
+      detail: `returned ${result.px}px with ${result.lineCount} lines (its handle lays out ${handleLines}), DOM paints ${lines}`,
     }
+  }
+  if (!at.fits) {
+    return { outcome: 'kit-mismatch', lines, detail: `returned ${result.px}px, but ${describe(result.px, at, width)}`, evidence: { px: result.px, check: at } }
   }
   if (result.px < FIT_MAX) {
     const next = checkSize(stack, text, result.px + 1, width)
@@ -173,20 +274,20 @@ function judgeFit(result: ReturnType<typeof fitFontSize>, stack: FontStack, text
     if (next.fits) {
       return {
         outcome: 'kit-mismatch',
-        lines: at.painted.lines,
+        lines,
         detail: `returned ${result.px}px, but ${describe(result.px + 1, next, width)} and fits`,
         evidence: { px: result.px + 1, check: next },
       }
     }
   }
-  return { outcome: 'pass', lines: at.painted.lines }
+  return { outcome: 'pass', lines }
 }
 
-function fitCase(corpus: string, stack: FontStack, label: string, text: string, width: number): CaseResult {
+function fitCase(stack: FontStack, text: string, width: number): Verdict & { cause?: string } {
   const f = fontAt(stack, FONT_SIZE, LINE_HEIGHT)
-  const base = { helper: 'fitFontSize', corpus, font: stack.label, width }
-  const gap = baselineGap(stack, text, f, width)
-  if (gap !== undefined) return { ...base, outcome: 'pretext-gap', detail: `${label}: ${gap}` }
+  const atW = paint(stack, text, FONT_SIZE, LINE_HEIGHT, width)
+  const gap = gapAt(atW.lines, layout(prepared(text, f), width, LINE_HEIGHT).lineCount, 'baseline')
+  if (gap !== undefined) return { outcome: 'pretext-gap', detail: gap }
 
   // Prepared once per text and font and reused across widths, as the kit intends.
   const key = `${stack.label}|${text}`
@@ -201,10 +302,7 @@ function fitCase(corpus: string, stack: FontStack, label: string, text: string, 
   const box = { width, height: FIT_HEIGHT }
   const lineHeight = (px: number): number => fontAt(stack, px, px * FIT_LINE_HEIGHT_RATIO).lineHeight
   const v = judgeFit(fitFontSize(sizes, box, lineHeight), stack, text, width)
-  const out: CaseResult = { ...base, outcome: v.outcome }
-  if (v.lines !== undefined) out.lines = v.lines
-  if (v.detail !== undefined) out.detail = `${label}: ${v.detail}`
-  if (v.outcome !== 'kit-mismatch' || v.evidence === undefined) return out
+  if (v.outcome !== 'kit-mismatch' || v.evidence === undefined || window.sweepBrowser !== 'webkit') return v
 
   // Safari 26 lays line boxes out at whole pixels (Pretext's PLATFORM_BUGS.md). A mismatch is put
   // down to that only when all three hold for this case: the line height is fractional, the
@@ -212,24 +310,98 @@ function fitCase(corpus: string, stack: FontStack, label: string, text: string, 
   // floored line heights, passes the same judgement. Anything less stays a kit-mismatch.
   const { px, check } = v.evidence
   const lh = lineHeight(px)
-  if (Number.isInteger(lh) || check.painted.height !== check.painted.lines * Math.floor(lh)) return out
+  if (Number.isInteger(lh) || check.painted.grid !== 'floor') return v
   const floored = judgeFit(fitFontSize(sizes, box, p => Math.floor(lineHeight(p))), stack, text, width)
-  if (floored.outcome !== 'pass') return out
-  return { ...out, outcome: 'platform', cause: WEBKIT_LINE_HEIGHT_FLOOR }
+  if (floored.outcome !== 'pass') return v
+  return { ...v, outcome: 'platform', cause: WEBKIT_LINE_HEIGHT_FLOOR }
+}
+
+// fontFromStyle is what every other case's font comes from, so a wrong font would show up only
+// as Pretext gaps; it is checked directly against what the pinned style says it should be.
+// Canvas normalises a font string, so both sides go through one context to be compared.
+const canvas = document.createElement('canvas').getContext('2d')!
+function canonicalFont(font: string): string | undefined {
+  canvas.font = '1px sweep-sentinel'
+  canvas.font = font
+  return canvas.font === '1px sweep-sentinel' ? undefined : canvas.font
+}
+
+function fontFromStyleCases(): CaseResult[] {
+  const out: CaseResult[] = []
+  const styles: [number, number][] = [[FONT_SIZE, LINE_HEIGHT]]
+  for (let px = FIT_MIN; px <= FIT_MAX; px++) styles.push([px, px * FIT_LINE_HEIGHT_RATIO])
+  for (const stack of FONT_STACKS) {
+    for (const [px, lh] of styles) {
+      styleProbe(stack, px, lh)
+      const got = fontFromStyle(getComputedStyle(probe))
+      // Built from the pinned values in sweep.html and the stack as written, not from computed style.
+      const expected = { font: `400 ${px}px ${stack.family}`, letterSpacing: 0, lineHeight: lh }
+      const gotFont = canonicalFont(got.font)
+      const wantFont = canonicalFont(expected.font)
+      const ok = gotFont !== undefined && gotFont === wantFont
+        && got.letterSpacing === expected.letterSpacing && got.lineHeight === expected.lineHeight
+      const base = { helper: 'fontFromStyle', corpus: '-', font: stack.label, width: px }
+      out.push(ok ? { ...base, outcome: 'pass' } : {
+        ...base,
+        outcome: 'kit-mismatch',
+        detail: `${px}px/${lh}px: got ${JSON.stringify(got)}, expected ${JSON.stringify(expected)}`,
+      })
+    }
+  }
+  return out
+}
+
+// Named families only: a generic's width says nothing. A family is present when text set in it
+// measures differently from the same text in a generic fallback; two fallbacks guard against a
+// family that happens to match one of them. The string mixes the scripts the stacks are named for.
+const PRESENCE_TEXT = 'mmmmmmmmmmlli WQ 中文字体排版 日本語のかな العربية'
+window.fontPresence = async (): Promise<FontPresence[]> => {
+  await document.fonts.ready
+  const families = new Set<string>()
+  for (const stack of FONT_STACKS) {
+    for (const part of stack.family.split(',')) {
+      const name = part.trim()
+      if (!['serif', 'sans-serif', 'monospace'].includes(name)) families.add(name)
+    }
+  }
+  const out: FontPresence[] = []
+  for (const family of families) {
+    let present = false
+    for (const generic of ['monospace', 'serif']) {
+      canvas.font = `32px ${generic}`
+      const fallback = canvas.measureText(PRESENCE_TEXT).width
+      canvas.font = `32px ${family}, ${generic}`
+      if (canvas.measureText(PRESENCE_TEXT).width !== fallback) present = true
+    }
+    out.push({ family: family.replace(/"/g, ''), present })
+  }
+  return out
 }
 
 window.sweep = async (helper: Helper): Promise<CaseResult[]> => {
   if (helper === 'clamp' || helper === 'truncateMiddle') throw new Error(`sweep: ${helper} has no cases yet`)
   await document.fonts.ready
+  if (helper === 'fontFromStyle') return fontFromStyleCases()
   const ws = widths(window.sweepWidthStep[helper] ?? 1)
   const out: CaseResult[] = []
   for (const corpus of CORPORA) {
     for (const stack of FONT_STACKS) {
       for (const { label, text } of corpus.texts) {
         for (const w of ws) {
-          out.push(helper === 'fitFontSize'
-            ? fitCase(corpus.name, stack, label, text, w)
-            : widthCase(helper, corpus.name, stack, label, text, w))
+          const base = { helper, corpus: corpus.name, font: stack.label, width: w }
+          let v: { outcome: Outcome, lines?: number, detail?: string, cause?: string }
+          try {
+            v = helper === 'fitFontSize' ? fitCase(stack, text, w) : widthCase(helper, stack, text, w)
+          } catch (e) {
+            if (!(e instanceof Unreliable)) throw e
+            v = { outcome: 'unreliable', detail: e.message }
+          }
+          const r: CaseResult = { ...base, outcome: v.outcome }
+          if (v.lines !== undefined) r.lines = v.lines
+          // Every non-pass case names its text first, so listings can group by it.
+          if (v.detail !== undefined) r.detail = `${label}: ${v.detail}`
+          if (v.cause !== undefined) r.cause = v.cause
+          out.push(r)
         }
         // Yield between texts so a headed browser stays responsive and does not flag the page as hung.
         await new Promise(resolve => setTimeout(resolve, 0))

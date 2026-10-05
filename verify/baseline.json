@@ -1,0 +1,50 @@
+{
+  "chromium/fontFromStyle": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
+  "chromium/shrinkwrap": {
+    "pretext-gap": 5859,
+    "unreliable": 0
+  },
+  "chromium/balance": {
+    "pretext-gap": 3889,
+    "unreliable": 0
+  },
+  "chromium/fitFontSize": {
+    "pretext-gap": 230,
+    "unreliable": 0
+  },
+  "webkit/fontFromStyle": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
+  "webkit/shrinkwrap": {
+    "pretext-gap": 63,
+    "unreliable": 0
+  },
+  "webkit/balance": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
+  "webkit/fitFontSize": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
+  "firefox/fontFromStyle": {
+    "pretext-gap": 0,
+    "unreliable": 0
+  },
+  "firefox/shrinkwrap": {
+    "pretext-gap": 384,
+    "unreliable": 0
+  },
+  "firefox/balance": {
+    "pretext-gap": 174,
+    "unreliable": 0
+  },
+  "firefox/fitFontSize": {
+    "pretext-gap": 1,
+    "unreliable": 0
+  }
+}

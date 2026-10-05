@@ -1,11 +1,24 @@
 # Browser sweep results
 
-Run on 2026-10-05 by `npm run verify` (headed, deviceScaleFactor 1, `<html lang="en">`).
+Run on 2026-10-05 by `npm run verify`, headed, `<html lang="en">`.
 Widths 120-600px, step per helper: shrinkwrap 1, balance 1, fitFontSize 1.
-A `pretext-gap` case is one where Pretext's own line count differs from the browser's at the width (or, for
-fitFontSize, at a size) the judgement needs, so the kit cannot be judged there. A `kit-mismatch` is the kit
+fontFromStyle cases are one per font stack and pinned size (16px/24px, then 8-48px at 1.5 line height); their
+"width" column is the font size.
+
+A `pretext-gap` case is one where Pretext's own line count differs from the browser's at a width (or, for
+fitFontSize, a size) the judgement needs, so the kit cannot be judged there. A `kit-mismatch` is the kit
 answering wrongly where Pretext was right. A `platform` case is a kit-mismatch whose cause is proven, case by
-case, to be a browser painting something its CSS does not say; only the cause below is recognised.
+case, to be a browser painting something its CSS does not say; only the cause below is recognised. An
+`unreliable` case painted a height that is no whole number of lines, so lines could not be counted.
+
+shrinkwrap and balance are checked against the painting, not only against themselves: the width is at most the
+box, its line count is the box's painted count, shrinkwrap's width is the ceiling of the widest painted line
+(measured per line from the text's non-white-space fragments; one pixel less passes only if the browser paints
+the identical layout there, since engines let a line overshoot by up to 1/64 px), and one pixel under balance's
+width paints more lines. For shrinkwrap, a widest line Pretext measures more than 1/64 px away from the painted
+one is a pretext-gap, as a differing line count is.
+`npm run verify` fails on any kit-mismatch, on a pinned font family that is absent, and when a
+browser×helper's pretext-gap or unreliable count exceeds `verify/baseline.json` by more than max(5, 5%).
 
 Playwright is pinned to 1.61.0: on macOS 14 Playwright ships a frozen WebKit build
 (webkit_mac14_arm64_special-2251), and Playwright 1.62 and later send it a protocol setting it rejects
@@ -16,149 +29,1971 @@ Playwright is pinned to 1.61.0: on macOS 14 Playwright ships a frozen WebKit bui
 Pretext's `PLATFORM_BUGS.md` ("Engine rules Pretext models") records that Safari 27 moved line boxes to the
 1/64 px grid where Safari 26 did not. fitFontSize, given the CSS line height, then models a taller box than
 WebKit paints and can answer one size below the largest that fits; it never answers a size that overflows. A case
-gets this cause only if its line height is fractional, the contradicting painting is exactly lines × the floored
-line height, and the same judgement passes when the kit is rerun with floored line heights. For exact fits in
-Safari 26, use whole-px line heights.
+gets this cause only in WebKit, and only if its line height is fractional, the contradicting painting is exactly
+lines × the floored line height, and the same judgement passes when the kit is rerun with floored line heights.
+For exact fits in Safari 26, use whole-px line heights.
 
 ## chromium 149.0.7827.55 (chromium-1228)
 
+devicePixelRatio 1. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
 By helper:
 
-| | cases | pass | pretext-gap | platform | kit-mismatch |
-|---|---:|---:|---:|---:|---:|
-| shrinkwrap (7s) | 115440 | 115382 | 58 | 0 | 0 |
-| balance (7s) | 115440 | 115382 | 58 | 0 | 0 |
-| fitFontSize (14s) | 115440 | 115210 | 230 | 0 | 0 |
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (12s) | 115440 | 109581 | 5859 | 0 | 0 | 0 |
+| balance (9s) | 115440 | 111551 | 3889 | 0 | 0 | 0 |
+| fitFontSize (18s) | 115440 | 115210 | 230 | 0 | 0 | 0 |
 
-By corpus (all helpers):
+By corpus (sweep helpers):
 
-| | cases | pass | pretext-gap | platform | kit-mismatch |
-|---|---:|---:|---:|---:|---:|
-| latin | 69264 | 69256 | 8 | 0 | 0 |
-| cjk | 69264 | 69166 | 98 | 0 | 0 |
-| arabic | 69264 | 69204 | 60 | 0 | 0 |
-| emoji-chat | 69264 | 69255 | 9 | 0 | 0 |
-| urls | 69264 | 69093 | 171 | 0 | 0 |
-
-Pretext gaps by text (count of cases):
-
-- fitFontSize / cjk / Georgia / Japanese: 30
-- fitFontSize / urls / Times New Roman / Data URI: 30
-- fitFontSize / cjk / Georgia / Kumo no ito: 23
-- fitFontSize / arabic / Times New Roman / Support thread: 23
-- fitFontSize / urls / Helvetica Neue / Data URI: 23
-- fitFontSize / cjk / Georgia / Japanese short: 21
-- fitFontSize / urls / Arial / Data URI: 19
-- fitFontSize / arabic / Arial / Support thread: 17
-- shrinkwrap / urls / Helvetica Neue / Data URI: 9
-- balance / urls / Helvetica Neue / Data URI: 9
-- shrinkwrap / urls / Times New Roman / Data URI: 8
-- balance / urls / Times New Roman / Data URI: 8
-- fitFontSize / urls / Helvetica Neue / Bare URL: 8
-- shrinkwrap / urls / Arial / Data URI: 7
-- balance / urls / Arial / Data URI: 7
-- fitFontSize / urls / Times New Roman / Snake case: 7
-- shrinkwrap / cjk / Georgia / Kumo no ito: 6
-- balance / cjk / Georgia / Kumo no ito: 6
-- fitFontSize / urls / Helvetica Neue / Query string: 5
-- shrinkwrap / cjk / Georgia / Japanese: 4
-- balance / cjk / Georgia / Japanese: 4
-- fitFontSize / arabic / Times New Roman / Long mixed: 4
-- shrinkwrap / arabic / Times New Roman / Support thread: 3
-- shrinkwrap / urls / Times New Roman / Snake case: 3
-- balance / arabic / Times New Roman / Support thread: 3
-- balance / urls / Times New Roman / Snake case: 3
-- fitFontSize / urls / Helvetica Neue / npm scope: 3
-- shrinkwrap / latin / Georgia / Gatsby reserve: 2
-- shrinkwrap / cjk / Georgia / Japanese short: 2
-- shrinkwrap / arabic / Arial / Support thread: 2
-- shrinkwrap / urls / Helvetica Neue / Query string: 2
-- balance / latin / Georgia / Gatsby reserve: 2
-- balance / cjk / Georgia / Japanese short: 2
-- balance / arabic / Arial / Support thread: 2
-- balance / urls / Helvetica Neue / Query string: 2
-- fitFontSize / latin / Georgia / Gatsby reserve: 2
-- fitFontSize / urls / Arial / Query string: 2
-- shrinkwrap / arabic / Arial / Numbers+RTL: 1
-- shrinkwrap / arabic / Times New Roman / Long mixed: 1
-- shrinkwrap / emoji-chat / Arial / Flags: 1
-- shrinkwrap / emoji-chat / Arial / ZWJ family: 1
-- shrinkwrap / emoji-chat / Times New Roman / Weather report: 1
-- shrinkwrap / urls / Helvetica Neue / Bare URL: 1
-- shrinkwrap / urls / Helvetica Neue / npm scope: 1
-- shrinkwrap / urls / Arial / Bare URL: 1
-- shrinkwrap / urls / Arial / Unix path: 1
-- shrinkwrap / urls / Arial / Snake case: 1
-- balance / arabic / Arial / Numbers+RTL: 1
-- balance / arabic / Times New Roman / Long mixed: 1
-- balance / emoji-chat / Arial / Flags: 1
-- balance / emoji-chat / Arial / ZWJ family: 1
-- balance / emoji-chat / Times New Roman / Weather report: 1
-- balance / urls / Helvetica Neue / Bare URL: 1
-- balance / urls / Helvetica Neue / npm scope: 1
-- balance / urls / Arial / Bare URL: 1
-- balance / urls / Arial / Unix path: 1
-- balance / urls / Arial / Snake case: 1
-- fitFontSize / latin / Times New Roman / Gatsby reserve: 1
-- fitFontSize / latin / Times New Roman / Gatsby decencies: 1
-- fitFontSize / arabic / Helvetica Neue / Bukhala names: 1
-- fitFontSize / arabic / Arial / Numbers+RTL: 1
-- fitFontSize / emoji-chat / Arial / Flags: 1
-- fitFontSize / emoji-chat / Arial / ZWJ family: 1
-- fitFontSize / emoji-chat / Times New Roman / Weather report: 1
-- fitFontSize / urls / Arial / Bare URL: 1
-- fitFontSize / urls / Arial / Unix path: 1
-- fitFontSize / urls / Arial / Snake case: 1
-- fitFontSize / urls / Georgia / Data URI: 1
-- fitFontSize / urls / Times New Roman / npm scope: 1
-- fitFontSize / urls / Times New Roman / Path with spaces: 1
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| latin | 69264 | 69234 | 30 | 0 | 0 | 0 |
+| cjk | 69264 | 66673 | 2591 | 0 | 0 | 0 |
+| arabic | 69264 | 67277 | 1987 | 0 | 0 | 0 |
+| emoji-chat | 69264 | 68701 | 563 | 0 | 0 | 0 |
+| urls | 69264 | 64457 | 4807 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251)
 
+devicePixelRatio 1. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
 By helper:
 
-| | cases | pass | pretext-gap | platform | kit-mismatch |
-|---|---:|---:|---:|---:|---:|
-| shrinkwrap (23s) | 115440 | 115440 | 0 | 0 | 0 |
-| balance (24s) | 115440 | 115440 | 0 | 0 | 0 |
-| fitFontSize (36s) | 115440 | 108893 | 0 | 6547 | 0 |
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (71s) | 115440 | 115377 | 63 | 0 | 0 | 0 |
+| balance (37s) | 115440 | 115440 | 0 | 0 | 0 | 0 |
+| fitFontSize (41s) | 115440 | 108893 | 0 | 6547 | 0 | 0 |
 
-By corpus (all helpers):
+By corpus (sweep helpers):
 
-| | cases | pass | pretext-gap | platform | kit-mismatch |
-|---|---:|---:|---:|---:|---:|
-| latin | 69264 | 66897 | 0 | 2367 | 0 |
-| cjk | 69264 | 68475 | 0 | 789 | 0 |
-| arabic | 69264 | 68412 | 0 | 852 | 0 |
-| emoji-chat | 69264 | 69155 | 0 | 109 | 0 |
-| urls | 69264 | 66834 | 0 | 2430 | 0 |
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| latin | 69264 | 66897 | 0 | 2367 | 0 | 0 |
+| cjk | 69264 | 68475 | 0 | 789 | 0 | 0 |
+| arabic | 69264 | 68412 | 0 | 852 | 0 | 0 |
+| emoji-chat | 69264 | 69155 | 0 | 109 | 0 | 0 |
+| urls | 69264 | 66771 | 63 | 2430 | 0 | 0 |
 
 ## firefox 151.0 (firefox-1532)
 
+devicePixelRatio 1. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
 By helper:
 
-| | cases | pass | pretext-gap | platform | kit-mismatch |
-|---|---:|---:|---:|---:|---:|
-| shrinkwrap (12s) | 115440 | 115439 | 1 | 0 | 0 |
-| balance (12s) | 115440 | 115439 | 1 | 0 | 0 |
-| fitFontSize (18s) | 115440 | 115439 | 1 | 0 | 0 |
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (17s) | 115440 | 115056 | 384 | 0 | 0 | 0 |
+| balance (16s) | 115440 | 115266 | 174 | 0 | 0 | 0 |
+| fitFontSize (19s) | 115440 | 115439 | 1 | 0 | 0 | 0 |
 
-By corpus (all helpers):
+By corpus (sweep helpers):
 
-| | cases | pass | pretext-gap | platform | kit-mismatch |
-|---|---:|---:|---:|---:|---:|
-| latin | 69264 | 69264 | 0 | 0 | 0 |
-| cjk | 69264 | 69264 | 0 | 0 | 0 |
-| arabic | 69264 | 69264 | 0 | 0 | 0 |
-| emoji-chat | 69264 | 69264 | 0 | 0 | 0 |
-| urls | 69264 | 69261 | 3 | 0 | 0 |
-
-Pretext gaps by text (count of cases):
-
-- shrinkwrap / urls / Helvetica Neue / Data URI: 1
-- balance / urls / Helvetica Neue / Data URI: 1
-- fitFontSize / urls / Helvetica Neue / Data URI: 1
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| latin | 69264 | 69264 | 0 | 0 | 0 | 0 |
+| cjk | 69264 | 69264 | 0 | 0 | 0 | 0 |
+| arabic | 69264 | 69264 | 0 | 0 | 0 | 0 |
+| emoji-chat | 69264 | 69264 | 0 | 0 | 0 | 0 |
+| urls | 69264 | 68705 | 559 | 0 | 0 | 0 |
 
 ## kit-mismatch cases
 
 None.
+
+## unreliable cases
+
+None.
+
+## platform cases
+
+6547 cases; consecutive widths with the same finding share a line.
+
+- webkit fitFontSize latin / Helvetica Neue @ 120-136px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 162-205px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 141-172px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 120-137px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 120-145px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 173-202px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 120-143px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 170-201px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 132-164px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Gatsby advice: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 153-203px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 137-162px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 192-223px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 142-180px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 213-250px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 192-230px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 272-307px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 159-211px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Helvetica Neue @ 250-298px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 120-134px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 160-205px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 140-169px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 120-136px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 120-145px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 172-201px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 120-139px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 166-197px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 131-162px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 120-129px: [webkit-26-line-height-floor] Gatsby advice: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 154-201px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 136-159px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 189-220px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 140-179px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 212-249px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 190-228px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 270-303px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Arial @ 159-209px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Arial @ 248-294px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 120-135px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 160-205px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 138-170px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 120-137px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 120-145px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 173-201px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 120-140px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 167-202px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 133-162px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 120-129px: [webkit-26-line-height-floor] Gatsby advice: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 153-202px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 132-156px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 186-223px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 140-175px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 208-245px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 189-226px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 268-302px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Georgia @ 161-213px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Georgia @ 253-290px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 120-121px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Times New Roman @ 144-186px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 125-155px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 120-127px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 120-134px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Times New Roman @ 159-183px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 120-127px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Times New Roman @ 152-184px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 120-144px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 139-185px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 120-143px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Times New Roman @ 170-203px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 128-157px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Times New Roman @ 186-221px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 173-206px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Times New Roman @ 245-278px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize latin / Times New Roman @ 147-195px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize latin / Times New Roman @ 231-263px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 130-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 120px: [webkit-26-line-height-floor] Kumo no ito: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Helvetica Neue @ 143-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 130-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Arial @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Arial @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Arial @ 120px: [webkit-26-line-height-floor] Kumo no ito: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Arial @ 143-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 129-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Georgia @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Georgia @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Georgia @ 142-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 130-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Times New Roman @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Times New Roman @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize cjk / Times New Roman @ 120px: [webkit-26-line-height-floor] Kumo no ito: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize cjk / Times New Roman @ 143-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 126-148px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 136-160px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 120-123px: [webkit-26-line-height-floor] Numbers+RTL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 148-180px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 214-268px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 135-160px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 120-141px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 120-123px: [webkit-26-line-height-floor] Ghufran waves: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 139-169px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Helvetica Neue @ 120-133px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 120-148px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 134-152px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 120px: [webkit-26-line-height-floor] Numbers+RTL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 144-176px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize arabic / Arial @ 209-257px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 129-149px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 120-138px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 129-157px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Arial @ 120-124px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 126-145px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 135-157px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 120-125px: [webkit-26-line-height-floor] Numbers+RTL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 144-181px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize arabic / Georgia @ 214-262px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 133-158px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 120-139px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 120-122px: [webkit-26-line-height-floor] Ghufran waves: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 137-166px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Georgia @ 120-133px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Times New Roman @ 120-132px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Times New Roman @ 123-141px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Times New Roman @ 131-162px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize arabic / Times New Roman @ 193-238px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Times New Roman @ 127-148px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Times New Roman @ 120-137px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Times New Roman @ 128-154px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize arabic / Times New Roman @ 120-123px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Emoji mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Status emoji: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Helvetica Neue @ 120-132px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Helvetica Neue @ 120-126px: [webkit-26-line-height-floor] Flags: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Arial @ 120-127px: [webkit-26-line-height-floor] Emoji mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Arial @ 120-126px: [webkit-26-line-height-floor] Status emoji: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Arial @ 120-130px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Arial @ 120-125px: [webkit-26-line-height-floor] Flags: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Georgia @ 120-127px: [webkit-26-line-height-floor] Emoji mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Georgia @ 120-129px: [webkit-26-line-height-floor] Status emoji: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Georgia @ 120-128px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Georgia @ 120-127px: [webkit-26-line-height-floor] Flags: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize emoji-chat / Times New Roman @ 120-121px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 120-127px: [webkit-26-line-height-floor] Backup URL: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 152-178px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 167-168px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 200-222px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 127-163px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 120-121px: [webkit-26-line-height-floor] Windows path: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 144-189px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 133-194px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 124-182px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 216-283px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 132-157px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 187-230px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 141-171px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Email list: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 154-217px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 141-210px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 249-272px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Helvetica Neue @ 130-153px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 120-125px: [webkit-26-line-height-floor] Backup URL: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Arial @ 149-177px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 163-167px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Arial @ 199-218px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 125-158px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 141-184px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 131-189px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 122-181px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Arial @ 215-280px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 133-159px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Arial @ 189-232px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 140-172px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 120-126px: [webkit-26-line-height-floor] Email list: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Arial @ 150-216px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 145-215px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Arial @ 255-279px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Arial @ 131-154px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 120-131px: [webkit-26-line-height-floor] Backup URL: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Georgia @ 156-179px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 168-171px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Georgia @ 203-221px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 129-162px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 120-124px: [webkit-26-line-height-floor] Windows path: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Georgia @ 148-195px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 130-191px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 122-178px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Georgia @ 212-281px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 133-159px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Georgia @ 189-233px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 139-176px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 120-132px: [webkit-26-line-height-floor] Email list: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Georgia @ 157-217px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 147-216px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Georgia @ 257-288px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Georgia @ 135-157px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 137-160px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 147-155px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Times New Roman @ 185-195px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 120-144px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 130-172px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 120-170px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 120-163px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Times New Roman @ 193-250px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 130-153px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Times New Roman @ 182-228px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 125-157px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 141-198px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 141-207px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- webkit fitFontSize urls / Times New Roman @ 246-268px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- webkit fitFontSize urls / Times New Roman @ 121-141px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+
+## pretext-gap cases
+
+10600 cases; consecutive widths with the same finding share a line.
+
+- chromium shrinkwrap latin / Helvetica Neue @ 375px: Gatsby decencies: widest line: DOM 375.0078125px, Pretext 367.6477355957031px
+- chromium shrinkwrap latin / Arial @ 317px: Latin compatibility: widest line: DOM 317.0078125px, Pretext 283.6875px
+- chromium shrinkwrap latin / Arial @ 394px: Latin punctuation: widest line: DOM 394.0078125px, Pretext 369.8359375px
+- chromium shrinkwrap latin / Georgia @ 142px: Gatsby reserve: baseline: DOM 9 lines, Pretext 10
+- chromium shrinkwrap latin / Georgia @ 592px: Gatsby reserve: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap cjk / Georgia @ 127px: Japanese: widest line: DOM 126.7265625px, Pretext 125.91999816894531px
+- chromium shrinkwrap cjk / Georgia @ 141px: Japanese: widest line: DOM 140.640625px, Pretext 128px
+- chromium shrinkwrap cjk / Georgia @ 142px: Japanese: widest line: DOM 140.640625px, Pretext 141.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 143px: Japanese: widest line: DOM 142.40625px, Pretext 141.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 157px: Japanese: widest line: DOM 156.640625px, Pretext 144px
+- chromium shrinkwrap cjk / Georgia @ 158px: Japanese: widest line: DOM 156.640625px, Pretext 157.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 159px: Japanese: baseline: DOM 5 lines, Pretext 6
+- chromium shrinkwrap cjk / Georgia @ 160-172px: Japanese: widest line: DOM 159.5234375px, Pretext 160px
+- chromium shrinkwrap cjk / Georgia @ 173px: Japanese: widest line: DOM 172.9609375px, Pretext 160px
+- chromium shrinkwrap cjk / Georgia @ 174px: Japanese: widest line: DOM 172.9609375px, Pretext 173.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 175px: Japanese: widest line: DOM 174.7265625px, Pretext 173.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 176-188px: Japanese: widest line: DOM 175.5234375px, Pretext 176px
+- chromium shrinkwrap cjk / Georgia @ 189px: Japanese: widest line: DOM 188.9609375px, Pretext 176px
+- chromium shrinkwrap cjk / Georgia @ 190px: Japanese: widest line: DOM 188.9609375px, Pretext 189.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 191px: Japanese: baseline: DOM 4 lines, Pretext 5
+- chromium shrinkwrap cjk / Georgia @ 192-204px: Japanese: widest line: DOM 190.5625px, Pretext 192px
+- chromium shrinkwrap cjk / Georgia @ 205px: Japanese: widest line: DOM 204.640625px, Pretext 192px
+- chromium shrinkwrap cjk / Georgia @ 206px: Japanese: widest line: DOM 204.640625px, Pretext 205.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 207px: Japanese: widest line: DOM 206.5625px, Pretext 205.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 208-220px: Japanese: widest line: DOM 206.5625px, Pretext 208px
+- chromium shrinkwrap cjk / Georgia @ 221px: Japanese: widest line: DOM 220.640625px, Pretext 208px
+- chromium shrinkwrap cjk / Georgia @ 222px: Japanese: widest line: DOM 220.640625px, Pretext 221.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 223px: Japanese: widest line: DOM 222.5625px, Pretext 221.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 224-236px: Japanese: widest line: DOM 222.5625px, Pretext 224px
+- chromium shrinkwrap cjk / Georgia @ 237px: Japanese: widest line: DOM 236.640625px, Pretext 224px
+- chromium shrinkwrap cjk / Georgia @ 238px: Japanese: widest line: DOM 236.640625px, Pretext 237.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 239px: Japanese: widest line: DOM 238.40625px, Pretext 237.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 240-251px: Japanese: widest line: DOM 239.5234375px, Pretext 240px
+- chromium shrinkwrap cjk / Georgia @ 252-253px: Japanese: widest line: DOM 251.6875px, Pretext 240px
+- chromium shrinkwrap cjk / Georgia @ 254px: Japanese: widest line: DOM 251.6875px, Pretext 253.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 255px: Japanese: baseline: DOM 3 lines, Pretext 4
+- chromium shrinkwrap cjk / Georgia @ 256-267px: Japanese: widest line: DOM 254.40625px, Pretext 256px
+- chromium shrinkwrap cjk / Georgia @ 268-269px: Japanese: widest line: DOM 267.6875px, Pretext 256px
+- chromium shrinkwrap cjk / Georgia @ 270px: Japanese: widest line: DOM 267.6875px, Pretext 269.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 271px: Japanese: widest line: DOM 270.40625px, Pretext 269.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 272-283px: Japanese: widest line: DOM 270.40625px, Pretext 272px
+- chromium shrinkwrap cjk / Georgia @ 284-285px: Japanese: widest line: DOM 283.6875px, Pretext 272px
+- chromium shrinkwrap cjk / Georgia @ 286px: Japanese: widest line: DOM 283.6875px, Pretext 285.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 287px: Japanese: widest line: DOM 286.40625px, Pretext 285.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 288-299px: Japanese: widest line: DOM 286.40625px, Pretext 288px
+- chromium shrinkwrap cjk / Georgia @ 300-301px: Japanese: widest line: DOM 299.203125px, Pretext 288px
+- chromium shrinkwrap cjk / Georgia @ 302px: Japanese: widest line: DOM 299.203125px, Pretext 301.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 303px: Japanese: widest line: DOM 302.40625px, Pretext 301.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 304-316px: Japanese: widest line: DOM 302.40625px, Pretext 304px
+- chromium shrinkwrap cjk / Georgia @ 317px: Japanese: widest line: DOM 316.484375px, Pretext 304px
+- chromium shrinkwrap cjk / Georgia @ 318-319px: Japanese: widest line: DOM 317.125px, Pretext 317.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 320-332px: Japanese: widest line: DOM 317.125px, Pretext 320px
+- chromium shrinkwrap cjk / Georgia @ 333px: Japanese: widest line: DOM 332.484375px, Pretext 320px
+- chromium shrinkwrap cjk / Georgia @ 334-335px: Japanese: widest line: DOM 333.125px, Pretext 333.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 336-348px: Japanese: widest line: DOM 333.125px, Pretext 336px
+- chromium shrinkwrap cjk / Georgia @ 349px: Japanese: widest line: DOM 348.484375px, Pretext 336px
+- chromium shrinkwrap cjk / Georgia @ 350-351px: Japanese: widest line: DOM 349.125px, Pretext 349.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 352-364px: Japanese: widest line: DOM 349.125px, Pretext 352px
+- chromium shrinkwrap cjk / Georgia @ 365px: Japanese: widest line: DOM 364.484375px, Pretext 352px
+- chromium shrinkwrap cjk / Georgia @ 366-379px: Japanese: widest line: DOM 364.484375px, Pretext 365.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 380px: Japanese: widest line: DOM 379.046875px, Pretext 365.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 381px: Japanese: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap cjk / Georgia @ 382-395px: Japanese: widest line: DOM 380.484375px, Pretext 381.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 396-397px: Japanese: widest line: DOM 395.046875px, Pretext 381.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 398-411px: Japanese: widest line: DOM 395.046875px, Pretext 397.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 412-413px: Japanese: widest line: DOM 411.046875px, Pretext 397.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 414-427px: Japanese: widest line: DOM 411.046875px, Pretext 413.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 428-429px: Japanese: widest line: DOM 427.046875px, Pretext 413.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 430-443px: Japanese: widest line: DOM 427.046875px, Pretext 429.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 444-445px: Japanese: widest line: DOM 443.046875px, Pretext 429.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 446-459px: Japanese: widest line: DOM 443.046875px, Pretext 445.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 460-461px: Japanese: widest line: DOM 459.046875px, Pretext 445.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 462-475px: Japanese: widest line: DOM 459.046875px, Pretext 461.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 476-477px: Japanese: widest line: DOM 475.046875px, Pretext 461.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 478-490px: Japanese: widest line: DOM 475.046875px, Pretext 477.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 491-493px: Japanese: widest line: DOM 490.0859375px, Pretext 477.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 494-506px: Japanese: widest line: DOM 490.0859375px, Pretext 493.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 507-509px: Japanese: widest line: DOM 506.0859375px, Pretext 493.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 510-522px: Japanese: widest line: DOM 506.0859375px, Pretext 509.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 523-525px: Japanese: widest line: DOM 522.0859375px, Pretext 509.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 526-538px: Japanese: widest line: DOM 522.0859375px, Pretext 525.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 539-541px: Japanese: widest line: DOM 538.0859375px, Pretext 525.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 542-554px: Japanese: widest line: DOM 538.0859375px, Pretext 541.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 555-557px: Japanese: widest line: DOM 554.0859375px, Pretext 541.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 558-569px: Japanese: widest line: DOM 554.0859375px, Pretext 557.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 570-573px: Japanese: widest line: DOM 569.6015625px, Pretext 557.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 574-585px: Japanese: widest line: DOM 569.6015625px, Pretext 573.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 586-589px: Japanese: widest line: DOM 585.6015625px, Pretext 573.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 590-600px: Japanese: widest line: DOM 585.6015625px, Pretext 589.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 143px: Japanese short: widest line: DOM 142.2421875px, Pretext 141.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 175px: Japanese short: widest line: DOM 174.2421875px, Pretext 173.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 191px: Japanese short: baseline: DOM 4 lines, Pretext 5
+- chromium shrinkwrap cjk / Georgia @ 192-205px: Japanese short: widest line: DOM 191.5234375px, Pretext 192px
+- chromium shrinkwrap cjk / Georgia @ 207px: Japanese short: widest line: DOM 206.2421875px, Pretext 205.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 208-221px: Japanese short: widest line: DOM 207.5234375px, Pretext 208px
+- chromium shrinkwrap cjk / Georgia @ 223px: Japanese short: widest line: DOM 222.2421875px, Pretext 221.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 224-236px: Japanese short: widest line: DOM 223.5234375px, Pretext 224px
+- chromium shrinkwrap cjk / Georgia @ 237px: Japanese short: widest line: DOM 236.9609375px, Pretext 224px
+- chromium shrinkwrap cjk / Georgia @ 238-239px: Japanese short: widest line: DOM 236.9609375px, Pretext 237.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 240-252px: Japanese short: widest line: DOM 239.203125px, Pretext 240px
+- chromium shrinkwrap cjk / Georgia @ 253px: Japanese short: widest line: DOM 252.9609375px, Pretext 240px
+- chromium shrinkwrap cjk / Georgia @ 255px: Japanese short: widest line: DOM 254.2421875px, Pretext 253.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 256-269px: Japanese short: widest line: DOM 254.2421875px, Pretext 256px
+- chromium shrinkwrap cjk / Georgia @ 270px: Japanese short: widest line: DOM 269.4453125px, Pretext 269.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 271px: Japanese short: widest line: DOM 270.2421875px, Pretext 269.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 272-285px: Japanese short: widest line: DOM 270.2421875px, Pretext 272px
+- chromium shrinkwrap cjk / Georgia @ 286px: Japanese short: widest line: DOM 285.4453125px, Pretext 285.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 287px: Japanese short: widest line: DOM 286.2421875px, Pretext 285.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 288-301px: Japanese short: widest line: DOM 286.2421875px, Pretext 288px
+- chromium shrinkwrap cjk / Georgia @ 302px: Japanese short: widest line: DOM 301.4453125px, Pretext 301.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 303px: Japanese short: widest line: DOM 302.2421875px, Pretext 301.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 304-317px: Japanese short: widest line: DOM 302.2421875px, Pretext 304px
+- chromium shrinkwrap cjk / Georgia @ 318px: Japanese short: widest line: DOM 317.4453125px, Pretext 317.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 319px: Japanese short: widest line: DOM 318.2421875px, Pretext 317.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 320-333px: Japanese short: widest line: DOM 318.2421875px, Pretext 320px
+- chromium shrinkwrap cjk / Georgia @ 334px: Japanese short: widest line: DOM 333.4453125px, Pretext 333.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 335px: Japanese short: widest line: DOM 334.2421875px, Pretext 333.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 336-349px: Japanese short: widest line: DOM 334.2421875px, Pretext 336px
+- chromium shrinkwrap cjk / Georgia @ 350px: Japanese short: widest line: DOM 349.4453125px, Pretext 349.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 351px: Japanese short: widest line: DOM 350.2421875px, Pretext 349.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 352-365px: Japanese short: widest line: DOM 350.2421875px, Pretext 352px
+- chromium shrinkwrap cjk / Georgia @ 366-380px: Japanese short: widest line: DOM 365.4453125px, Pretext 365.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 381px: Japanese short: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap cjk / Georgia @ 382-397px: Japanese short: widest line: DOM 381.4453125px, Pretext 381.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 398-413px: Japanese short: widest line: DOM 397.4453125px, Pretext 397.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 414-429px: Japanese short: widest line: DOM 413.4453125px, Pretext 413.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 430-445px: Japanese short: widest line: DOM 429.4453125px, Pretext 429.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 446-460px: Japanese short: widest line: DOM 445.4453125px, Pretext 445.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 461px: Japanese short: widest line: DOM 460.484375px, Pretext 445.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 462-476px: Japanese short: widest line: DOM 460.484375px, Pretext 461.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 477px: Japanese short: widest line: DOM 476.484375px, Pretext 461.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 478-491px: Japanese short: widest line: DOM 476.484375px, Pretext 477.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 492-493px: Japanese short: widest line: DOM 491.6875px, Pretext 477.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 494-507px: Japanese short: widest line: DOM 491.6875px, Pretext 493.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 508-509px: Japanese short: widest line: DOM 507.6875px, Pretext 493.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 510-523px: Japanese short: widest line: DOM 507.6875px, Pretext 509.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 524-525px: Japanese short: widest line: DOM 523.6875px, Pretext 509.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 526-539px: Japanese short: widest line: DOM 523.6875px, Pretext 525.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 540-541px: Japanese short: widest line: DOM 539.6875px, Pretext 525.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 542-555px: Japanese short: widest line: DOM 539.6875px, Pretext 541.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 556-557px: Japanese short: widest line: DOM 555.6875px, Pretext 541.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 558-571px: Japanese short: widest line: DOM 555.6875px, Pretext 557.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 572-573px: Japanese short: widest line: DOM 571.6875px, Pretext 557.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 574-587px: Japanese short: widest line: DOM 571.6875px, Pretext 573.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 588-589px: Japanese short: widest line: DOM 587.6875px, Pretext 573.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 590-600px: Japanese short: widest line: DOM 587.6875px, Pretext 589.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 512-543px: Rashomon dusk: widest line: DOM 511.5234375px, Pretext 512px
+- chromium shrinkwrap cjk / Georgia @ 544-600px: Rashomon dusk: widest line: DOM 543.5234375px, Pretext 544px
+- chromium shrinkwrap cjk / Georgia @ 127px: Kumo no ito: baseline: DOM 7 lines, Pretext 8
+- chromium shrinkwrap cjk / Georgia @ 143px: Kumo no ito: baseline: DOM 6 lines, Pretext 7
+- chromium shrinkwrap cjk / Georgia @ 159px: Kumo no ito: widest line: DOM 158.8828125px, Pretext 157.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 175px: Kumo no ito: widest line: DOM 174.8828125px, Pretext 173.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 176-189px: Kumo no ito: widest line: DOM 174.8828125px, Pretext 176px
+- chromium shrinkwrap cjk / Georgia @ 191px: Kumo no ito: widest line: DOM 190.8828125px, Pretext 189.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 207px: Kumo no ito: baseline: DOM 4 lines, Pretext 5
+- chromium shrinkwrap cjk / Georgia @ 208-221px: Kumo no ito: widest line: DOM 206.8828125px, Pretext 208px
+- chromium shrinkwrap cjk / Georgia @ 223px: Kumo no ito: widest line: DOM 222.8828125px, Pretext 221.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 224-237px: Kumo no ito: widest line: DOM 222.8828125px, Pretext 224px
+- chromium shrinkwrap cjk / Georgia @ 239px: Kumo no ito: widest line: DOM 238.8828125px, Pretext 237.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 240-253px: Kumo no ito: widest line: DOM 238.8828125px, Pretext 240px
+- chromium shrinkwrap cjk / Georgia @ 255px: Kumo no ito: widest line: DOM 254.8828125px, Pretext 253.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 256-269px: Kumo no ito: widest line: DOM 254.8828125px, Pretext 256px
+- chromium shrinkwrap cjk / Georgia @ 271px: Kumo no ito: baseline: DOM 3 lines, Pretext 4
+- chromium shrinkwrap cjk / Georgia @ 272-285px: Kumo no ito: widest line: DOM 270.8828125px, Pretext 272px
+- chromium shrinkwrap cjk / Georgia @ 287px: Kumo no ito: widest line: DOM 286.0859375px, Pretext 285.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 288-301px: Kumo no ito: widest line: DOM 286.0859375px, Pretext 287.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 303px: Kumo no ito: widest line: DOM 302.0859375px, Pretext 301.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 304-317px: Kumo no ito: widest line: DOM 302.0859375px, Pretext 303.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 319px: Kumo no ito: widest line: DOM 318.0859375px, Pretext 317.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 320-332px: Kumo no ito: widest line: DOM 318.0859375px, Pretext 319.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 333px: Kumo no ito: widest line: DOM 332.9609375px, Pretext 319.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 336-348px: Kumo no ito: widest line: DOM 333.921875px, Pretext 335.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 349px: Kumo no ito: widest line: DOM 348.9609375px, Pretext 335.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 352-364px: Kumo no ito: widest line: DOM 349.921875px, Pretext 351.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 365px: Kumo no ito: widest line: DOM 364.9609375px, Pretext 351.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 368-380px: Kumo no ito: widest line: DOM 365.921875px, Pretext 367.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 381px: Kumo no ito: widest line: DOM 380.9609375px, Pretext 367.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 384-397px: Kumo no ito: widest line: DOM 381.921875px, Pretext 383.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 398-413px: Kumo no ito: widest line: DOM 397.28125px, Pretext 397.9199981689453px
+- chromium shrinkwrap cjk / Georgia @ 414-415px: Kumo no ito: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap cjk / Georgia @ 416-428px: Kumo no ito: widest line: DOM 413.6015625px, Pretext 415.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 429px: Kumo no ito: widest line: DOM 428.8046875px, Pretext 415.52000427246094px
+- chromium shrinkwrap cjk / Georgia @ 430-444px: Kumo no ito: widest line: DOM 428.8046875px, Pretext 429.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 445px: Kumo no ito: widest line: DOM 444.8046875px, Pretext 429.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 446-460px: Kumo no ito: widest line: DOM 444.8046875px, Pretext 445.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 461px: Kumo no ito: widest line: DOM 460.8046875px, Pretext 445.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 462-476px: Kumo no ito: widest line: DOM 460.8046875px, Pretext 461.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 477px: Kumo no ito: widest line: DOM 476.8046875px, Pretext 461.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 478-491px: Kumo no ito: widest line: DOM 476.8046875px, Pretext 477.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 492-493px: Kumo no ito: widest line: DOM 492px, Pretext 477.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 494-507px: Kumo no ito: widest line: DOM 492px, Pretext 493.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 508-509px: Kumo no ito: widest line: DOM 508px, Pretext 493.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 510-523px: Kumo no ito: widest line: DOM 508px, Pretext 509.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 524-525px: Kumo no ito: widest line: DOM 524px, Pretext 509.44000244140625px
+- chromium shrinkwrap cjk / Georgia @ 526-539px: Kumo no ito: widest line: DOM 524px, Pretext 525.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 540-541px: Kumo no ito: widest line: DOM 540px, Pretext 525.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 542-555px: Kumo no ito: widest line: DOM 540px, Pretext 541.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 556-557px: Kumo no ito: widest line: DOM 556px, Pretext 541.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 558-571px: Kumo no ito: widest line: DOM 556px, Pretext 557.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 572-573px: Kumo no ito: widest line: DOM 572px, Pretext 557.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 574-587px: Kumo no ito: widest line: DOM 572px, Pretext 573.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 588-589px: Kumo no ito: widest line: DOM 588px, Pretext 573.4400024414062px
+- chromium shrinkwrap cjk / Georgia @ 590-600px: Kumo no ito: widest line: DOM 588px, Pretext 589.4400024414062px
+- chromium shrinkwrap arabic / Helvetica Neue @ 120-121px: Mixed en+ar: widest line: DOM 119.671875px, Pretext 119.65586853027344px
+- chromium shrinkwrap arabic / Helvetica Neue @ 155-159px: Mixed en+ar: widest line: DOM 154.6484375px, Pretext 154.63185119628906px
+- chromium shrinkwrap arabic / Helvetica Neue @ 335-353px: Mixed en+ar: widest line: DOM 334.875px, Pretext 334.855712890625px
+- chromium shrinkwrap arabic / Helvetica Neue @ 507-600px: Numbers+RTL: widest line: DOM 506.65625px, Pretext 506.63763427734375px
+- chromium shrinkwrap arabic / Helvetica Neue @ 131px: Ghufran tree: widest line: DOM 131.0078125px, Pretext 128.79415893554688px
+- chromium shrinkwrap arabic / Arial @ 251px: Numbers+RTL: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap arabic / Arial @ 166px: Long mixed: widest line: DOM 165.484375px, Pretext 165.7734375px
+- chromium shrinkwrap arabic / Arial @ 285-299px: Long mixed: widest line: DOM 284.65625px, Pretext 284.9453125px
+- chromium shrinkwrap arabic / Arial @ 367-394px: Long mixed: widest line: DOM 366.4921875px, Pretext 366.78125px
+- chromium shrinkwrap arabic / Arial @ 417-435px: Long mixed: widest line: DOM 416.296875px, Pretext 416.5859375px
+- chromium shrinkwrap arabic / Arial @ 436-467px: Long mixed: widest line: DOM 435.1484375px, Pretext 435.4375px
+- chromium shrinkwrap arabic / Arial @ 493px: Long mixed: widest line: DOM 492.796875px, Pretext 467.625px
+- chromium shrinkwrap arabic / Arial @ 494-526px: Long mixed: widest line: DOM 492.796875px, Pretext 493.0859375px
+- chromium shrinkwrap arabic / Arial @ 536-573px: Long mixed: widest line: DOM 535.5px, Pretext 535.7890625px
+- chromium shrinkwrap arabic / Arial @ 157px: Ghufran tree: widest line: DOM 157.0078125px, Pretext 152.7265625px
+- chromium shrinkwrap arabic / Arial @ 490px: Ghufran tree: widest line: DOM 490.0078125px, Pretext 455.421875px
+- chromium shrinkwrap arabic / Arial @ 135px: Support thread: baseline: DOM 5 lines, Pretext 6
+- chromium shrinkwrap arabic / Arial @ 136px: Support thread: widest line: DOM 134.296875px, Pretext 135.1796875px
+- chromium shrinkwrap arabic / Arial @ 185-187px: Support thread: widest line: DOM 184.109375px, Pretext 184.9921875px
+- chromium shrinkwrap arabic / Arial @ 223px: Support thread: widest line: DOM 222.3515625px, Pretext 198.9296875px
+- chromium shrinkwrap arabic / Arial @ 224-241px: Support thread: widest line: DOM 222.3515625px, Pretext 223.234375px
+- chromium shrinkwrap arabic / Arial @ 249px: Support thread: widest line: DOM 248.390625px, Pretext 241.5234375px
+- chromium shrinkwrap arabic / Arial @ 250-258px: Support thread: widest line: DOM 248.390625px, Pretext 249.2734375px
+- chromium shrinkwrap arabic / Arial @ 276px: Support thread: widest line: DOM 275.71875px, Pretext 258.9609375px
+- chromium shrinkwrap arabic / Arial @ 277-305px: Support thread: widest line: DOM 275.71875px, Pretext 276.6015625px
+- chromium shrinkwrap arabic / Arial @ 306-318px: Support thread: widest line: DOM 305.109375px, Pretext 305.9921875px
+- chromium shrinkwrap arabic / Arial @ 319px: Support thread: widest line: DOM 318.2578125px, Pretext 305.9921875px
+- chromium shrinkwrap arabic / Arial @ 320-349px: Support thread: widest line: DOM 318.2578125px, Pretext 319.140625px
+- chromium shrinkwrap arabic / Arial @ 350px: Support thread: widest line: DOM 349.2265625px, Pretext 319.140625px
+- chromium shrinkwrap arabic / Arial @ 351-386px: Support thread: widest line: DOM 349.2265625px, Pretext 350.109375px
+- chromium shrinkwrap arabic / Arial @ 387px: Support thread: widest line: DOM 386.515625px, Pretext 350.109375px
+- chromium shrinkwrap arabic / Arial @ 388-431px: Support thread: widest line: DOM 386.515625px, Pretext 387.3984375px
+- chromium shrinkwrap arabic / Arial @ 432px: Support thread: widest line: DOM 431.7109375px, Pretext 387.3984375px
+- chromium shrinkwrap arabic / Arial @ 433-468px: Support thread: widest line: DOM 431.7109375px, Pretext 432.59375px
+- chromium shrinkwrap arabic / Arial @ 469px: Support thread: widest line: DOM 468.3203125px, Pretext 432.59375px
+- chromium shrinkwrap arabic / Arial @ 470-511px: Support thread: widest line: DOM 468.3203125px, Pretext 469.203125px
+- chromium shrinkwrap arabic / Arial @ 512px: Support thread: widest line: DOM 511.796875px, Pretext 469.203125px
+- chromium shrinkwrap arabic / Arial @ 513-541px: Support thread: widest line: DOM 511.796875px, Pretext 512.6796875px
+- chromium shrinkwrap arabic / Arial @ 542px: Support thread: widest line: DOM 541.53125px, Pretext 512.6796875px
+- chromium shrinkwrap arabic / Arial @ 543-589px: Support thread: widest line: DOM 541.53125px, Pretext 542.4140625px
+- chromium shrinkwrap arabic / Arial @ 590px: Support thread: baseline: DOM 1 lines, Pretext 2
+- chromium shrinkwrap arabic / Arial @ 591-600px: Support thread: widest line: DOM 589.890625px, Pretext 590.7734375px
+- chromium shrinkwrap arabic / Times New Roman @ 151px: Long mixed: widest line: DOM 150.9921875px, Pretext 147.625px
+- chromium shrinkwrap arabic / Times New Roman @ 152-155px: Long mixed: widest line: DOM 150.9921875px, Pretext 151.28125px
+- chromium shrinkwrap arabic / Times New Roman @ 221px: Long mixed: widest line: DOM 220.7421875px, Pretext 216.78125px
+- chromium shrinkwrap arabic / Times New Roman @ 222px: Long mixed: widest line: DOM 220.7421875px, Pretext 221.03125px
+- chromium shrinkwrap arabic / Times New Roman @ 244-251px: Long mixed: widest line: DOM 243.421875px, Pretext 243.7109375px
+- chromium shrinkwrap arabic / Times New Roman @ 259px: Long mixed: widest line: DOM 258.9765625px, Pretext 252.6328125px
+- chromium shrinkwrap arabic / Times New Roman @ 260-265px: Long mixed: widest line: DOM 258.9765625px, Pretext 259.265625px
+- chromium shrinkwrap arabic / Times New Roman @ 294px: Long mixed: baseline: DOM 4 lines, Pretext 5
+- chromium shrinkwrap arabic / Times New Roman @ 295-300px: Long mixed: widest line: DOM 293.8359375px, Pretext 294.125px
+- chromium shrinkwrap arabic / Times New Roman @ 330-343px: Long mixed: widest line: DOM 329.1875px, Pretext 329.4765625px
+- chromium shrinkwrap arabic / Times New Roman @ 378-395px: Long mixed: widest line: DOM 377.171875px, Pretext 377.4609375px
+- chromium shrinkwrap arabic / Times New Roman @ 396-428px: Long mixed: widest line: DOM 395.578125px, Pretext 395.8671875px
+- chromium shrinkwrap arabic / Times New Roman @ 460-481px: Long mixed: widest line: DOM 459.0703125px, Pretext 459.359375px
+- chromium shrinkwrap arabic / Times New Roman @ 499-521px: Long mixed: widest line: DOM 498.1640625px, Pretext 498.453125px
+- chromium shrinkwrap arabic / Times New Roman @ 551-587px: Long mixed: widest line: DOM 550.46875px, Pretext 550.7578125px
+- chromium shrinkwrap arabic / Times New Roman @ 588-600px: Long mixed: widest line: DOM 587.5703125px, Pretext 587.859375px
+- chromium shrinkwrap arabic / Times New Roman @ 188px: Ghufran tree: widest line: DOM 188.0078125px, Pretext 181.90625px
+- chromium shrinkwrap arabic / Times New Roman @ 124px: Support thread: baseline: DOM 5 lines, Pretext 6
+- chromium shrinkwrap arabic / Times New Roman @ 125-127px: Support thread: widest line: DOM 123.5234375px, Pretext 124.40625px
+- chromium shrinkwrap arabic / Times New Roman @ 168px: Support thread: widest line: DOM 167.5px, Pretext 156.46875px
+- chromium shrinkwrap arabic / Times New Roman @ 169-184px: Support thread: widest line: DOM 167.5px, Pretext 168.3828125px
+- chromium shrinkwrap arabic / Times New Roman @ 202px: Support thread: widest line: DOM 201.71875px, Pretext 195.7578125px
+- chromium shrinkwrap arabic / Times New Roman @ 203-228px: Support thread: widest line: DOM 202.1953125px, Pretext 202.6015625px
+- chromium shrinkwrap arabic / Times New Roman @ 229px: Support thread: widest line: DOM 228.1640625px, Pretext 202.6015625px
+- chromium shrinkwrap arabic / Times New Roman @ 230-254px: Support thread: widest line: DOM 228.1640625px, Pretext 229.046875px
+- chromium shrinkwrap arabic / Times New Roman @ 256px: Support thread: widest line: DOM 255.046875px, Pretext 255.9296875px
+- chromium shrinkwrap arabic / Times New Roman @ 284px: Support thread: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap arabic / Times New Roman @ 285-296px: Support thread: widest line: DOM 283.9921875px, Pretext 284.875px
+- chromium shrinkwrap arabic / Times New Roman @ 297px: Support thread: widest line: DOM 296.6953125px, Pretext 284.875px
+- chromium shrinkwrap arabic / Times New Roman @ 298-327px: Support thread: widest line: DOM 296.6953125px, Pretext 297.578125px
+- chromium shrinkwrap arabic / Times New Roman @ 328px: Support thread: widest line: DOM 327.21875px, Pretext 297.578125px
+- chromium shrinkwrap arabic / Times New Roman @ 329-364px: Support thread: widest line: DOM 327.21875px, Pretext 328.1015625px
+- chromium shrinkwrap arabic / Times New Roman @ 365-407px: Support thread: widest line: DOM 364.0625px, Pretext 364.9453125px
+- chromium shrinkwrap arabic / Times New Roman @ 408px: Support thread: widest line: DOM 407.9140625px, Pretext 364.9453125px
+- chromium shrinkwrap arabic / Times New Roman @ 409-444px: Support thread: widest line: DOM 407.9140625px, Pretext 408.796875px
+- chromium shrinkwrap arabic / Times New Roman @ 445-486px: Support thread: widest line: DOM 444.078125px, Pretext 444.9609375px
+- chromium shrinkwrap arabic / Times New Roman @ 487px: Support thread: widest line: DOM 486.2109375px, Pretext 444.9609375px
+- chromium shrinkwrap arabic / Times New Roman @ 488-515px: Support thread: widest line: DOM 486.2109375px, Pretext 487.09375px
+- chromium shrinkwrap arabic / Times New Roman @ 516px: Support thread: widest line: DOM 515.5px, Pretext 487.09375px
+- chromium shrinkwrap arabic / Times New Roman @ 517-563px: Support thread: widest line: DOM 515.5px, Pretext 516.3828125px
+- chromium shrinkwrap arabic / Times New Roman @ 564px: Support thread: baseline: DOM 1 lines, Pretext 2
+- chromium shrinkwrap arabic / Times New Roman @ 565-600px: Support thread: widest line: DOM 563.8203125px, Pretext 564.703125px
+- chromium shrinkwrap emoji-chat / Arial @ 450px: Emoji mixed: widest line: DOM 450.0078125px, Pretext 432.21875px
+- chromium shrinkwrap emoji-chat / Arial @ 198px: Flags: widest line: DOM 198.0078125px, Pretext 177.5625px
+- chromium shrinkwrap emoji-chat / Arial @ 535px: Flags: baseline: DOM 1 lines, Pretext 2
+- chromium shrinkwrap emoji-chat / Arial @ 365px: Keycaps: widest line: DOM 364.8828125px, Pretext 338.203125px
+- chromium shrinkwrap emoji-chat / Arial @ 366-385px: Keycaps: widest line: DOM 364.8828125px, Pretext 365.765625px
+- chromium shrinkwrap emoji-chat / Arial @ 257px: ZWJ family: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap emoji-chat / Times New Roman @ 345px: Keycaps: widest line: DOM 344.7265625px, Pretext 318.0546875px
+- chromium shrinkwrap emoji-chat / Times New Roman @ 346-364px: Keycaps: widest line: DOM 344.7265625px, Pretext 345.1640625px
+- chromium shrinkwrap emoji-chat / Times New Roman @ 206px: Weather report: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap urls / Helvetica Neue @ 121-125px: Backup URL: widest line: DOM 120.0390625px, Pretext 120.31988525390625px
+- chromium shrinkwrap urls / Helvetica Neue @ 168px: Backup URL: widest line: DOM 167.15625px, Pretext 167.43984985351562px
+- chromium shrinkwrap urls / Helvetica Neue @ 177-185px: Backup URL: widest line: DOM 176.640625px, Pretext 176.92784118652344px
+- chromium shrinkwrap urls / Helvetica Neue @ 186px: Backup URL: widest line: DOM 185.828125px, Pretext 176.92784118652344px
+- chromium shrinkwrap urls / Helvetica Neue @ 187-191px: Backup URL: widest line: DOM 186.0546875px, Pretext 186.11183166503906px
+- chromium shrinkwrap urls / Helvetica Neue @ 192-196px: Backup URL: widest line: DOM 191.15625px, Pretext 191.4398193359375px
+- chromium shrinkwrap urls / Helvetica Neue @ 197-204px: Backup URL: widest line: DOM 196.1953125px, Pretext 196.4798126220703px
+- chromium shrinkwrap urls / Helvetica Neue @ 205-209px: Backup URL: widest line: DOM 204.1953125px, Pretext 204.4798126220703px
+- chromium shrinkwrap urls / Helvetica Neue @ 210-219px: Backup URL: widest line: DOM 209.5234375px, Pretext 209.80780029296875px
+- chromium shrinkwrap urls / Helvetica Neue @ 220-227px: Backup URL: widest line: DOM 219.25px, Pretext 219.29579162597656px
+- chromium shrinkwrap urls / Helvetica Neue @ 228px: Backup URL: widest line: DOM 227.90625px, Pretext 219.29579162597656px
+- chromium shrinkwrap urls / Helvetica Neue @ 229-236px: Backup URL: widest line: DOM 227.90625px, Pretext 228.19178771972656px
+- chromium shrinkwrap urls / Helvetica Neue @ 126px: Bare URL: widest line: DOM 125.9375px, Pretext 118.84788513183594px
+- chromium shrinkwrap urls / Helvetica Neue @ 127px: Bare URL: widest line: DOM 126.8515625px, Pretext 126.22386169433594px
+- chromium shrinkwrap urls / Helvetica Neue @ 128-129px: Bare URL: widest line: DOM 126.8515625px, Pretext 127.13587951660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 130px: Bare URL: widest line: DOM 129.78125px, Pretext 127.13587951660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 131px: Bare URL: widest line: DOM 129.78125px, Pretext 130.06382751464844px
+- chromium shrinkwrap urls / Helvetica Neue @ 135px: Bare URL: widest line: DOM 134.8359375px, Pretext 132.49588012695312px
+- chromium shrinkwrap urls / Helvetica Neue @ 136-137px: Bare URL: widest line: DOM 134.8359375px, Pretext 135.11984252929688px
+- chromium shrinkwrap urls / Helvetica Neue @ 140-143px: Bare URL: widest line: DOM 139.5703125px, Pretext 139.85585021972656px
+- chromium shrinkwrap urls / Helvetica Neue @ 150-154px: Bare URL: widest line: DOM 149.6484375px, Pretext 149.9358367919922px
+- chromium shrinkwrap urls / Helvetica Neue @ 155px: Bare URL: widest line: DOM 154.9765625px, Pretext 149.9358367919922px
+- chromium shrinkwrap urls / Helvetica Neue @ 160px: Bare URL: widest line: DOM 159.734375px, Pretext 155.31185913085938px
+- chromium shrinkwrap urls / Helvetica Neue @ 161-163px: Bare URL: widest line: DOM 159.734375px, Pretext 160.0158233642578px
+- chromium shrinkwrap urls / Helvetica Neue @ 177-181px: Bare URL: widest line: DOM 176.609375px, Pretext 176.8957977294922px
+- chromium shrinkwrap urls / Helvetica Neue @ 187-189px: Bare URL: widest line: DOM 186.390625px, Pretext 186.95977783203125px
+- chromium shrinkwrap urls / Helvetica Neue @ 190px: Bare URL: widest line: DOM 189.9375px, Pretext 186.95977783203125px
+- chromium shrinkwrap urls / Helvetica Neue @ 191-194px: Bare URL: widest line: DOM 189.9375px, Pretext 190.5117645263672px
+- chromium shrinkwrap urls / Helvetica Neue @ 199-203px: Bare URL: widest line: DOM 198.2421875px, Pretext 198.81576538085938px
+- chromium shrinkwrap urls / Helvetica Neue @ 233-237px: Bare URL: widest line: DOM 232.0703125px, Pretext 232.35177612304688px
+- chromium shrinkwrap urls / Helvetica Neue @ 238-245px: Bare URL: widest line: DOM 237.109375px, Pretext 237.3917694091797px
+- chromium shrinkwrap urls / Helvetica Neue @ 246-253px: Bare URL: widest line: DOM 245.703125px, Pretext 245.9837646484375px
+- chromium shrinkwrap urls / Helvetica Neue @ 254px: Bare URL: widest line: DOM 253.984375px, Pretext 245.9837646484375px
+- chromium shrinkwrap urls / Helvetica Neue @ 255-259px: Bare URL: widest line: DOM 253.984375px, Pretext 254.27175903320312px
+- chromium shrinkwrap urls / Helvetica Neue @ 260-264px: Bare URL: widest line: DOM 259.03125px, Pretext 259.31175231933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 265-273px: Bare URL: widest line: DOM 264.359375px, Pretext 264.6397399902344px
+- chromium shrinkwrap urls / Helvetica Neue @ 274px: Bare URL: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap urls / Helvetica Neue @ 275-277px: Bare URL: widest line: DOM 273.84375px, Pretext 274.1277313232422px
+- chromium shrinkwrap urls / Helvetica Neue @ 278-286px: Bare URL: widest line: DOM 277.3984375px, Pretext 277.6797180175781px
+- chromium shrinkwrap urls / Helvetica Neue @ 287-296px: Bare URL: widest line: DOM 286.578125px, Pretext 286.86370849609375px
+- chromium shrinkwrap urls / Helvetica Neue @ 297-301px: Bare URL: widest line: DOM 296.0703125px, Pretext 296.35169982910156px
+- chromium shrinkwrap urls / Helvetica Neue @ 302-315px: Bare URL: widest line: DOM 301.3984375px, Pretext 301.6796875px
+- chromium shrinkwrap urls / Helvetica Neue @ 316-323px: Bare URL: widest line: DOM 315.046875px, Pretext 315.3276824951172px
+- chromium shrinkwrap urls / Helvetica Neue @ 324-327px: Bare URL: widest line: DOM 323.6328125px, Pretext 323.919677734375px
+- chromium shrinkwrap urls / Helvetica Neue @ 328-336px: Bare URL: widest line: DOM 327.1875px, Pretext 327.47166442871094px
+- chromium shrinkwrap urls / Helvetica Neue @ 337-341px: Bare URL: widest line: DOM 336.0859375px, Pretext 336.36766052246094px
+- chromium shrinkwrap urls / Helvetica Neue @ 342-349px: Bare URL: widest line: DOM 341.4140625px, Pretext 341.6956481933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 350-354px: Bare URL: widest line: DOM 349.4140625px, Pretext 349.6956481933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 355px: Bare URL: widest line: DOM 354.7421875px, Pretext 349.6956481933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 356-363px: Bare URL: widest line: DOM 354.7421875px, Pretext 355.0236358642578px
+- chromium shrinkwrap urls / Helvetica Neue @ 364-368px: Bare URL: widest line: DOM 363.046875px, Pretext 363.6156311035156px
+- chromium shrinkwrap urls / Helvetica Neue @ 369-371px: Bare URL: widest line: DOM 368.375px, Pretext 368.94361877441406px
+- chromium shrinkwrap urls / Helvetica Neue @ 372px: Bare URL: widest line: DOM 371.921875px, Pretext 368.94361877441406px
+- chromium shrinkwrap urls / Helvetica Neue @ 373-375px: Bare URL: widest line: DOM 371.921875px, Pretext 372.49560546875px
+- chromium shrinkwrap urls / Helvetica Neue @ 376px: Bare URL: widest line: DOM 375.4765625px, Pretext 372.49560546875px
+- chromium shrinkwrap urls / Helvetica Neue @ 377-384px: Bare URL: widest line: DOM 375.4765625px, Pretext 376.04759216308594px
+- chromium shrinkwrap urls / Helvetica Neue @ 385-392px: Bare URL: widest line: DOM 384.375px, Pretext 384.94358825683594px
+- chromium shrinkwrap urls / Helvetica Neue @ 393px: Bare URL: widest line: DOM 392.9609375px, Pretext 384.94358825683594px
+- chromium shrinkwrap urls / Helvetica Neue @ 394-399px: Bare URL: widest line: DOM 392.9609375px, Pretext 393.53558349609375px
+- chromium shrinkwrap urls / Helvetica Neue @ 120px: Query string: widest line: DOM 117.1875px, Pretext 117.87190246582031px
+- chromium shrinkwrap urls / Helvetica Neue @ 121px: Query string: widest line: DOM 120.1328125px, Pretext 120.41587829589844px
+- chromium shrinkwrap urls / Helvetica Neue @ 123px: Query string: widest line: DOM 122.2109375px, Pretext 122.49592590332031px
+- chromium shrinkwrap urls / Helvetica Neue @ 125px: Query string: baseline: DOM 10 lines, Pretext 11
+- chromium shrinkwrap urls / Helvetica Neue @ 129px: Query string: widest line: DOM 128.7265625px, Pretext 128.1759033203125px
+- chromium shrinkwrap urls / Helvetica Neue @ 130px: Query string: widest line: DOM 128.7265625px, Pretext 129.00787353515625px
+- chromium shrinkwrap urls / Helvetica Neue @ 131px: Query string: widest line: DOM 130.640625px, Pretext 129.00787353515625px
+- chromium shrinkwrap urls / Helvetica Neue @ 132-135px: Query string: widest line: DOM 131.6640625px, Pretext 131.95188903808594px
+- chromium shrinkwrap urls / Helvetica Neue @ 137px: Query string: widest line: DOM 136.7265625px, Pretext 135.8719024658203px
+- chromium shrinkwrap urls / Helvetica Neue @ 138px: Query string: widest line: DOM 136.7265625px, Pretext 137.00787353515625px
+- chromium shrinkwrap urls / Helvetica Neue @ 141px: Query string: widest line: DOM 140.1328125px, Pretext 138.73587036132812px
+- chromium shrinkwrap urls / Helvetica Neue @ 144px: Query string: widest line: DOM 143.6875px, Pretext 143.53587341308594px
+- chromium shrinkwrap urls / Helvetica Neue @ 145-147px: Query string: widest line: DOM 143.6875px, Pretext 144.55987548828125px
+- chromium shrinkwrap urls / Helvetica Neue @ 149-151px: Query string: widest line: DOM 148.4375px, Pretext 148.7198944091797px
+- chromium shrinkwrap urls / Helvetica Neue @ 153px: Query string: widest line: DOM 152.4375px, Pretext 152.71986389160156px
+- chromium shrinkwrap urls / Helvetica Neue @ 154px: Query string: widest line: DOM 152.4375px, Pretext 153.15187072753906px
+- chromium shrinkwrap urls / Helvetica Neue @ 157px: Query string: widest line: DOM 156.7265625px, Pretext 156.22386169433594px
+- chromium shrinkwrap urls / Helvetica Neue @ 158-159px: Query string: widest line: DOM 156.7265625px, Pretext 157.59986877441406px
+- chromium shrinkwrap urls / Helvetica Neue @ 161px: Query string: widest line: DOM 160.2734375px, Pretext 160.5598907470703px
+- chromium shrinkwrap urls / Helvetica Neue @ 162-163px: Query string: widest line: DOM 161.6171875px, Pretext 161.9038543701172px
+- chromium shrinkwrap urls / Helvetica Neue @ 164-165px: Query string: widest line: DOM 163.234375px, Pretext 163.51988220214844px
+- chromium shrinkwrap urls / Helvetica Neue @ 166px: Query string: widest line: DOM 165.90625px, Pretext 163.51988220214844px
+- chromium shrinkwrap urls / Helvetica Neue @ 167px: Query string: widest line: DOM 166.3046875px, Pretext 166.7838592529297px
+- chromium shrinkwrap urls / Helvetica Neue @ 168-169px: Query string: widest line: DOM 167.265625px, Pretext 167.5518798828125px
+- chromium shrinkwrap urls / Helvetica Neue @ 171px: Query string: widest line: DOM 170.0390625px, Pretext 170.31985473632812px
+- chromium shrinkwrap urls / Helvetica Neue @ 172px: Query string: widest line: DOM 172px, Pretext 170.31985473632812px
+- chromium shrinkwrap urls / Helvetica Neue @ 173-174px: Query string: widest line: DOM 172px, Pretext 172.28787231445312px
+- chromium shrinkwrap urls / Helvetica Neue @ 178-179px: Query string: widest line: DOM 177.328125px, Pretext 177.61585998535156px
+- chromium shrinkwrap urls / Helvetica Neue @ 180-181px: Query string: widest line: DOM 179.96875px, Pretext 177.61585998535156px
+- chromium shrinkwrap urls / Helvetica Neue @ 182px: Query string: widest line: DOM 181.015625px, Pretext 181.29583740234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 183px: Query string: widest line: DOM 182.375px, Pretext 182.65585327148438px
+- chromium shrinkwrap urls / Helvetica Neue @ 186px: Query string: widest line: DOM 185.296875px, Pretext 183.4878387451172px
+- chromium shrinkwrap urls / Helvetica Neue @ 187-188px: Query string: widest line: DOM 185.296875px, Pretext 186.6238250732422px
+- chromium shrinkwrap urls / Helvetica Neue @ 195-196px: Query string: widest line: DOM 193.859375px, Pretext 194.6238250732422px
+- chromium shrinkwrap urls / Helvetica Neue @ 197-201px: Query string: widest line: DOM 196.1484375px, Pretext 196.43185424804688px
+- chromium shrinkwrap urls / Helvetica Neue @ 202-203px: Query string: widest line: DOM 201.890625px, Pretext 201.34384155273438px
+- chromium shrinkwrap urls / Helvetica Neue @ 205-208px: Query string: widest line: DOM 204.625px, Pretext 204.91184997558594px
+- chromium shrinkwrap urls / Helvetica Neue @ 211px: Query string: widest line: DOM 210.484375px, Pretext 208.78379821777344px
+- chromium shrinkwrap urls / Helvetica Neue @ 212-213px: Query string: widest line: DOM 210.484375px, Pretext 211.8078155517578px
+- chromium shrinkwrap urls / Helvetica Neue @ 216-217px: Query string: widest line: DOM 215.8125px, Pretext 213.6318359375px
+- chromium shrinkwrap urls / Helvetica Neue @ 218px: Query string: widest line: DOM 217.09375px, Pretext 217.37579345703125px
+- chromium shrinkwrap urls / Helvetica Neue @ 221px: Query string: widest line: DOM 220.640625px, Pretext 220.9277801513672px
+- chromium shrinkwrap urls / Helvetica Neue @ 226-228px: Query string: widest line: DOM 224.7890625px, Pretext 225.72779846191406px
+- chromium shrinkwrap urls / Helvetica Neue @ 229px: Query string: widest line: DOM 228.1640625px, Pretext 228.44784545898438px
+- chromium shrinkwrap urls / Helvetica Neue @ 230px: Query string: widest line: DOM 229.234375px, Pretext 229.519775390625px
+- chromium shrinkwrap urls / Helvetica Neue @ 234px: Query string: widest line: DOM 233.015625px, Pretext 230.99179077148438px
+- chromium shrinkwrap urls / Helvetica Neue @ 235-237px: Query string: widest line: DOM 233.015625px, Pretext 234.62379455566406px
+- chromium shrinkwrap urls / Helvetica Neue @ 238-240px: Query string: widest line: DOM 237.234375px, Pretext 237.519775390625px
+- chromium shrinkwrap urls / Helvetica Neue @ 241px: Query string: widest line: DOM 240.2890625px, Pretext 240.57583618164062px
+- chromium shrinkwrap urls / Helvetica Neue @ 244px: Query string: widest line: DOM 243.84375px, Pretext 241.90379333496094px
+- chromium shrinkwrap urls / Helvetica Neue @ 245px: Query string: widest line: DOM 243.84375px, Pretext 244.12782287597656px
+- chromium shrinkwrap urls / Helvetica Neue @ 246px: Query string: baseline: DOM 5 lines, Pretext 6
+- chromium shrinkwrap urls / Helvetica Neue @ 247-248px: Query string: widest line: DOM 245.828125px, Pretext 246.1117706298828px
+- chromium shrinkwrap urls / Helvetica Neue @ 249px: Query string: widest line: DOM 248.8828125px, Pretext 246.1117706298828px
+- chromium shrinkwrap urls / Helvetica Neue @ 250-253px: Query string: widest line: DOM 248.8828125px, Pretext 249.16781616210938px
+- chromium shrinkwrap urls / Helvetica Neue @ 254px: Query string: widest line: DOM 253.921875px, Pretext 249.16781616210938px
+- chromium shrinkwrap urls / Helvetica Neue @ 255px: Query string: widest line: DOM 254.7265625px, Pretext 254.2078094482422px
+- chromium shrinkwrap urls / Helvetica Neue @ 256-258px: Query string: widest line: DOM 254.7265625px, Pretext 255.0077667236328px
+- chromium shrinkwrap urls / Helvetica Neue @ 259px: Query string: widest line: DOM 258.9453125px, Pretext 255.0077667236328px
+- chromium shrinkwrap urls / Helvetica Neue @ 260-263px: Query string: widest line: DOM 258.9453125px, Pretext 259.23179626464844px
+- chromium shrinkwrap urls / Helvetica Neue @ 264-269px: Query string: widest line: DOM 263.3125px, Pretext 263.5997619628906px
+- chromium shrinkwrap urls / Helvetica Neue @ 270-271px: Query string: widest line: DOM 269.328125px, Pretext 269.61578369140625px
+- chromium shrinkwrap urls / Helvetica Neue @ 272px: Query string: widest line: DOM 271.90625px, Pretext 269.61578369140625px
+- chromium shrinkwrap urls / Helvetica Neue @ 273px: Query string: widest line: DOM 271.90625px, Pretext 272.19175720214844px
+- chromium shrinkwrap urls / Helvetica Neue @ 280-281px: Query string: widest line: DOM 279.4296875px, Pretext 279.71177673339844px
+- chromium shrinkwrap urls / Helvetica Neue @ 282px: Query string: widest line: DOM 281.984375px, Pretext 279.71177673339844px
+- chromium shrinkwrap urls / Helvetica Neue @ 283-290px: Query string: widest line: DOM 281.984375px, Pretext 282.27174377441406px
+- chromium shrinkwrap urls / Helvetica Neue @ 291px: Query string: widest line: DOM 290.9921875px, Pretext 282.27174377441406px
+- chromium shrinkwrap urls / Helvetica Neue @ 292-299px: Query string: widest line: DOM 291.4765625px, Pretext 291.7597351074219px
+- chromium shrinkwrap urls / Helvetica Neue @ 300px: Query string: widest line: DOM 299.5859375px, Pretext 299.8717803955078px
+- chromium shrinkwrap urls / Helvetica Neue @ 301-303px: Query string: widest line: DOM 300.0703125px, Pretext 300.3517303466797px
+- chromium shrinkwrap urls / Helvetica Neue @ 304-309px: Query string: widest line: DOM 303.4453125px, Pretext 303.72776794433594px
+- chromium shrinkwrap urls / Helvetica Neue @ 310-317px: Query string: widest line: DOM 309.25px, Pretext 309.5357208251953px
+- chromium shrinkwrap urls / Helvetica Neue @ 318px: Query string: widest line: DOM 317.84375px, Pretext 317.79176330566406px
+- chromium shrinkwrap urls / Helvetica Neue @ 319-327px: Query string: widest line: DOM 317.84375px, Pretext 318.1277160644531px
+- chromium shrinkwrap urls / Helvetica Neue @ 328-330px: Query string: widest line: DOM 327.4453125px, Pretext 327.7277069091797px
+- chromium shrinkwrap urls / Helvetica Neue @ 331-333px: Query string: widest line: DOM 330.1484375px, Pretext 330.4317626953125px
+- chromium shrinkwrap urls / Helvetica Neue @ 334-336px: Query string: widest line: DOM 333.703125px, Pretext 333.98374938964844px
+- chromium shrinkwrap urls / Helvetica Neue @ 337-346px: Query string: widest line: DOM 336.3359375px, Pretext 336.6237030029297px
+- chromium shrinkwrap urls / Helvetica Neue @ 347-355px: Query string: widest line: DOM 346.421875px, Pretext 346.7036895751953px
+- chromium shrinkwrap urls / Helvetica Neue @ 356-360px: Query string: widest line: DOM 355.3125px, Pretext 355.5996856689453px
+- chromium shrinkwrap urls / Helvetica Neue @ 361-373px: Query string: widest line: DOM 360.359375px, Pretext 360.6396789550781px
+- chromium shrinkwrap urls / Helvetica Neue @ 374px: Query string: widest line: DOM 374px, Pretext 373.67970275878906px
+- chromium shrinkwrap urls / Helvetica Neue @ 375-381px: Query string: widest line: DOM 374px, Pretext 374.2876739501953px
+- chromium shrinkwrap urls / Helvetica Neue @ 382px: Query string: widest line: DOM 382px, Pretext 374.2876739501953px
+- chromium shrinkwrap urls / Helvetica Neue @ 383-389px: Query string: widest line: DOM 382px, Pretext 382.2876739501953px
+- chromium shrinkwrap urls / Helvetica Neue @ 390px: Query string: widest line: DOM 390px, Pretext 382.2876739501953px
+- chromium shrinkwrap urls / Helvetica Neue @ 391-399px: Query string: widest line: DOM 390px, Pretext 390.2876739501953px
+- chromium shrinkwrap urls / Helvetica Neue @ 400-408px: Query string: widest line: DOM 399.1875px, Pretext 399.47166442871094px
+- chromium shrinkwrap urls / Helvetica Neue @ 409-413px: Query string: widest line: DOM 408.0859375px, Pretext 408.36766052246094px
+- chromium shrinkwrap urls / Helvetica Neue @ 414-421px: Query string: widest line: DOM 413.4140625px, Pretext 413.6956481933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 422px: Query string: widest line: DOM 421.71875px, Pretext 413.6956481933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 423-430px: Query string: widest line: DOM 421.71875px, Pretext 422.2876434326172px
+- chromium shrinkwrap urls / Helvetica Neue @ 431-439px: Query string: widest line: DOM 430.3046875px, Pretext 430.879638671875px
+- chromium shrinkwrap urls / Helvetica Neue @ 440px: Query string: widest line: DOM 439.90625px, Pretext 430.879638671875px
+- chromium shrinkwrap urls / Helvetica Neue @ 441-448px: Query string: widest line: DOM 439.90625px, Pretext 440.47962951660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 449px: Query string: widest line: DOM 448.8046875px, Pretext 440.47962951660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 450-457px: Query string: widest line: DOM 448.8046875px, Pretext 449.37562561035156px
+- chromium shrinkwrap urls / Helvetica Neue @ 458-469px: Query string: widest line: DOM 457.3984375px, Pretext 457.9676208496094px
+- chromium shrinkwrap urls / Helvetica Neue @ 470px: Query string: widest line: DOM 469.5234375px, Pretext 457.9676208496094px
+- chromium shrinkwrap urls / Helvetica Neue @ 471-477px: Query string: widest line: DOM 469.5234375px, Pretext 470.0956115722656px
+- chromium shrinkwrap urls / Helvetica Neue @ 478px: Query string: widest line: DOM 477.5234375px, Pretext 470.0956115722656px
+- chromium shrinkwrap urls / Helvetica Neue @ 479-481px: Query string: widest line: DOM 477.5234375px, Pretext 478.0956115722656px
+- chromium shrinkwrap urls / Helvetica Neue @ 482-489px: Query string: widest line: DOM 481.078125px, Pretext 481.64759826660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 490px: Query string: widest line: DOM 489.6640625px, Pretext 481.64759826660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 491-494px: Query string: widest line: DOM 489.6640625px, Pretext 490.2395935058594px
+- chromium shrinkwrap urls / Helvetica Neue @ 495px: Query string: widest line: DOM 494.7109375px, Pretext 490.2395935058594px
+- chromium shrinkwrap urls / Helvetica Neue @ 496-499px: Query string: widest line: DOM 494.7109375px, Pretext 495.2795867919922px
+- chromium shrinkwrap urls / Helvetica Neue @ 500px: Query string: widest line: DOM 499.75px, Pretext 495.2795867919922px
+- chromium shrinkwrap urls / Helvetica Neue @ 501-508px: Query string: widest line: DOM 499.75px, Pretext 500.319580078125px
+- chromium shrinkwrap urls / Helvetica Neue @ 509-513px: Query string: widest line: DOM 508.3359375px, Pretext 508.9115753173828px
+- chromium shrinkwrap urls / Helvetica Neue @ 514px: Query string: widest line: DOM 513.6640625px, Pretext 508.9115753173828px
+- chromium shrinkwrap urls / Helvetica Neue @ 515-523px: Query string: widest line: DOM 513.6640625px, Pretext 514.2395629882812px
+- chromium shrinkwrap urls / Helvetica Neue @ 524px: Query string: widest line: DOM 523.75px, Pretext 514.2395629882812px
+- chromium shrinkwrap urls / Helvetica Neue @ 525-532px: Query string: widest line: DOM 523.75px, Pretext 524.3195495605469px
+- chromium shrinkwrap urls / Helvetica Neue @ 533px: Query string: widest line: DOM 532.640625px, Pretext 524.3195495605469px
+- chromium shrinkwrap urls / Helvetica Neue @ 534-537px: Query string: widest line: DOM 532.640625px, Pretext 533.2155456542969px
+- chromium shrinkwrap urls / Helvetica Neue @ 538px: Query string: widest line: DOM 537.6875px, Pretext 533.2155456542969px
+- chromium shrinkwrap urls / Helvetica Neue @ 539-551px: Query string: widest line: DOM 537.6875px, Pretext 538.2555389404297px
+- chromium shrinkwrap urls / Helvetica Neue @ 552-559px: Query string: widest line: DOM 551.328125px, Pretext 551.9035339355469px
+- chromium shrinkwrap urls / Helvetica Neue @ 560-572px: Query string: widest line: DOM 559.328125px, Pretext 559.9035339355469px
+- chromium shrinkwrap urls / Helvetica Neue @ 573px: Query string: widest line: DOM 572.9765625px, Pretext 559.9035339355469px
+- chromium shrinkwrap urls / Helvetica Neue @ 574-581px: Query string: widest line: DOM 572.9765625px, Pretext 573.5515289306641px
+- chromium shrinkwrap urls / Helvetica Neue @ 582px: Query string: widest line: DOM 581.5703125px, Pretext 573.5515289306641px
+- chromium shrinkwrap urls / Helvetica Neue @ 583-591px: Query string: widest line: DOM 581.5703125px, Pretext 582.1435241699219px
+- chromium shrinkwrap urls / Helvetica Neue @ 592-594px: Query string: widest line: DOM 591.0625px, Pretext 591.6315155029297px
+- chromium shrinkwrap urls / Helvetica Neue @ 595px: Query string: widest line: DOM 594.609375px, Pretext 591.6315155029297px
+- chromium shrinkwrap urls / Helvetica Neue @ 596-600px: Query string: widest line: DOM 594.609375px, Pretext 595.1835021972656px
+- chromium shrinkwrap urls / Helvetica Neue @ 355px: Unix path: widest line: DOM 355.0078125px, Pretext 346.1116638183594px
+- chromium shrinkwrap urls / Helvetica Neue @ 127-128px: Windows path: widest line: DOM 126.2109375px, Pretext 126.495849609375px
+- chromium shrinkwrap urls / Helvetica Neue @ 140px: Windows path: widest line: DOM 139.5390625px, Pretext 139.82383728027344px
+- chromium shrinkwrap urls / Helvetica Neue @ 144px: Windows path: widest line: DOM 143.984375px, Pretext 143.6798553466797px
+- chromium shrinkwrap urls / Helvetica Neue @ 149px: Windows path: widest line: DOM 148.1328125px, Pretext 148.4158477783203px
+- chromium shrinkwrap urls / Helvetica Neue @ 151px: Windows path: widest line: DOM 150.7890625px, Pretext 149.63185119628906px
+- chromium shrinkwrap urls / Helvetica Neue @ 152px: Windows path: widest line: DOM 150.7890625px, Pretext 151.0718536376953px
+- chromium shrinkwrap urls / Helvetica Neue @ 156px: Windows path: widest line: DOM 155.828125px, Pretext 152.5918426513672px
+- chromium shrinkwrap urls / Helvetica Neue @ 157-158px: Windows path: widest line: DOM 155.828125px, Pretext 156.11184692382812px
+- chromium shrinkwrap urls / Helvetica Neue @ 164px: Windows path: widest line: DOM 163.265625px, Pretext 163.55181884765625px
+- chromium shrinkwrap urls / Helvetica Neue @ 166px: Windows path: widest line: DOM 165.9375px, Pretext 164.14382934570312px
+- chromium shrinkwrap urls / Helvetica Neue @ 167-169px: Windows path: widest line: DOM 165.9375px, Pretext 166.2238311767578px
+- chromium shrinkwrap urls / Helvetica Neue @ 170px: Windows path: widest line: DOM 169.796875px, Pretext 169.47181701660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 171px: Windows path: widest line: DOM 169.796875px, Pretext 170.079833984375px
+- chromium shrinkwrap urls / Helvetica Neue @ 175-176px: Windows path: widest line: DOM 174.53125px, Pretext 174.81582641601562px
+- chromium shrinkwrap urls / Helvetica Neue @ 193-198px: Windows path: widest line: DOM 192.5625px, Pretext 192.591796875px
+- chromium shrinkwrap urls / Helvetica Neue @ 202px: Windows path: widest line: DOM 201.4921875px, Pretext 201.77578735351562px
+- chromium shrinkwrap urls / Helvetica Neue @ 211-213px: Windows path: widest line: DOM 210.359375px, Pretext 210.63978576660156px
+- chromium shrinkwrap urls / Helvetica Neue @ 216-218px: Windows path: widest line: DOM 215.6875px, Pretext 215.9677734375px
+- chromium shrinkwrap urls / Helvetica Neue @ 223px: Windows path: widest line: DOM 222.7890625px, Pretext 218.67178344726562px
+- chromium shrinkwrap urls / Helvetica Neue @ 227-231px: Windows path: widest line: DOM 226.3359375px, Pretext 226.62376403808594px
+- chromium shrinkwrap urls / Helvetica Neue @ 232px: Windows path: widest line: DOM 231.3828125px, Pretext 231.66375732421875px
+- chromium shrinkwrap urls / Helvetica Neue @ 235-237px: Windows path: widest line: DOM 234.3359375px, Pretext 234.62374877929688px
+- chromium shrinkwrap urls / Helvetica Neue @ 238-246px: Windows path: widest line: DOM 237.6328125px, Pretext 237.88775634765625px
+- chromium shrinkwrap urls / Helvetica Neue @ 255px: Windows path: widest line: DOM 254.7890625px, Pretext 246.5277557373047px
+- chromium shrinkwrap urls / Helvetica Neue @ 270-272px: Windows path: widest line: DOM 269.5859375px, Pretext 269.87171936035156px
+- chromium shrinkwrap urls / Helvetica Neue @ 275-276px: Windows path: widest line: DOM 274.625px, Pretext 274.9117126464844px
+- chromium shrinkwrap urls / Helvetica Neue @ 280-281px: Windows path: widest line: DOM 279.6640625px, Pretext 279.9517059326172px
+- chromium shrinkwrap urls / Helvetica Neue @ 284-292px: Windows path: widest line: DOM 283.234375px, Pretext 283.51971435546875px
+- chromium shrinkwrap urls / Helvetica Neue @ 293-295px: Windows path: widest line: DOM 292.421875px, Pretext 292.7037048339844px
+- chromium shrinkwrap urls / Helvetica Neue @ 300px: Windows path: widest line: DOM 299.828125px, Pretext 299.26368713378906px
+- chromium shrinkwrap urls / Helvetica Neue @ 301-303px: Windows path: widest line: DOM 299.828125px, Pretext 300.11170959472656px
+- chromium shrinkwrap urls / Helvetica Neue @ 304-307px: Windows path: widest line: DOM 303.3828125px, Pretext 303.6636962890625px
+- chromium shrinkwrap urls / Helvetica Neue @ 323-330px: Windows path: widest line: DOM 322.0859375px, Pretext 322.36766052246094px
+- chromium shrinkwrap urls / Helvetica Neue @ 331-339px: Windows path: widest line: DOM 330.0859375px, Pretext 330.36766052246094px
+- chromium shrinkwrap urls / Helvetica Neue @ 340-343px: Windows path: widest line: DOM 339.265625px, Pretext 339.55165100097656px
+- chromium shrinkwrap urls / Helvetica Neue @ 344px: Windows path: widest line: DOM 344px, Pretext 339.55165100097656px
+- chromium shrinkwrap urls / Helvetica Neue @ 350-354px: Windows path: widest line: DOM 349.046875px, Pretext 349.32763671875px
+- chromium shrinkwrap urls / Helvetica Neue @ 355-369px: Windows path: widest line: DOM 354.375px, Pretext 354.65562438964844px
+- chromium shrinkwrap urls / Helvetica Neue @ 370-372px: Windows path: widest line: DOM 369.1875px, Pretext 369.47161865234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 373px: Windows path: widest line: DOM 372.7421875px, Pretext 369.47161865234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 374-381px: Windows path: widest line: DOM 372.7421875px, Pretext 373.0236053466797px
+- chromium shrinkwrap urls / Helvetica Neue @ 382-391px: Windows path: widest line: DOM 381.6328125px, Pretext 381.9196014404297px
+- chromium shrinkwrap urls / Helvetica Neue @ 392-400px: Windows path: widest line: DOM 391.125px, Pretext 391.4075927734375px
+- chromium shrinkwrap urls / Helvetica Neue @ 401-412px: Windows path: widest line: DOM 400.3046875px, Pretext 400.5915832519531px
+- chromium shrinkwrap urls / Helvetica Neue @ 413-420px: Windows path: widest line: DOM 412.4375px, Pretext 412.7195739746094px
+- chromium shrinkwrap urls / Helvetica Neue @ 421-425px: Windows path: widest line: DOM 420.4375px, Pretext 420.7195739746094px
+- chromium shrinkwrap urls / Helvetica Neue @ 426px: Windows path: widest line: DOM 425.765625px, Pretext 420.7195739746094px
+- chromium shrinkwrap urls / Helvetica Neue @ 427-429px: Windows path: widest line: DOM 425.765625px, Pretext 426.0475616455078px
+- chromium shrinkwrap urls / Helvetica Neue @ 430px: Windows path: widest line: DOM 429.90625px, Pretext 426.0475616455078px
+- chromium shrinkwrap urls / Helvetica Neue @ 431-441px: Windows path: widest line: DOM 429.90625px, Pretext 430.1915588378906px
+- chromium shrinkwrap urls / Helvetica Neue @ 442-450px: Windows path: widest line: DOM 441.4609375px, Pretext 441.74354553222656px
+- chromium shrinkwrap urls / Helvetica Neue @ 451-455px: Windows path: widest line: DOM 450.0546875px, Pretext 450.3355407714844px
+- chromium shrinkwrap urls / Helvetica Neue @ 456-466px: Windows path: widest line: DOM 455.09375px, Pretext 455.3755340576172px
+- chromium shrinkwrap urls / Helvetica Neue @ 467-475px: Windows path: widest line: DOM 466.640625px, Pretext 466.9275207519531px
+- chromium shrinkwrap urls / Helvetica Neue @ 476-483px: Windows path: widest line: DOM 475.234375px, Pretext 475.51951599121094px
+- chromium shrinkwrap urls / Helvetica Neue @ 484px: Windows path: widest line: DOM 483.828125px, Pretext 475.51951599121094px
+- chromium shrinkwrap urls / Helvetica Neue @ 485-492px: Windows path: widest line: DOM 483.828125px, Pretext 484.11151123046875px
+- chromium shrinkwrap urls / Helvetica Neue @ 493px: Windows path: widest line: DOM 492.7265625px, Pretext 484.11151123046875px
+- chromium shrinkwrap urls / Helvetica Neue @ 494-501px: Windows path: widest line: DOM 492.7265625px, Pretext 493.00750732421875px
+- chromium shrinkwrap urls / Helvetica Neue @ 502-506px: Windows path: widest line: DOM 501.3125px, Pretext 501.59950256347656px
+- chromium shrinkwrap urls / Helvetica Neue @ 507-510px: Windows path: widest line: DOM 506.640625px, Pretext 506.927490234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 511px: Windows path: widest line: DOM 510.7890625px, Pretext 506.927490234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 512-520px: Windows path: widest line: DOM 510.7890625px, Pretext 511.0714874267578px
+- chromium shrinkwrap urls / Helvetica Neue @ 521-525px: Windows path: widest line: DOM 520.5625px, Pretext 520.8474731445312px
+- chromium shrinkwrap urls / Helvetica Neue @ 526px: Windows path: widest line: DOM 525.890625px, Pretext 520.8474731445312px
+- chromium shrinkwrap urls / Helvetica Neue @ 527-533px: Windows path: widest line: DOM 525.890625px, Pretext 526.1754608154297px
+- chromium shrinkwrap urls / Helvetica Neue @ 534px: Windows path: widest line: DOM 533.890625px, Pretext 526.1754608154297px
+- chromium shrinkwrap urls / Helvetica Neue @ 535-542px: Windows path: widest line: DOM 533.890625px, Pretext 534.1754608154297px
+- chromium shrinkwrap urls / Helvetica Neue @ 543-547px: Windows path: widest line: DOM 542.484375px, Pretext 542.7674560546875px
+- chromium shrinkwrap urls / Helvetica Neue @ 548-552px: Windows path: widest line: DOM 547.5234375px, Pretext 547.8074493408203px
+- chromium shrinkwrap urls / Helvetica Neue @ 553-556px: Windows path: widest line: DOM 552.5625px, Pretext 552.8474426269531px
+- chromium shrinkwrap urls / Helvetica Neue @ 557-564px: Windows path: widest line: DOM 556.1171875px, Pretext 556.3994293212891px
+- chromium shrinkwrap urls / Helvetica Neue @ 565px: Windows path: widest line: DOM 565.0078125px, Pretext 556.3994293212891px
+- chromium shrinkwrap urls / Helvetica Neue @ 566-574px: Windows path: widest line: DOM 565.0078125px, Pretext 565.2954254150391px
+- chromium shrinkwrap urls / Helvetica Neue @ 575-582px: Windows path: widest line: DOM 574.1953125px, Pretext 574.4794158935547px
+- chromium shrinkwrap urls / Helvetica Neue @ 583-586px: Windows path: widest line: DOM 582.1953125px, Pretext 582.4794158935547px
+- chromium shrinkwrap urls / Helvetica Neue @ 587-590px: Windows path: widest line: DOM 586.640625px, Pretext 586.9274139404297px
+- chromium shrinkwrap urls / Helvetica Neue @ 591-599px: Windows path: widest line: DOM 590.1953125px, Pretext 590.4794006347656px
+- chromium shrinkwrap urls / Helvetica Neue @ 600px: Windows path: widest line: DOM 599.09375px, Pretext 599.3753967285156px
+- chromium shrinkwrap urls / Helvetica Neue @ 120px: Data URI: widest line: DOM 118.5625px, Pretext 118.79989624023438px
+- chromium shrinkwrap urls / Helvetica Neue @ 121-122px: Data URI: widest line: DOM 118.5625px, Pretext 120.5599365234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 126px: Data URI: widest line: DOM 125.3515625px, Pretext 125.90391540527344px
+- chromium shrinkwrap urls / Helvetica Neue @ 134px: Data URI: widest line: DOM 133.3125px, Pretext 132.7039031982422px
+- chromium shrinkwrap urls / Helvetica Neue @ 135px: Data URI: widest line: DOM 133.3125px, Pretext 134.8319091796875px
+- chromium shrinkwrap urls / Helvetica Neue @ 136-137px: Data URI: widest line: DOM 135.3984375px, Pretext 135.96792602539062px
+- chromium shrinkwrap urls / Helvetica Neue @ 144-145px: Data URI: baseline: DOM 8 lines, Pretext 9
+- chromium shrinkwrap urls / Helvetica Neue @ 147-148px: Data URI: widest line: DOM 145.4609375px, Pretext 146.33592224121094px
+- chromium shrinkwrap urls / Helvetica Neue @ 149-150px: Data URI: widest line: DOM 148.7109375px, Pretext 148.7359161376953px
+- chromium shrinkwrap urls / Helvetica Neue @ 166-167px: Data URI: widest line: DOM 165.96875px, Pretext 165.59988403320312px
+- chromium shrinkwrap urls / Helvetica Neue @ 168-169px: Data URI: widest line: DOM 165.96875px, Pretext 167.3759002685547px
+- chromium shrinkwrap urls / Helvetica Neue @ 184-185px: Data URI: widest line: DOM 183.4140625px, Pretext 182.20785522460938px
+- chromium shrinkwrap urls / Helvetica Neue @ 186px: Data URI: widest line: DOM 183.4140625px, Pretext 185.74388122558594px
+- chromium shrinkwrap urls / Helvetica Neue @ 196-198px: Data URI: widest line: DOM 195.8125px, Pretext 195.83985900878906px
+- chromium shrinkwrap urls / Helvetica Neue @ 200-201px: Data URI: widest line: DOM 199.6875px, Pretext 199.95188903808594px
+- chromium shrinkwrap urls / Helvetica Neue @ 208-210px: Data URI: widest line: DOM 207.953125px, Pretext 207.67987060546875px
+- chromium shrinkwrap urls / Helvetica Neue @ 217-218px: Data URI: widest line: DOM 216.2578125px, Pretext 210.43182373046875px
+- chromium shrinkwrap urls / Helvetica Neue @ 230-231px: Data URI: baseline: DOM 5 lines, Pretext 6
+- chromium shrinkwrap urls / Helvetica Neue @ 232px: Data URI: widest line: DOM 229.6328125px, Pretext 231.6638641357422px
+- chromium shrinkwrap urls / Helvetica Neue @ 233px: Data URI: widest line: DOM 232.8515625px, Pretext 231.6638641357422px
+- chromium shrinkwrap urls / Helvetica Neue @ 234px: Data URI: widest line: DOM 233.796875px, Pretext 233.51980590820312px
+- chromium shrinkwrap urls / Helvetica Neue @ 235-236px: Data URI: widest line: DOM 233.796875px, Pretext 234.62384033203125px
+- chromium shrinkwrap urls / Helvetica Neue @ 245-246px: Data URI: widest line: DOM 244.421875px, Pretext 242.41580200195312px
+- chromium shrinkwrap urls / Helvetica Neue @ 247-248px: Data URI: widest line: DOM 244.421875px, Pretext 246.7838134765625px
+- chromium shrinkwrap urls / Helvetica Neue @ 252-253px: Data URI: widest line: DOM 251.84375px, Pretext 249.4878387451172px
+- chromium shrinkwrap urls / Helvetica Neue @ 255-256px: Data URI: widest line: DOM 254.53125px, Pretext 253.08779907226562px
+- chromium shrinkwrap urls / Helvetica Neue @ 257-260px: Data URI: widest line: DOM 256.578125px, Pretext 256.89581298828125px
+- chromium shrinkwrap urls / Helvetica Neue @ 263-265px: Data URI: widest line: DOM 262.8359375px, Pretext 260.0958251953125px
+- chromium shrinkwrap urls / Helvetica Neue @ 268px: Data URI: widest line: DOM 267.5078125px, Pretext 267.5358123779297px
+- chromium shrinkwrap urls / Helvetica Neue @ 269-270px: Data URI: widest line: DOM 267.5078125px, Pretext 268.6878204345703px
+- chromium shrinkwrap urls / Helvetica Neue @ 278-279px: Data URI: widest line: DOM 277.875px, Pretext 274.65577697753906px
+- chromium shrinkwrap urls / Helvetica Neue @ 280px: Data URI: widest line: DOM 277.875px, Pretext 279.727783203125px
+- chromium shrinkwrap urls / Helvetica Neue @ 281px: Data URI: widest line: DOM 277.875px, Pretext 280.2398223876953px
+- chromium shrinkwrap urls / Helvetica Neue @ 290-291px: Data URI: widest line: DOM 289.4296875px, Pretext 283.5997772216797px
+- chromium shrinkwrap urls / Helvetica Neue @ 292-293px: Data URI: widest line: DOM 291.5703125px, Pretext 291.7918243408203px
+- chromium shrinkwrap urls / Helvetica Neue @ 296-301px: Data URI: widest line: DOM 293.96875px, Pretext 295.34381103515625px
+- chromium shrinkwrap urls / Helvetica Neue @ 302-303px: Data URI: widest line: DOM 301.5703125px, Pretext 301.9197692871094px
+- chromium shrinkwrap urls / Helvetica Neue @ 304px: Data URI: widest line: DOM 303.703125px, Pretext 303.93580627441406px
+- chromium shrinkwrap urls / Helvetica Neue @ 310-311px: Data URI: widest line: DOM 309.875px, Pretext 304.3357696533203px
+- chromium shrinkwrap urls / Helvetica Neue @ 312px: Data URI: widest line: DOM 311.4140625px, Pretext 311.11976623535156px
+- chromium shrinkwrap urls / Helvetica Neue @ 313-314px: Data URI: widest line: DOM 311.4140625px, Pretext 312.2397918701172px
+- chromium shrinkwrap urls / Helvetica Neue @ 321-322px: Data URI: widest line: DOM 320.2421875px, Pretext 318.23976135253906px
+- chromium shrinkwrap urls / Helvetica Neue @ 323-325px: Data URI: widest line: DOM 320.2421875px, Pretext 322.6077880859375px
+- chromium shrinkwrap urls / Helvetica Neue @ 331-332px: Data URI: widest line: DOM 330.609375px, Pretext 327.4237518310547px
+- chromium shrinkwrap urls / Helvetica Neue @ 333-336px: Data URI: widest line: DOM 330.609375px, Pretext 332.9757843017578px
+- chromium shrinkwrap urls / Helvetica Neue @ 342-344px: Data URI: widest line: DOM 341.875px, Pretext 337.4877471923828px
+- chromium shrinkwrap urls / Helvetica Neue @ 345px: Data URI: widest line: DOM 341.875px, Pretext 344.2397766113281px
+- chromium shrinkwrap urls / Helvetica Neue @ 346px: Data URI: widest line: DOM 345.4296875px, Pretext 345.1997375488281px
+- chromium shrinkwrap urls / Helvetica Neue @ 348-352px: Data URI: widest line: DOM 346.9921875px, Pretext 347.1997528076172px
+- chromium shrinkwrap urls / Helvetica Neue @ 357-358px: Data URI: widest line: DOM 356.9921875px, Pretext 352.3197479248047px
+- chromium shrinkwrap urls / Helvetica Neue @ 367px: Data URI: widest line: DOM 366.1796875px, Pretext 362.09571838378906px
+- chromium shrinkwrap urls / Helvetica Neue @ 369px: Data URI: widest line: DOM 367.4453125px, Pretext 368.5437316894531px
+- chromium shrinkwrap urls / Helvetica Neue @ 376-377px: Data URI: widest line: DOM 375.078125px, Pretext 369.7917022705078px
+- chromium shrinkwrap urls / Helvetica Neue @ 379-380px: Data URI: baseline: DOM 3 lines, Pretext 4
+- chromium shrinkwrap urls / Helvetica Neue @ 381px: Data URI: widest line: DOM 378.9453125px, Pretext 380.09568786621094px
+- chromium shrinkwrap urls / Helvetica Neue @ 382-388px: Data URI: widest line: DOM 378.9453125px, Pretext 381.3117370605469px
+- chromium shrinkwrap urls / Helvetica Neue @ 390-397px: Data URI: widest line: DOM 388.7734375px, Pretext 389.61572265625px
+- chromium shrinkwrap urls / Helvetica Neue @ 399-401px: Data URI: widest line: DOM 398.8046875px, Pretext 397.9516906738281px
+- chromium shrinkwrap urls / Helvetica Neue @ 402-407px: Data URI: widest line: DOM 398.8046875px, Pretext 401.167724609375px
+- chromium shrinkwrap urls / Helvetica Neue @ 408px: Data URI: widest line: DOM 407.703125px, Pretext 401.167724609375px
+- chromium shrinkwrap urls / Helvetica Neue @ 414-415px: Data URI: widest line: DOM 413.328125px, Pretext 408.31968688964844px
+- chromium shrinkwrap urls / Helvetica Neue @ 416-418px: Data URI: widest line: DOM 413.328125px, Pretext 415.6957092285156px
+- chromium shrinkwrap urls / Helvetica Neue @ 426-427px: Data URI: widest line: DOM 425.4609375px, Pretext 418.68768310546875px
+- chromium shrinkwrap urls / Helvetica Neue @ 428-429px: Data URI: widest line: DOM 425.4609375px, Pretext 427.8236999511719px
+- chromium shrinkwrap urls / Helvetica Neue @ 436-437px: Data URI: widest line: DOM 435.5390625px, Pretext 429.05567932128906px
+- chromium shrinkwrap urls / Helvetica Neue @ 438-439px: Data URI: widest line: DOM 435.5390625px, Pretext 437.9036865234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 440-449px: Data URI: widest line: DOM 439.4296875px, Pretext 439.66368103027344px
+- chromium shrinkwrap urls / Helvetica Neue @ 451-452px: Data URI: widest line: DOM 450.0390625px, Pretext 449.1996612548828px
+- chromium shrinkwrap urls / Helvetica Neue @ 453-458px: Data URI: widest line: DOM 450.0390625px, Pretext 452.3996887207031px
+- chromium shrinkwrap urls / Helvetica Neue @ 459px: Data URI: widest line: DOM 458.9296875px, Pretext 452.3996887207031px
+- chromium shrinkwrap urls / Helvetica Neue @ 460-466px: Data URI: widest line: DOM 459.5703125px, Pretext 459.8236846923828px
+- chromium shrinkwrap urls / Helvetica Neue @ 467-468px: Data URI: widest line: DOM 466.0546875px, Pretext 459.8236846923828px
+- chromium shrinkwrap urls / Helvetica Neue @ 469px: Data URI: widest line: DOM 466.0546875px, Pretext 468.4156799316406px
+- chromium shrinkwrap urls / Helvetica Neue @ 473-475px: Data URI: widest line: DOM 472.8828125px, Pretext 469.93565368652344px
+- chromium shrinkwrap urls / Helvetica Neue @ 476-480px: Data URI: widest line: DOM 472.8828125px, Pretext 475.24766540527344px
+- chromium shrinkwrap urls / Helvetica Neue @ 483-484px: Data URI: widest line: DOM 482.0703125px, Pretext 480.30364990234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 485-490px: Data URI: widest line: DOM 482.0703125px, Pretext 484.43165588378906px
+- chromium shrinkwrap urls / Helvetica Neue @ 493-494px: Data URI: widest line: DOM 492.4375px, Pretext 490.67164611816406px
+- chromium shrinkwrap urls / Helvetica Neue @ 495-501px: Data URI: widest line: DOM 492.4375px, Pretext 494.7996520996094px
+- chromium shrinkwrap urls / Helvetica Neue @ 503-505px: Data URI: widest line: DOM 502.8046875px, Pretext 501.6316375732422px
+- chromium shrinkwrap urls / Helvetica Neue @ 506-511px: Data URI: widest line: DOM 502.8046875px, Pretext 505.1676483154297px
+- chromium shrinkwrap urls / Helvetica Neue @ 512-513px: Data URI: widest line: DOM 511.109375px, Pretext 505.1676483154297px
+- chromium shrinkwrap urls / Helvetica Neue @ 523px: Data URI: widest line: DOM 522.0703125px, Pretext 513.1836242675781px
+- chromium shrinkwrap urls / Helvetica Neue @ 532px: Data URI: widest line: DOM 531.5546875px, Pretext 523.5516204833984px
+- chromium shrinkwrap urls / Helvetica Neue @ 534-535px: Data URI: widest line: DOM 532.7421875px, Pretext 533.9196166992188px
+- chromium shrinkwrap urls / Helvetica Neue @ 542-543px: Data URI: widest line: DOM 541.921875px, Pretext 535.9995880126953px
+- chromium shrinkwrap urls / Helvetica Neue @ 544px: Data URI: widest line: DOM 543.125px, Pretext 535.9995880126953px
+- chromium shrinkwrap urls / Helvetica Neue @ 545-552px: Data URI: widest line: DOM 543.125px, Pretext 544.2876129150391px
+- chromium shrinkwrap urls / Helvetica Neue @ 555-560px: Data URI: widest line: DOM 552.2890625px, Pretext 554.6556091308594px
+- chromium shrinkwrap urls / Helvetica Neue @ 563-565px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap urls / Helvetica Neue @ 566-573px: Data URI: widest line: DOM 562.65625px, Pretext 565.0236053466797px
+- chromium shrinkwrap urls / Helvetica Neue @ 574-575px: Data URI: widest line: DOM 573.03125px, Pretext 565.0236053466797px
+- chromium shrinkwrap urls / Helvetica Neue @ 576-577px: Data URI: widest line: DOM 573.03125px, Pretext 575.3916015625px
+- chromium shrinkwrap urls / Helvetica Neue @ 578-580px: Data URI: widest line: DOM 577.765625px, Pretext 575.3916015625px
+- chromium shrinkwrap urls / Helvetica Neue @ 581-586px: Data URI: widest line: DOM 577.765625px, Pretext 580.1275939941406px
+- chromium shrinkwrap urls / Helvetica Neue @ 587-589px: Data URI: widest line: DOM 586.9453125px, Pretext 580.1275939941406px
+- chromium shrinkwrap urls / Helvetica Neue @ 590-595px: Data URI: widest line: DOM 586.9453125px, Pretext 589.3115844726562px
+- chromium shrinkwrap urls / Helvetica Neue @ 596-597px: Data URI: widest line: DOM 595.5390625px, Pretext 589.3115844726562px
+- chromium shrinkwrap urls / Helvetica Neue @ 598-600px: Data URI: widest line: DOM 595.5390625px, Pretext 597.9035797119141px
+- chromium shrinkwrap urls / Helvetica Neue @ 120px: npm scope: widest line: DOM 112.0859375px, Pretext 112.36788940429688px
+- chromium shrinkwrap urls / Helvetica Neue @ 121-123px: npm scope: widest line: DOM 120.6796875px, Pretext 120.95988464355469px
+- chromium shrinkwrap urls / Helvetica Neue @ 127-128px: npm scope: widest line: DOM 126.53125px, Pretext 126.81587219238281px
+- chromium shrinkwrap urls / Helvetica Neue @ 129px: npm scope: widest line: DOM 128.9609375px, Pretext 126.81587219238281px
+- chromium shrinkwrap urls / Helvetica Neue @ 130-132px: npm scope: widest line: DOM 128.9609375px, Pretext 129.2478790283203px
+- chromium shrinkwrap urls / Helvetica Neue @ 139px: npm scope: widest line: DOM 138.9765625px, Pretext 133.9998779296875px
+- chromium shrinkwrap urls / Helvetica Neue @ 140-141px: npm scope: widest line: DOM 138.9765625px, Pretext 139.26385498046875px
+- chromium shrinkwrap urls / Helvetica Neue @ 146px: npm scope: widest line: DOM 145.78125px, Pretext 141.13589477539062px
+- chromium shrinkwrap urls / Helvetica Neue @ 147-149px: npm scope: widest line: DOM 145.78125px, Pretext 146.06382751464844px
+- chromium shrinkwrap urls / Helvetica Neue @ 194px: npm scope: widest line: DOM 193.203125px, Pretext 193.48777770996094px
+- chromium shrinkwrap urls / Helvetica Neue @ 209px: npm scope: widest line: DOM 208.3203125px, Pretext 208.6077880859375px
+- chromium shrinkwrap urls / Helvetica Neue @ 218px: npm scope: widest line: DOM 217.890625px, Pretext 211.64781188964844px
+- chromium shrinkwrap urls / Helvetica Neue @ 219-221px: npm scope: widest line: DOM 217.890625px, Pretext 218.17581176757812px
+- chromium shrinkwrap urls / Helvetica Neue @ 223px: npm scope: widest line: DOM 222.9296875px, Pretext 221.66378784179688px
+- chromium shrinkwrap urls / Helvetica Neue @ 224-231px: npm scope: widest line: DOM 222.9296875px, Pretext 223.21580505371094px
+- chromium shrinkwrap urls / Helvetica Neue @ 232-239px: npm scope: widest line: DOM 231.5234375px, Pretext 231.80780029296875px
+- chromium shrinkwrap urls / Helvetica Neue @ 240px: npm scope: widest line: DOM 239.8125px, Pretext 231.80780029296875px
+- chromium shrinkwrap urls / Helvetica Neue @ 241-244px: npm scope: widest line: DOM 239.8125px, Pretext 240.09579467773438px
+- chromium shrinkwrap urls / Helvetica Neue @ 245px: npm scope: baseline: DOM 3 lines, Pretext 4
+- chromium shrinkwrap urls / Helvetica Neue @ 246-250px: npm scope: widest line: DOM 244.8515625px, Pretext 245.1357879638672px
+- chromium shrinkwrap urls / Helvetica Neue @ 251-259px: npm scope: widest line: DOM 250.1796875px, Pretext 250.46377563476562px
+- chromium shrinkwrap urls / Helvetica Neue @ 260-263px: npm scope: widest line: DOM 259.6640625px, Pretext 259.95176696777344px
+- chromium shrinkwrap urls / Helvetica Neue @ 264-271px: npm scope: widest line: DOM 263.21875px, Pretext 263.5037536621094px
+- chromium shrinkwrap urls / Helvetica Neue @ 272-276px: npm scope: widest line: DOM 271.21875px, Pretext 271.5037536621094px
+- chromium shrinkwrap urls / Helvetica Neue @ 277-281px: npm scope: widest line: DOM 276.2578125px, Pretext 276.5437469482422px
+- chromium shrinkwrap urls / Helvetica Neue @ 282-286px: npm scope: widest line: DOM 281.5859375px, Pretext 281.8717346191406px
+- chromium shrinkwrap urls / Helvetica Neue @ 287px: npm scope: widest line: DOM 286.9140625px, Pretext 281.8717346191406px
+- chromium shrinkwrap urls / Helvetica Neue @ 288-290px: npm scope: widest line: DOM 286.9140625px, Pretext 287.19972229003906px
+- chromium shrinkwrap urls / Helvetica Neue @ 291-299px: npm scope: widest line: DOM 290.46875px, Pretext 290.751708984375px
+- chromium shrinkwrap urls / Helvetica Neue @ 300-307px: npm scope: widest line: DOM 299.0625px, Pretext 299.3437042236328px
+- chromium shrinkwrap urls / Helvetica Neue @ 308px: npm scope: widest line: DOM 307.953125px, Pretext 299.3437042236328px
+- chromium shrinkwrap urls / Helvetica Neue @ 309-314px: npm scope: widest line: DOM 307.953125px, Pretext 308.2397003173828px
+- chromium shrinkwrap urls / Helvetica Neue @ 123-124px: Snake case: widest line: DOM 122.375px, Pretext 122.97590637207031px
+- chromium shrinkwrap urls / Helvetica Neue @ 126-127px: Snake case: widest line: DOM 125.6484375px, Pretext 124.76789855957031px
+- chromium shrinkwrap urls / Helvetica Neue @ 128px: Snake case: widest line: DOM 125.6484375px, Pretext 127.11990356445312px
+- chromium shrinkwrap urls / Helvetica Neue @ 135px: Snake case: widest line: DOM 134.2578125px, Pretext 134.8319091796875px
+- chromium shrinkwrap urls / Helvetica Neue @ 136-137px: Snake case: widest line: DOM 135.4296875px, Pretext 135.7279052734375px
+- chromium shrinkwrap urls / Helvetica Neue @ 147px: Snake case: widest line: DOM 146.421875px, Pretext 143.8398895263672px
+- chromium shrinkwrap urls / Helvetica Neue @ 148-149px: Snake case: widest line: DOM 146.421875px, Pretext 147.88787841796875px
+- chromium shrinkwrap urls / Helvetica Neue @ 167px: Snake case: widest line: DOM 166.2421875px, Pretext 162.23988342285156px
+- chromium shrinkwrap urls / Helvetica Neue @ 168-169px: Snake case: widest line: DOM 166.2421875px, Pretext 167.71188354492188px
+- chromium shrinkwrap urls / Helvetica Neue @ 171px: Snake case: widest line: DOM 170.6953125px, Pretext 169.1998748779297px
+- chromium shrinkwrap urls / Helvetica Neue @ 181px: Snake case: widest line: DOM 180.7734375px, Pretext 177.79183959960938px
+- chromium shrinkwrap urls / Helvetica Neue @ 185-186px: Snake case: widest line: DOM 183.140625px, Pretext 184.6078643798828px
+- chromium shrinkwrap urls / Helvetica Neue @ 197-199px: Snake case: widest line: DOM 195.5859375px, Pretext 196.76785278320312px
+- chromium shrinkwrap urls / Helvetica Neue @ 204px: Snake case: widest line: DOM 203.296875px, Pretext 199.7278289794922px
+- chromium shrinkwrap urls / Helvetica Neue @ 214px: Snake case: widest line: DOM 213.09375px, Pretext 210.0958251953125px
+- chromium shrinkwrap urls / Helvetica Neue @ 215-216px: Snake case: widest line: DOM 213.09375px, Pretext 214.55982971191406px
+- chromium shrinkwrap urls / Helvetica Neue @ 223px: Snake case: widest line: DOM 222.2734375px, Pretext 219.87181091308594px
+- chromium shrinkwrap urls / Helvetica Neue @ 224-227px: Snake case: widest line: DOM 222.2734375px, Pretext 223.7438201904297px
+- chromium shrinkwrap urls / Helvetica Neue @ 230-231px: Snake case: widest line: DOM 229.6875px, Pretext 227.5358123779297px
+- chromium shrinkwrap urls / Helvetica Neue @ 240-243px: Snake case: widest line: DOM 239.703125px, Pretext 239.72781372070312px
+- chromium shrinkwrap urls / Helvetica Neue @ 247px: Snake case: widest line: DOM 246.2578125px, Pretext 243.5837860107422px
+- chromium shrinkwrap urls / Helvetica Neue @ 248-251px: Snake case: widest line: DOM 246.2578125px, Pretext 247.72781372070312px
+- chromium shrinkwrap urls / Helvetica Neue @ 262px: Snake case: widest line: DOM 261.6875px, Pretext 255.13577270507812px
+- chromium shrinkwrap urls / Helvetica Neue @ 272-273px: Snake case: widest line: DOM 271.765625px, Pretext 266.39976501464844px
+- chromium shrinkwrap urls / Helvetica Neue @ 274px: Snake case: widest line: DOM 271.765625px, Pretext 273.2318115234375px
+- chromium shrinkwrap urls / Helvetica Neue @ 282px: Snake case: widest line: DOM 281.234375px, Pretext 276.76776123046875px
+- chromium shrinkwrap urls / Helvetica Neue @ 283-284px: Snake case: widest line: DOM 282.8359375px, Pretext 282.0637664794922px
+- chromium shrinkwrap urls / Helvetica Neue @ 285-286px: Snake case: widest line: DOM 282.8359375px, Pretext 284.3037872314453px
+- chromium shrinkwrap urls / Helvetica Neue @ 292-293px: Snake case: widest line: DOM 291.734375px, Pretext 286.3677520751953px
+- chromium shrinkwrap urls / Helvetica Neue @ 362px: Snake case: widest line: DOM 361.203125px, Pretext 353.4877166748047px
+- chromium shrinkwrap urls / Helvetica Neue @ 363-365px: Snake case: widest line: DOM 361.203125px, Pretext 362.6717071533203px
+- chromium shrinkwrap urls / Helvetica Neue @ 366px: Snake case: widest line: DOM 365.3515625px, Pretext 362.6717071533203px
+- chromium shrinkwrap urls / Helvetica Neue @ 367-377px: Snake case: widest line: DOM 365.3515625px, Pretext 366.8157043457031px
+- chromium shrinkwrap urls / Helvetica Neue @ 378px: Snake case: widest line: DOM 377.5078125px, Pretext 366.8157043457031px
+- chromium shrinkwrap urls / Helvetica Neue @ 379-389px: Snake case: widest line: DOM 377.5078125px, Pretext 378.97569274902344px
+- chromium shrinkwrap urls / Helvetica Neue @ 390px: Snake case: widest line: DOM 389.0625px, Pretext 378.97569274902344px
+- chromium shrinkwrap urls / Helvetica Neue @ 391-397px: Snake case: widest line: DOM 389.0625px, Pretext 390.5276794433594px
+- chromium shrinkwrap urls / Helvetica Neue @ 398px: Snake case: widest line: DOM 397.0625px, Pretext 390.5276794433594px
+- chromium shrinkwrap urls / Helvetica Neue @ 399-405px: Snake case: widest line: DOM 397.0625px, Pretext 398.5276794433594px
+- chromium shrinkwrap urls / Helvetica Neue @ 406px: Snake case: widest line: DOM 405.3671875px, Pretext 398.5276794433594px
+- chromium shrinkwrap urls / Helvetica Neue @ 407-417px: Snake case: widest line: DOM 405.3671875px, Pretext 406.8316650390625px
+- chromium shrinkwrap urls / Helvetica Neue @ 418px: Snake case: widest line: DOM 417.5234375px, Pretext 406.8316650390625px
+- chromium shrinkwrap urls / Helvetica Neue @ 419-428px: Snake case: widest line: DOM 417.5234375px, Pretext 418.9916534423828px
+- chromium shrinkwrap urls / Helvetica Neue @ 429px: Snake case: widest line: DOM 428.484375px, Pretext 418.9916534423828px
+- chromium shrinkwrap urls / Helvetica Neue @ 430-438px: Snake case: widest line: DOM 428.484375px, Pretext 429.95164489746094px
+- chromium shrinkwrap urls / Helvetica Neue @ 439-440px: Snake case: widest line: DOM 438.8515625px, Pretext 429.95164489746094px
+- chromium shrinkwrap urls / Helvetica Neue @ 441-446px: Snake case: widest line: DOM 438.8515625px, Pretext 440.31964111328125px
+- chromium shrinkwrap urls / Helvetica Neue @ 447-448px: Snake case: widest line: DOM 446.8515625px, Pretext 440.31964111328125px
+- chromium shrinkwrap urls / Helvetica Neue @ 449-457px: Snake case: widest line: DOM 446.8515625px, Pretext 448.31964111328125px
+- chromium shrinkwrap urls / Helvetica Neue @ 458px: Snake case: widest line: DOM 457.21875px, Pretext 448.31964111328125px
+- chromium shrinkwrap urls / Helvetica Neue @ 459-466px: Snake case: widest line: DOM 457.21875px, Pretext 458.68763732910156px
+- chromium shrinkwrap urls / Helvetica Neue @ 467-468px: Snake case: widest line: DOM 466.9921875px, Pretext 458.68763732910156px
+- chromium shrinkwrap urls / Helvetica Neue @ 469-477px: Snake case: widest line: DOM 466.9921875px, Pretext 468.463623046875px
+- chromium shrinkwrap urls / Helvetica Neue @ 480-485px: Snake case: widest line: DOM 477.953125px, Pretext 479.4236145019531px
+- chromium shrinkwrap urls / Helvetica Neue @ 486-487px: Snake case: widest line: DOM 485.953125px, Pretext 479.4236145019531px
+- chromium shrinkwrap urls / Helvetica Neue @ 488-500px: Snake case: widest line: DOM 485.953125px, Pretext 487.4236145019531px
+- chromium shrinkwrap urls / Helvetica Neue @ 501-502px: Snake case: widest line: DOM 500.7734375px, Pretext 487.4236145019531px
+- chromium shrinkwrap urls / Helvetica Neue @ 503-512px: Snake case: widest line: DOM 500.7734375px, Pretext 502.23960876464844px
+- chromium shrinkwrap urls / Helvetica Neue @ 513-514px: Snake case: widest line: DOM 512.9296875px, Pretext 502.23960876464844px
+- chromium shrinkwrap urls / Helvetica Neue @ 515-523px: Snake case: widest line: DOM 512.9296875px, Pretext 514.3995971679688px
+- chromium shrinkwrap urls / Helvetica Neue @ 524-525px: Snake case: widest line: DOM 523.890625px, Pretext 514.3995971679688px
+- chromium shrinkwrap urls / Helvetica Neue @ 526-534px: Snake case: widest line: DOM 523.890625px, Pretext 525.3595886230469px
+- chromium shrinkwrap urls / Helvetica Neue @ 535-536px: Snake case: widest line: DOM 534.5625px, Pretext 525.3595886230469px
+- chromium shrinkwrap urls / Helvetica Neue @ 537-544px: Snake case: widest line: DOM 534.5625px, Pretext 536.0315856933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 545px: Snake case: widest line: DOM 544.3359375px, Pretext 536.0315856933594px
+- chromium shrinkwrap urls / Helvetica Neue @ 546-555px: Snake case: widest line: DOM 544.3359375px, Pretext 545.8075714111328px
+- chromium shrinkwrap urls / Helvetica Neue @ 556px: Snake case: widest line: DOM 555.296875px, Pretext 545.8075714111328px
+- chromium shrinkwrap urls / Helvetica Neue @ 557-564px: Snake case: widest line: DOM 555.296875px, Pretext 556.7675628662109px
+- chromium shrinkwrap urls / Helvetica Neue @ 565-566px: Snake case: widest line: DOM 564.8984375px, Pretext 556.7675628662109px
+- chromium shrinkwrap urls / Helvetica Neue @ 567-573px: Snake case: widest line: DOM 564.8984375px, Pretext 566.3675537109375px
+- chromium shrinkwrap urls / Helvetica Neue @ 123-124px: Path with spaces: widest line: DOM 122.375px, Pretext 122.6558837890625px
+- chromium shrinkwrap urls / Helvetica Neue @ 128-129px: Path with spaces: widest line: DOM 127.4140625px, Pretext 127.69587707519531px
+- chromium shrinkwrap urls / Helvetica Neue @ 141-143px: Path with spaces: widest line: DOM 140.2109375px, Pretext 140.49586486816406px
+- chromium shrinkwrap urls / Helvetica Neue @ 150-157px: Path with spaces: widest line: DOM 149.109375px, Pretext 149.39186096191406px
+- chromium shrinkwrap urls / Helvetica Neue @ 158-160px: Path with spaces: widest line: DOM 157.3984375px, Pretext 157.6798553466797px
+- chromium shrinkwrap urls / Helvetica Neue @ 162px: Path with spaces: widest line: DOM 161.84375px, Pretext 160.01583862304688px
+- chromium shrinkwrap urls / Helvetica Neue @ 163-171px: Path with spaces: widest line: DOM 161.84375px, Pretext 162.1278533935547px
+- chromium shrinkwrap urls / Helvetica Neue @ 172-180px: Path with spaces: widest line: DOM 171.328125px, Pretext 171.6158447265625px
+- chromium shrinkwrap urls / Helvetica Neue @ 181-189px: Path with spaces: widest line: DOM 180.2265625px, Pretext 180.5118408203125px
+- chromium shrinkwrap urls / Arial @ 154-161px: Backup URL: widest line: DOM 153.28125px, Pretext 153.875px
+- chromium shrinkwrap urls / Arial @ 177px: Bare URL: baseline: DOM 3 lines, Pretext 4
+- chromium shrinkwrap urls / Arial @ 126px: Query string: widest line: DOM 125.375px, Pretext 123.6171875px
+- chromium shrinkwrap urls / Arial @ 127px: Query string: widest line: DOM 125.375px, Pretext 126.2578125px
+- chromium shrinkwrap urls / Arial @ 135px: Query string: widest line: DOM 134.2734375px, Pretext 132.9609375px
+- chromium shrinkwrap urls / Arial @ 138px: Query string: widest line: DOM 137.828125px, Pretext 136.546875px
+- chromium shrinkwrap urls / Arial @ 139-141px: Query string: widest line: DOM 137.828125px, Pretext 138.7109375px
+- chromium shrinkwrap urls / Arial @ 147px: Query string: widest line: DOM 146.7265625px, Pretext 144.5625px
+- chromium shrinkwrap urls / Arial @ 148px: Query string: widest line: DOM 146.7265625px, Pretext 147.609375px
+- chromium shrinkwrap urls / Arial @ 152px: Query string: widest line: DOM 151.171875px, Pretext 150.2890625px
+- chromium shrinkwrap urls / Arial @ 153px: Query string: widest line: DOM 151.171875px, Pretext 152.0546875px
+- chromium shrinkwrap urls / Arial @ 161-162px: Query string: widest line: DOM 160.1015625px, Pretext 160.953125px
+- chromium shrinkwrap urls / Arial @ 166px: Query string: widest line: DOM 165.3984375px, Pretext 164.1328125px
+- chromium shrinkwrap urls / Arial @ 175px: Query string: widest line: DOM 174.296875px, Pretext 173.84375px
+- chromium shrinkwrap urls / Arial @ 176px: Query string: widest line: DOM 174.296875px, Pretext 175.1796875px
+- chromium shrinkwrap urls / Arial @ 179px: Query string: widest line: DOM 178.7421875px, Pretext 176.53125px
+- chromium shrinkwrap urls / Arial @ 180-181px: Query string: widest line: DOM 178.7421875px, Pretext 179.625px
+- chromium shrinkwrap urls / Arial @ 187px: Query string: widest line: DOM 186.7421875px, Pretext 186.359375px
+- chromium shrinkwrap urls / Arial @ 188-190px: Query string: widest line: DOM 186.7421875px, Pretext 187.625px
+- chromium shrinkwrap urls / Arial @ 196px: Query string: widest line: DOM 195.640625px, Pretext 190.8046875px
+- chromium shrinkwrap urls / Arial @ 197px: Query string: widest line: DOM 195.640625px, Pretext 196.5234375px
+- chromium shrinkwrap urls / Arial @ 205px: Query string: widest line: DOM 204.5390625px, Pretext 203.2109375px
+- chromium shrinkwrap urls / Arial @ 210px: Query string: widest line: DOM 209.8671875px, Pretext 205.921875px
+- chromium shrinkwrap urls / Arial @ 211px: Query string: widest line: DOM 209.8671875px, Pretext 210.75px
+- chromium shrinkwrap urls / Arial @ 219px: Query string: widest line: DOM 217.9296875px, Pretext 218.75px
+- chromium shrinkwrap urls / Arial @ 228px: Query string: widest line: DOM 226.828125px, Pretext 227.6484375px
+- chromium shrinkwrap urls / Arial @ 153px: Unix path: baseline: DOM 5 lines, Pretext 6
+- chromium shrinkwrap urls / Arial @ 297px: Windows path: widest line: DOM 297.0078125px, Pretext 293.453125px
+- chromium shrinkwrap urls / Arial @ 145px: macOS path: widest line: DOM 145.0078125px, Pretext 142.2890625px
+- chromium shrinkwrap urls / Arial @ 234px: Hash: widest line: DOM 234.0078125px, Pretext 225.109375px
+- chromium shrinkwrap urls / Arial @ 120px: Data URI: widest line: DOM 117.390625px, Pretext 118.2734375px
+- chromium shrinkwrap urls / Arial @ 121-122px: Data URI: widest line: DOM 120.34375px, Pretext 120.9140625px
+- chromium shrinkwrap urls / Arial @ 123px: Data URI: widest line: DOM 120.34375px, Pretext 122.71875px
+- chromium shrinkwrap urls / Arial @ 136px: Data URI: widest line: DOM 135.75px, Pretext 134.2890625px
+- chromium shrinkwrap urls / Arial @ 137-138px: Data URI: widest line: DOM 135.75px, Pretext 136.9375px
+- chromium shrinkwrap urls / Arial @ 139px: Data URI: widest line: DOM 138.4296875px, Pretext 138.734375px
+- chromium shrinkwrap urls / Arial @ 140px: Data URI: widest line: DOM 138.4296875px, Pretext 139.6171875px
+- chromium shrinkwrap urls / Arial @ 148px: Data URI: baseline: DOM 8 lines, Pretext 9
+- chromium shrinkwrap urls / Arial @ 152-153px: Data URI: widest line: DOM 151.4609375px, Pretext 151.15625px
+- chromium shrinkwrap urls / Arial @ 168px: Data URI: widest line: DOM 167.4609375px, Pretext 167.2421875px
+- chromium shrinkwrap urls / Arial @ 171px: Data URI: widest line: DOM 168.96875px, Pretext 170.71875px
+- chromium shrinkwrap urls / Arial @ 190-192px: Data URI: widest line: DOM 189.7109375px, Pretext 187.6015625px
+- chromium shrinkwrap urls / Arial @ 203-204px: Data URI: widest line: DOM 202.1484375px, Pretext 202.71875px
+- chromium shrinkwrap urls / Arial @ 205px: Data URI: widest line: DOM 202.1484375px, Pretext 204.5234375px
+- chromium shrinkwrap urls / Arial @ 212px: Data URI: widest line: DOM 210.7578125px, Pretext 211.6171875px
+- chromium shrinkwrap urls / Arial @ 213-220px: Data URI: widest line: DOM 212.5px, Pretext 212.5234375px
+- chromium shrinkwrap urls / Arial @ 221px: Data URI: widest line: DOM 220.8203125px, Pretext 220.5859375px
+- chromium shrinkwrap urls / Arial @ 223px: Data URI: widest line: DOM 221.4296875px, Pretext 222.28125px
+- chromium shrinkwrap urls / Arial @ 224-227px: Data URI: widest line: DOM 223.1640625px, Pretext 223.1953125px
+- chromium shrinkwrap urls / Arial @ 237px: Data URI: widest line: DOM 236.8125px, Pretext 232.140625px
+- chromium shrinkwrap urls / Arial @ 238-239px: Data URI: widest line: DOM 236.8125px, Pretext 237.4140625px
+- chromium shrinkwrap urls / Arial @ 240px: Data URI: widest line: DOM 236.8125px, Pretext 239.1875px
+- chromium shrinkwrap urls / Arial @ 241px: Data URI: widest line: DOM 241.0078125px, Pretext 239.1875px
+- chromium shrinkwrap urls / Arial @ 251px: Data URI: widest line: DOM 250.140625px, Pretext 248.9921875px
+- chromium shrinkwrap urls / Arial @ 260-262px: Data URI: widest line: DOM 259.921875px, Pretext 253.453125px
+- chromium shrinkwrap urls / Arial @ 263-264px: Data URI: widest line: DOM 259.921875px, Pretext 262.296875px
+- chromium shrinkwrap urls / Arial @ 271-272px: Data URI: widest line: DOM 269.453125px, Pretext 270.296875px
+- chromium shrinkwrap urls / Arial @ 273px: Data URI: widest line: DOM 272.71875px, Pretext 270.296875px
+- chromium shrinkwrap urls / Arial @ 274-275px: Data URI: widest line: DOM 273.3046875px, Pretext 273.0546875px
+- chromium shrinkwrap urls / Arial @ 286-288px: Data URI: baseline: DOM 4 lines, Pretext 5
+- chromium shrinkwrap urls / Arial @ 289-292px: Data URI: widest line: DOM 285.75px, Pretext 288.125px
+- chromium shrinkwrap urls / Arial @ 300-302px: Data URI: widest line: DOM 299.96875px, Pretext 292.625px
+- chromium shrinkwrap urls / Arial @ 303px: Data URI: widest line: DOM 299.96875px, Pretext 302.34375px
+- chromium shrinkwrap urls / Arial @ 308-310px: Data URI: widest line: DOM 307.96875px, Pretext 307.640625px
+- chromium shrinkwrap urls / Arial @ 311-313px: Data URI: widest line: DOM 307.96875px, Pretext 310.34375px
+- chromium shrinkwrap urls / Arial @ 316-318px: Data URI: widest line: DOM 315.96875px, Pretext 315.6640625px
+- chromium shrinkwrap urls / Arial @ 319-321px: Data URI: widest line: DOM 315.96875px, Pretext 318.34375px
+- chromium shrinkwrap urls / Arial @ 327-329px: Data URI: widest line: DOM 326.640625px, Pretext 324.640625px
+- chromium shrinkwrap urls / Arial @ 330px: Data URI: widest line: DOM 326.640625px, Pretext 329.015625px
+- chromium shrinkwrap urls / Arial @ 338-339px: Data URI: widest line: DOM 337.3125px, Pretext 336.1953125px
+- chromium shrinkwrap urls / Arial @ 340px: Data URI: widest line: DOM 337.3125px, Pretext 339.6875px
+- chromium shrinkwrap urls / Arial @ 353-354px: Data URI: widest line: DOM 352.421875px, Pretext 346.8671875px
+- chromium shrinkwrap urls / Arial @ 364-366px: Data URI: widest line: DOM 363.984375px, Pretext 358.421875px
+- chromium shrinkwrap urls / Arial @ 367px: Data URI: widest line: DOM 363.984375px, Pretext 366.359375px
+- chromium shrinkwrap urls / Arial @ 376-377px: Data URI: widest line: DOM 375.5390625px, Pretext 369.9296875px
+- chromium shrinkwrap urls / Arial @ 388-389px: Data URI: widest line: DOM 387.09375px, Pretext 379.71875px
+- chromium shrinkwrap urls / Arial @ 396-397px: Data URI: widest line: DOM 395.09375px, Pretext 389.546875px
+- chromium shrinkwrap urls / Arial @ 398px: Data URI: widest line: DOM 395.09375px, Pretext 397.46875px
+- chromium shrinkwrap urls / Arial @ 400-407px: Data URI: widest line: DOM 398.4453125px, Pretext 399.2421875px
+- chromium shrinkwrap urls / Arial @ 408-409px: Data URI: widest line: DOM 407.5390625px, Pretext 399.2421875px
+- chromium shrinkwrap urls / Arial @ 411-412px: Data URI: widest line: DOM 410.2109375px, Pretext 409.1171875px
+- chromium shrinkwrap urls / Arial @ 413-419px: Data URI: widest line: DOM 410.2109375px, Pretext 412.5859375px
+- chromium shrinkwrap urls / Arial @ 423-425px: Data URI: widest line: DOM 422.6484375px, Pretext 419.7890625px
+- chromium shrinkwrap urls / Arial @ 426-430px: Data URI: widest line: DOM 422.6484375px, Pretext 425.0234375px
+- chromium shrinkwrap urls / Arial @ 435-436px: Data URI: widest line: DOM 434.203125px, Pretext 430.4609375px
+- chromium shrinkwrap urls / Arial @ 437-441px: Data URI: widest line: DOM 434.203125px, Pretext 436.578125px
+- chromium shrinkwrap urls / Arial @ 444-446px: Data URI: widest line: DOM 443.984375px, Pretext 441.1328125px
+- chromium shrinkwrap urls / Arial @ 447-451px: Data URI: widest line: DOM 443.984375px, Pretext 446.359375px
+- chromium shrinkwrap urls / Arial @ 457-458px: Data URI: widest line: DOM 456.4296875px, Pretext 451.8046875px
+- chromium shrinkwrap urls / Arial @ 459-462px: Data URI: widest line: DOM 456.4296875px, Pretext 458.8046875px
+- chromium shrinkwrap urls / Arial @ 464-465px: Data URI: widest line: DOM 463.5546875px, Pretext 462.4765625px
+- chromium shrinkwrap urls / Arial @ 466-472px: Data URI: widest line: DOM 463.5546875px, Pretext 465.9296875px
+- chromium shrinkwrap urls / Arial @ 473px: Data URI: widest line: DOM 472.453125px, Pretext 465.9296875px
+- chromium shrinkwrap urls / Arial @ 479-481px: Data URI: widest line: DOM 478.6796875px, Pretext 473.1484375px
+- chromium shrinkwrap urls / Arial @ 482-483px: Data URI: widest line: DOM 478.6796875px, Pretext 481.0546875px
+- chromium shrinkwrap urls / Arial @ 488-489px: Data URI: widest line: DOM 487.578125px, Pretext 483.8203125px
+- chromium shrinkwrap urls / Arial @ 490-494px: Data URI: widest line: DOM 487.578125px, Pretext 489.953125px
+- chromium shrinkwrap urls / Arial @ 499-500px: Data URI: widest line: DOM 498.25px, Pretext 494.4921875px
+- chromium shrinkwrap urls / Arial @ 501-505px: Data URI: widest line: DOM 498.25px, Pretext 500.625px
+- chromium shrinkwrap urls / Arial @ 509-511px: Data URI: widest line: DOM 508.921875px, Pretext 505.1640625px
+- chromium shrinkwrap urls / Arial @ 512-516px: Data URI: widest line: DOM 508.921875px, Pretext 511.296875px
+- chromium shrinkwrap urls / Arial @ 517-519px: Data URI: widest line: DOM 516.921875px, Pretext 516.71875px
+- chromium shrinkwrap urls / Arial @ 520-527px: Data URI: widest line: DOM 516.921875px, Pretext 519.296875px
+- chromium shrinkwrap urls / Arial @ 528-529px: Data URI: widest line: DOM 527.890625px, Pretext 527.390625px
+- chromium shrinkwrap urls / Arial @ 530-536px: Data URI: widest line: DOM 527.890625px, Pretext 529.078125px
+- chromium shrinkwrap urls / Arial @ 537-538px: Data URI: widest line: DOM 536.875px, Pretext 529.078125px
+- chromium shrinkwrap urls / Arial @ 539-542px: Data URI: widest line: DOM 536.875px, Pretext 538.0625px
+- chromium shrinkwrap urls / Arial @ 547-548px: Data URI: widest line: DOM 546.359375px, Pretext 542.40625px
+- chromium shrinkwrap urls / Arial @ 549-557px: Data URI: widest line: DOM 548.6328125px, Pretext 548.734375px
+- chromium shrinkwrap urls / Arial @ 558-559px: Data URI: widest line: DOM 557.03125px, Pretext 557.53125px
+- chromium shrinkwrap urls / Arial @ 560-565px: Data URI: widest line: DOM 557.03125px, Pretext 559.40625px
+- chromium shrinkwrap urls / Arial @ 568-570px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap urls / Arial @ 571-578px: Data URI: widest line: DOM 567.703125px, Pretext 570.078125px
+- chromium shrinkwrap urls / Arial @ 579-580px: Data URI: widest line: DOM 578.375px, Pretext 570.078125px
+- chromium shrinkwrap urls / Arial @ 581-582px: Data URI: widest line: DOM 578.375px, Pretext 580.75px
+- chromium shrinkwrap urls / Arial @ 583-585px: Data URI: widest line: DOM 582.8203125px, Pretext 580.75px
+- chromium shrinkwrap urls / Arial @ 586-592px: Data URI: widest line: DOM 582.8203125px, Pretext 585.1953125px
+- chromium shrinkwrap urls / Arial @ 593-594px: Data URI: widest line: DOM 592.59375px, Pretext 585.1953125px
+- chromium shrinkwrap urls / Arial @ 595-600px: Data URI: widest line: DOM 592.59375px, Pretext 594.96875px
+- chromium shrinkwrap urls / Arial @ 120px: Snake case: widest line: DOM 120.0078125px, Pretext 116.0625px
+- chromium shrinkwrap urls / Arial @ 129px: Snake case: baseline: DOM 9 lines, Pretext 10
+- chromium shrinkwrap urls / Arial @ 130-132px: Snake case: widest line: DOM 128.609375px, Pretext 129.796875px
+- chromium shrinkwrap urls / Arial @ 140-142px: Snake case: widest line: DOM 138.6953125px, Pretext 139.5859375px
+- chromium shrinkwrap urls / Arial @ 150px: Snake case: widest line: DOM 149.0625px, Pretext 148.4609375px
+- chromium shrinkwrap urls / Arial @ 151px: Snake case: widest line: DOM 149.0625px, Pretext 150.25px
+- chromium shrinkwrap urls / Arial @ 166px: Snake case: widest line: DOM 165.9765625px, Pretext 164.078125px
+- chromium shrinkwrap urls / Arial @ 178-180px: Snake case: widest line: DOM 177.421875px, Pretext 177.8203125px
+- chromium shrinkwrap urls / Arial @ 189-193px: Snake case: widest line: DOM 187.5859375px, Pretext 188.46875px
+- chromium shrinkwrap urls / Arial @ 200px: Snake case: widest line: DOM 199.7265625px, Pretext 199.140625px
+- chromium shrinkwrap urls / Arial @ 201-202px: Snake case: widest line: DOM 199.7265625px, Pretext 200.9140625px
+- chromium shrinkwrap urls / Arial @ 209px: Snake case: widest line: DOM 208.625px, Pretext 207.1484375px
+- chromium shrinkwrap urls / Arial @ 219px: Snake case: widest line: DOM 218.3984375px, Pretext 217.8203125px
+- chromium shrinkwrap urls / Arial @ 220-222px: Snake case: widest line: DOM 218.3984375px, Pretext 219.5859375px
+- chromium shrinkwrap urls / Arial @ 228px: Snake case: widest line: DOM 227.296875px, Pretext 222.2578125px
+- chromium shrinkwrap urls / Arial @ 236px: Snake case: widest line: DOM 235.3125px, Pretext 233.8125px
+- chromium shrinkwrap urls / Arial @ 237-240px: Snake case: widest line: DOM 235.3125px, Pretext 236.5px
+- chromium shrinkwrap urls / Arial @ 246px: Snake case: widest line: DOM 245.984375px, Pretext 240.046875px
+- chromium shrinkwrap urls / Arial @ 247-252px: Snake case: widest line: DOM 246.2578125px, Pretext 246.28125px
+- chromium shrinkwrap urls / Arial @ 254-255px: Snake case: widest line: DOM 253.9921875px, Pretext 252.4921875px
+- chromium shrinkwrap urls / Arial @ 256-257px: Snake case: widest line: DOM 253.9921875px, Pretext 255.1796875px
+- chromium shrinkwrap urls / Arial @ 259-264px: Snake case: widest line: DOM 257.8125px, Pretext 258.7265625px
+- chromium shrinkwrap urls / Arial @ 270-271px: Snake case: widest line: DOM 269.984375px, Pretext 269.3671875px
+- chromium shrinkwrap urls / Arial @ 272-275px: Snake case: widest line: DOM 269.984375px, Pretext 271.171875px
+- chromium shrinkwrap urls / Arial @ 281-286px: Snake case: widest line: DOM 280.921875px, Pretext 280.9609375px
+- chromium shrinkwrap urls / Arial @ 292px: Snake case: widest line: DOM 291.7734375px, Pretext 289.8203125px
+- chromium shrinkwrap urls / Arial @ 293-295px: Snake case: widest line: DOM 291.7734375px, Pretext 292.9609375px
+- chromium shrinkwrap urls / Arial @ 301px: Snake case: widest line: DOM 300.671875px, Pretext 295.6171875px
+- chromium shrinkwrap urls / Arial @ 371px: Snake case: widest line: DOM 370.421875px, Pretext 361.8359375px
+- chromium shrinkwrap urls / Arial @ 372-374px: Snake case: widest line: DOM 370.421875px, Pretext 371.609375px
+- chromium shrinkwrap urls / Arial @ 375-376px: Snake case: widest line: DOM 374.8671875px, Pretext 371.609375px
+- chromium shrinkwrap urls / Arial @ 377-387px: Snake case: widest line: DOM 374.8671875px, Pretext 376.0546875px
+- chromium shrinkwrap urls / Arial @ 388px: Snake case: widest line: DOM 387.3125px, Pretext 376.0546875px
+- chromium shrinkwrap urls / Arial @ 389-398px: Snake case: widest line: DOM 387.3125px, Pretext 388.5px
+- chromium shrinkwrap urls / Arial @ 399-400px: Snake case: widest line: DOM 398.8671875px, Pretext 388.5px
+- chromium shrinkwrap urls / Arial @ 401-407px: Snake case: widest line: DOM 398.8671875px, Pretext 400.0546875px
+- chromium shrinkwrap urls / Arial @ 408px: Snake case: widest line: DOM 407.765625px, Pretext 400.0546875px
+- chromium shrinkwrap urls / Arial @ 409-415px: Snake case: widest line: DOM 407.765625px, Pretext 408.953125px
+- chromium shrinkwrap urls / Arial @ 416px: Snake case: widest line: DOM 415.765625px, Pretext 408.953125px
+- chromium shrinkwrap urls / Arial @ 417-428px: Snake case: widest line: DOM 415.765625px, Pretext 416.953125px
+- chromium shrinkwrap urls / Arial @ 429px: Snake case: widest line: DOM 428.2109375px, Pretext 416.953125px
+- chromium shrinkwrap urls / Arial @ 430-438px: Snake case: widest line: DOM 428.2109375px, Pretext 429.3984375px
+- chromium shrinkwrap urls / Arial @ 439-440px: Snake case: widest line: DOM 438.8828125px, Pretext 429.3984375px
+- chromium shrinkwrap urls / Arial @ 441-449px: Snake case: widest line: DOM 438.8828125px, Pretext 440.0703125px
+- chromium shrinkwrap urls / Arial @ 450px: Snake case: widest line: DOM 449.5546875px, Pretext 440.0703125px
+- chromium shrinkwrap urls / Arial @ 451-458px: Snake case: widest line: DOM 449.5546875px, Pretext 450.7421875px
+- chromium shrinkwrap urls / Arial @ 459px: Snake case: widest line: DOM 458.453125px, Pretext 450.7421875px
+- chromium shrinkwrap urls / Arial @ 460-469px: Snake case: widest line: DOM 458.453125px, Pretext 459.640625px
+- chromium shrinkwrap urls / Arial @ 470px: Snake case: widest line: DOM 469.125px, Pretext 459.640625px
+- chromium shrinkwrap urls / Arial @ 471-479px: Snake case: widest line: DOM 469.125px, Pretext 470.3125px
+- chromium shrinkwrap urls / Arial @ 480px: Snake case: widest line: DOM 479.796875px, Pretext 470.3125px
+- chromium shrinkwrap urls / Arial @ 481-490px: Snake case: widest line: DOM 479.796875px, Pretext 480.984375px
+- chromium shrinkwrap urls / Arial @ 492px: Snake case: widest line: DOM 491.3515625px, Pretext 490.8359375px
+- chromium shrinkwrap urls / Arial @ 493-500px: Snake case: widest line: DOM 491.3515625px, Pretext 492.5390625px
+- chromium shrinkwrap urls / Arial @ 501px: Snake case: widest line: DOM 500.25px, Pretext 492.5390625px
+- chromium shrinkwrap urls / Arial @ 502-515px: Snake case: widest line: DOM 500.25px, Pretext 501.4375px
+- chromium shrinkwrap urls / Arial @ 516px: Snake case: widest line: DOM 515.3515625px, Pretext 501.4375px
+- chromium shrinkwrap urls / Arial @ 517-527px: Snake case: widest line: DOM 515.3515625px, Pretext 516.5390625px
+- chromium shrinkwrap urls / Arial @ 528px: Snake case: widest line: DOM 527.796875px, Pretext 516.5390625px
+- chromium shrinkwrap urls / Arial @ 529-539px: Snake case: widest line: DOM 527.796875px, Pretext 528.984375px
+- chromium shrinkwrap urls / Arial @ 540px: Snake case: widest line: DOM 539.3515625px, Pretext 528.984375px
+- chromium shrinkwrap urls / Arial @ 541-550px: Snake case: widest line: DOM 539.3515625px, Pretext 540.5390625px
+- chromium shrinkwrap urls / Arial @ 551px: Snake case: widest line: DOM 550.0234375px, Pretext 540.5390625px
+- chromium shrinkwrap urls / Arial @ 552-560px: Snake case: widest line: DOM 550.0234375px, Pretext 551.2109375px
+- chromium shrinkwrap urls / Arial @ 561px: Snake case: widest line: DOM 560.6953125px, Pretext 551.2109375px
+- chromium shrinkwrap urls / Arial @ 562-572px: Snake case: widest line: DOM 560.6953125px, Pretext 561.8828125px
+- chromium shrinkwrap urls / Arial @ 573px: Snake case: widest line: DOM 572.25px, Pretext 561.8828125px
+- chromium shrinkwrap urls / Arial @ 574-581px: Snake case: widest line: DOM 572.25px, Pretext 573.4375px
+- chromium shrinkwrap urls / Arial @ 582px: Snake case: widest line: DOM 581.59375px, Pretext 573.4375px
+- chromium shrinkwrap urls / Arial @ 583-590px: Snake case: widest line: DOM 581.59375px, Pretext 582.78125px
+- chromium shrinkwrap urls / Georgia @ 140px: Backup URL: widest line: DOM 140.0078125px, Pretext 137.8984375px
+- chromium shrinkwrap urls / Georgia @ 225px: Bare URL: widest line: DOM 225.0078125px, Pretext 215.8671875px
+- chromium shrinkwrap urls / Georgia @ 360px: Data URI: widest line: DOM 360.0078125px, Pretext 358.21875px
+- chromium shrinkwrap urls / Georgia @ 457px: Snake case: widest line: DOM 457.0078125px, Pretext 448.03125px
+- chromium shrinkwrap urls / Times New Roman @ 125px: Query string: widest line: DOM 124.7265625px, Pretext 122.75px
+- chromium shrinkwrap urls / Times New Roman @ 126px: Query string: widest line: DOM 125.4453125px, Pretext 125.765625px
+- chromium shrinkwrap urls / Times New Roman @ 130px: Query string: widest line: DOM 129.171875px, Pretext 127.234375px
+- chromium shrinkwrap urls / Times New Roman @ 131px: Query string: widest line: DOM 129.171875px, Pretext 130.2109375px
+- chromium shrinkwrap urls / Times New Roman @ 137px: Query string: widest line: DOM 136.2734375px, Pretext 135.34375px
+- chromium shrinkwrap urls / Times New Roman @ 138px: Query string: widest line: DOM 136.2734375px, Pretext 137.3125px
+- chromium shrinkwrap urls / Times New Roman @ 141px: Query string: widest line: DOM 140.2734375px, Pretext 138.6328125px
+- chromium shrinkwrap urls / Times New Roman @ 149px: Query string: widest line: DOM 148.2734375px, Pretext 146.8984375px
+- chromium shrinkwrap urls / Times New Roman @ 154px: Query string: widest line: DOM 153.6015625px, Pretext 150.46875px
+- chromium shrinkwrap urls / Times New Roman @ 163-165px: Query string: widest line: DOM 161.8671875px, Pretext 162.640625px
+- chromium shrinkwrap urls / Times New Roman @ 166-167px: Query string: widest line: DOM 165.7578125px, Pretext 162.640625px
+- chromium shrinkwrap urls / Times New Roman @ 168px: Query string: widest line: DOM 165.7578125px, Pretext 167.0859375px
+- chromium shrinkwrap urls / Times New Roman @ 172-173px: Query string: widest line: DOM 171.984375px, Pretext 168.375px
+- chromium shrinkwrap urls / Times New Roman @ 180px: Query string: widest line: DOM 179.0859375px, Pretext 178.1484375px
+- chromium shrinkwrap urls / Times New Roman @ 181px: Query string: widest line: DOM 179.0859375px, Pretext 180.4140625px
+- chromium shrinkwrap urls / Times New Roman @ 187px: Query string: widest line: DOM 186.1875px, Pretext 183.1875px
+- chromium shrinkwrap urls / Times New Roman @ 192px: Query string: widest line: DOM 191.515625px, Pretext 188.515625px
+- chromium shrinkwrap urls / Times New Roman @ 193-195px: Query string: widest line: DOM 192.5px, Pretext 192.84375px
+- chromium shrinkwrap urls / Times New Roman @ 199px: Query string: widest line: DOM 198.6171875px, Pretext 195.7734375px
+- chromium shrinkwrap urls / Times New Roman @ 200-201px: Query string: widest line: DOM 199.6015625px, Pretext 199.9453125px
+- chromium shrinkwrap urls / Times New Roman @ 207px: Query string: widest line: DOM 206.6171875px, Pretext 204.046875px
+- chromium shrinkwrap urls / Times New Roman @ 208px: Query string: widest line: DOM 206.6171875px, Pretext 207.9453125px
+- chromium shrinkwrap urls / Times New Roman @ 120px: Windows path: widest line: DOM 120.0078125px, Pretext 119.0703125px
+- chromium shrinkwrap urls / Times New Roman @ 133px: Windows path: widest line: DOM 132.6796875px, Pretext 132.4375px
+- chromium shrinkwrap urls / Times New Roman @ 134-135px: Windows path: widest line: DOM 132.6796875px, Pretext 133.3203125px
+- chromium shrinkwrap urls / Times New Roman @ 143px: Windows path: widest line: DOM 142.4375px, Pretext 139.515625px
+- chromium shrinkwrap urls / Times New Roman @ 144px: Windows path: widest line: DOM 142.4375px, Pretext 143.078125px
+- chromium shrinkwrap urls / Times New Roman @ 148px: Windows path: widest line: DOM 147.78125px, Pretext 144.8828125px
+- chromium shrinkwrap urls / Times New Roman @ 149-150px: Windows path: widest line: DOM 147.78125px, Pretext 148.421875px
+- chromium shrinkwrap urls / Times New Roman @ 156px: Windows path: widest line: DOM 155.7578125px, Pretext 154.65625px
+- chromium shrinkwrap urls / Times New Roman @ 158px: Windows path: widest line: DOM 157.53125px, Pretext 156.3984375px
+- chromium shrinkwrap urls / Times New Roman @ 159px: Windows path: widest line: DOM 157.53125px, Pretext 158.171875px
+- chromium shrinkwrap urls / Times New Roman @ 162px: Windows path: widest line: DOM 161.9765625px, Pretext 161.7265625px
+- chromium shrinkwrap urls / Times New Roman @ 163-166px: Windows path: widest line: DOM 161.9765625px, Pretext 162.6171875px
+- chromium shrinkwrap urls / Times New Roman @ 171px: Windows path: widest line: DOM 170.859375px, Pretext 166.2109375px
+- chromium shrinkwrap urls / Times New Roman @ 172-174px: Windows path: widest line: DOM 170.859375px, Pretext 171.5px
+- chromium shrinkwrap urls / Times New Roman @ 178px: Windows path: widest line: DOM 177.96875px, Pretext 174.2109375px
+- chromium shrinkwrap urls / Times New Roman @ 179px: Windows path: widest line: DOM 177.96875px, Pretext 178.609375px
+- chromium shrinkwrap urls / Times New Roman @ 186px: Windows path: widest line: DOM 185.96875px, Pretext 182.2109375px
+- chromium shrinkwrap urls / Times New Roman @ 187-193px: Windows path: widest line: DOM 185.96875px, Pretext 186.609375px
+- chromium shrinkwrap urls / Times New Roman @ 197px: Windows path: widest line: DOM 196.640625px, Pretext 193.765625px
+- chromium shrinkwrap urls / Times New Roman @ 198-200px: Windows path: widest line: DOM 196.640625px, Pretext 197.28125px
+- chromium shrinkwrap urls / Times New Roman @ 210-212px: Windows path: widest line: DOM 209.078125px, Pretext 209.71875px
+- chromium shrinkwrap urls / Times New Roman @ 220px: Windows path: widest line: DOM 219.75px, Pretext 216.859375px
+- chromium shrinkwrap urls / Times New Roman @ 221-226px: Windows path: widest line: DOM 219.75px, Pretext 220.390625px
+- chromium shrinkwrap urls / Times New Roman @ 233-234px: Windows path: widest line: DOM 232.1796875px, Pretext 232.8203125px
+- chromium shrinkwrap urls / Times New Roman @ 248px: Windows path: widest line: DOM 247.296875px, Pretext 247.9375px
+- chromium shrinkwrap urls / Times New Roman @ 252px: Windows path: widest line: DOM 251.7421875px, Pretext 248.8359375px
+- chromium shrinkwrap urls / Times New Roman @ 253px: Windows path: widest line: DOM 251.7421875px, Pretext 252.3828125px
+- chromium shrinkwrap urls / Times New Roman @ 257px: Windows path: widest line: DOM 256.1875px, Pretext 256.828125px
+- chromium shrinkwrap urls / Times New Roman @ 260px: Windows path: widest line: DOM 259.7421875px, Pretext 257.7265625px
+- chromium shrinkwrap urls / Times New Roman @ 261-267px: Windows path: widest line: DOM 259.7421875px, Pretext 260.3828125px
+- chromium shrinkwrap urls / Times New Roman @ 268px: Windows path: widest line: DOM 267.7421875px, Pretext 260.3828125px
+- chromium shrinkwrap urls / Times New Roman @ 269-271px: Windows path: widest line: DOM 267.7421875px, Pretext 268.3828125px
+- chromium shrinkwrap urls / Times New Roman @ 277-283px: Windows path: widest line: DOM 276.3984375px, Pretext 276.828125px
+- chromium shrinkwrap urls / Times New Roman @ 291px: Windows path: widest line: DOM 290.859375px, Pretext 288.828125px
+- chromium shrinkwrap urls / Times New Roman @ 292-296px: Windows path: widest line: DOM 290.859375px, Pretext 291.5px
+- chromium shrinkwrap urls / Times New Roman @ 345-352px: Windows path: widest line: DOM 344.1796875px, Pretext 344.8203125px
+- chromium shrinkwrap urls / Times New Roman @ 353-360px: Windows path: widest line: DOM 352.1796875px, Pretext 352.8203125px
+- chromium shrinkwrap urls / Times New Roman @ 361-368px: Windows path: widest line: DOM 360.1796875px, Pretext 360.8203125px
+- chromium shrinkwrap urls / Times New Roman @ 369-379px: Windows path: widest line: DOM 368.1796875px, Pretext 368.8203125px
+- chromium shrinkwrap urls / Times New Roman @ 380px: Windows path: widest line: DOM 379.734375px, Pretext 368.8203125px
+- chromium shrinkwrap urls / Times New Roman @ 381-385px: Windows path: widest line: DOM 379.734375px, Pretext 380.375px
+- chromium shrinkwrap urls / Times New Roman @ 386px: Windows path: widest line: DOM 385.9609375px, Pretext 380.375px
+- chromium shrinkwrap urls / Times New Roman @ 387-390px: Windows path: widest line: DOM 385.9609375px, Pretext 386.6015625px
+- chromium shrinkwrap urls / Times New Roman @ 391px: Windows path: widest line: DOM 390.40625px, Pretext 386.6015625px
+- chromium shrinkwrap urls / Times New Roman @ 392-395px: Windows path: widest line: DOM 390.40625px, Pretext 391.046875px
+- chromium shrinkwrap urls / Times New Roman @ 396px: Windows path: widest line: DOM 395.734375px, Pretext 391.046875px
+- chromium shrinkwrap urls / Times New Roman @ 397-407px: Windows path: widest line: DOM 395.734375px, Pretext 396.375px
+- chromium shrinkwrap urls / Times New Roman @ 408-414px: Windows path: widest line: DOM 407.2890625px, Pretext 407.9296875px
+- chromium shrinkwrap urls / Times New Roman @ 415px: Windows path: widest line: DOM 414.390625px, Pretext 407.9296875px
+- chromium shrinkwrap urls / Times New Roman @ 416-418px: Windows path: widest line: DOM 414.390625px, Pretext 415.03125px
+- chromium shrinkwrap urls / Times New Roman @ 419px: Windows path: widest line: DOM 418.8359375px, Pretext 415.03125px
+- chromium shrinkwrap urls / Times New Roman @ 420-429px: Windows path: widest line: DOM 418.8359375px, Pretext 419.4765625px
+- chromium shrinkwrap urls / Times New Roman @ 430px: Windows path: widest line: DOM 429.5078125px, Pretext 419.4765625px
+- chromium shrinkwrap urls / Times New Roman @ 431-436px: Windows path: widest line: DOM 429.5078125px, Pretext 430.1484375px
+- chromium shrinkwrap urls / Times New Roman @ 437px: Windows path: widest line: DOM 436.609375px, Pretext 430.1484375px
+- chromium shrinkwrap urls / Times New Roman @ 438-443px: Windows path: widest line: DOM 436.609375px, Pretext 437.25px
+- chromium shrinkwrap urls / Times New Roman @ 444px: Windows path: widest line: DOM 443.7109375px, Pretext 437.25px
+- chromium shrinkwrap urls / Times New Roman @ 445-451px: Windows path: widest line: DOM 443.7109375px, Pretext 444.3515625px
+- chromium shrinkwrap urls / Times New Roman @ 452px: Windows path: widest line: DOM 451.7109375px, Pretext 444.3515625px
+- chromium shrinkwrap urls / Times New Roman @ 453-458px: Windows path: widest line: DOM 451.7109375px, Pretext 452.3515625px
+- chromium shrinkwrap urls / Times New Roman @ 459px: Windows path: widest line: DOM 458.8125px, Pretext 452.3515625px
+- chromium shrinkwrap urls / Times New Roman @ 460-463px: Windows path: widest line: DOM 458.8125px, Pretext 459.453125px
+- chromium shrinkwrap urls / Times New Roman @ 464-468px: Windows path: widest line: DOM 463.2578125px, Pretext 463.8984375px
+- chromium shrinkwrap urls / Times New Roman @ 469px: Windows path: widest line: DOM 468.5859375px, Pretext 463.8984375px
+- chromium shrinkwrap urls / Times New Roman @ 470-478px: Windows path: widest line: DOM 468.5859375px, Pretext 469.2265625px
+- chromium shrinkwrap urls / Times New Roman @ 479-482px: Windows path: widest line: DOM 478.359375px, Pretext 479px
+- chromium shrinkwrap urls / Times New Roman @ 483px: Windows path: widest line: DOM 482.8046875px, Pretext 479px
+- chromium shrinkwrap urls / Times New Roman @ 484-489px: Windows path: widest line: DOM 482.8046875px, Pretext 483.4453125px
+- chromium shrinkwrap urls / Times New Roman @ 490-496px: Windows path: widest line: DOM 489.03125px, Pretext 489.671875px
+- chromium shrinkwrap urls / Times New Roman @ 497-500px: Windows path: widest line: DOM 496.1328125px, Pretext 496.7734375px
+- chromium shrinkwrap urls / Times New Roman @ 501px: Windows path: widest line: DOM 500.578125px, Pretext 496.7734375px
+- chromium shrinkwrap urls / Times New Roman @ 502-505px: Windows path: widest line: DOM 500.578125px, Pretext 501.21875px
+- chromium shrinkwrap urls / Times New Roman @ 506-509px: Windows path: widest line: DOM 505.0234375px, Pretext 505.6640625px
+- chromium shrinkwrap urls / Times New Roman @ 510px: Windows path: widest line: DOM 509.46875px, Pretext 505.6640625px
+- chromium shrinkwrap urls / Times New Roman @ 511-517px: Windows path: widest line: DOM 509.46875px, Pretext 510.109375px
+- chromium shrinkwrap urls / Times New Roman @ 518px: Windows path: widest line: DOM 517.46875px, Pretext 510.109375px
+- chromium shrinkwrap urls / Times New Roman @ 519-525px: Windows path: widest line: DOM 517.46875px, Pretext 518.109375px
+- chromium shrinkwrap urls / Times New Roman @ 526px: Windows path: widest line: DOM 525.46875px, Pretext 518.109375px
+- chromium shrinkwrap urls / Times New Roman @ 527-531px: Windows path: widest line: DOM 525.46875px, Pretext 526.109375px
+- chromium shrinkwrap urls / Times New Roman @ 532px: Windows path: widest line: DOM 531.6953125px, Pretext 526.109375px
+- chromium shrinkwrap urls / Times New Roman @ 533-535px: Windows path: widest line: DOM 531.6953125px, Pretext 532.3359375px
+- chromium shrinkwrap urls / Times New Roman @ 536px: Windows path: widest line: DOM 535.6953125px, Pretext 532.3359375px
+- chromium shrinkwrap urls / Times New Roman @ 537-540px: Windows path: widest line: DOM 535.6953125px, Pretext 536.3359375px
+- chromium shrinkwrap urls / Times New Roman @ 541-548px: Windows path: widest line: DOM 540.140625px, Pretext 540.78125px
+- chromium shrinkwrap urls / Times New Roman @ 549-552px: Windows path: widest line: DOM 548.140625px, Pretext 548.78125px
+- chromium shrinkwrap urls / Times New Roman @ 121px: Data URI: widest line: DOM 120.3125px, Pretext 119.984375px
+- chromium shrinkwrap urls / Times New Roman @ 122px: Data URI: widest line: DOM 121.78125px, Pretext 119.984375px
+- chromium shrinkwrap urls / Times New Roman @ 123px: Data URI: widest line: DOM 122.671875px, Pretext 119.984375px
+- chromium shrinkwrap urls / Times New Roman @ 124px: Data URI: widest line: DOM 123.8828125px, Pretext 123.5625px
+- chromium shrinkwrap urls / Times New Roman @ 125px: Data URI: widest line: DOM 124.765625px, Pretext 124.40625px
+- chromium shrinkwrap urls / Times New Roman @ 126px: Data URI: widest line: DOM 124.765625px, Pretext 125.328125px
+- chromium shrinkwrap urls / Times New Roman @ 127px: Data URI: baseline: DOM 9 lines, Pretext 10
+- chromium shrinkwrap urls / Times New Roman @ 128px: Data URI: widest line: DOM 127.1015625px, Pretext 127.984375px
+- chromium shrinkwrap urls / Times New Roman @ 129px: Data URI: widest line: DOM 127.1015625px, Pretext 128.890625px
+- chromium shrinkwrap urls / Times New Roman @ 134-135px: Data URI: widest line: DOM 133.640625px, Pretext 132.4453125px
+- chromium shrinkwrap urls / Times New Roman @ 136-138px: Data URI: widest line: DOM 133.640625px, Pretext 135.109375px
+- chromium shrinkwrap urls / Times New Roman @ 144-145px: Data URI: widest line: DOM 143.421875px, Pretext 143.109375px
+- chromium shrinkwrap urls / Times New Roman @ 146px: Data URI: widest line: DOM 145.7890625px, Pretext 143.109375px
+- chromium shrinkwrap urls / Times New Roman @ 147px: Data URI: widest line: DOM 145.7890625px, Pretext 146.6640625px
+- chromium shrinkwrap urls / Times New Roman @ 148px: Data URI: widest line: DOM 147.875px, Pretext 147.5078125px
+- chromium shrinkwrap urls / Times New Roman @ 153px: Data URI: widest line: DOM 152.3203125px, Pretext 152px
+- chromium shrinkwrap urls / Times New Roman @ 159px: Data URI: widest line: DOM 158.546875px, Pretext 157.328125px
+- chromium shrinkwrap urls / Times New Roman @ 161px: Data URI: baseline: DOM 7 lines, Pretext 8
+- chromium shrinkwrap urls / Times New Roman @ 162-163px: Data URI: widest line: DOM 160.890625px, Pretext 161.7890625px
+- chromium shrinkwrap urls / Times New Roman @ 172px: Data URI: widest line: DOM 171.8671875px, Pretext 169.7890625px
+- chromium shrinkwrap urls / Times New Roman @ 176-177px: Data URI: widest line: DOM 176px, Pretext 175.109375px
+- chromium shrinkwrap urls / Times New Roman @ 187-188px: Data URI: widest line: DOM 186.0859375px, Pretext 185.7734375px
+- chromium shrinkwrap urls / Times New Roman @ 189px: Data URI: widest line: DOM 188.4453125px, Pretext 188.71875px
+- chromium shrinkwrap urls / Times New Roman @ 193px: Data URI: widest line: DOM 189.734375px, Pretext 192.8828125px
+- chromium shrinkwrap urls / Times New Roman @ 195-196px: Data URI: widest line: DOM 194.96875px, Pretext 193.78125px
+- chromium shrinkwrap urls / Times New Roman @ 200px: Data URI: widest line: DOM 199.4140625px, Pretext 199.109375px
+- chromium shrinkwrap urls / Times New Roman @ 203px: Data URI: widest line: DOM 202.984375px, Pretext 200.40625px
+- chromium shrinkwrap urls / Times New Roman @ 204-205px: Data URI: widest line: DOM 202.984375px, Pretext 203.546875px
+- chromium shrinkwrap urls / Times New Roman @ 206px: Data URI: widest line: DOM 202.984375px, Pretext 205.3359375px
+- chromium shrinkwrap urls / Times New Roman @ 207-208px: Data URI: widest line: DOM 202.984375px, Pretext 206.2265625px
+- chromium shrinkwrap urls / Times New Roman @ 215-216px: Data URI: widest line: DOM 214.5390625px, Pretext 211.9609375px
+- chromium shrinkwrap urls / Times New Roman @ 217px: Data URI: widest line: DOM 214.5390625px, Pretext 216.8828125px
+- chromium shrinkwrap urls / Times New Roman @ 228-229px: Data URI: widest line: DOM 227.875px, Pretext 223.375px
+- chromium shrinkwrap urls / Times New Roman @ 230-231px: Data URI: widest line: DOM 227.875px, Pretext 229.3359375px
+- chromium shrinkwrap urls / Times New Roman @ 243px: Data URI: widest line: DOM 242.09375px, Pretext 239.109375px
+- chromium shrinkwrap urls / Times New Roman @ 247px: Data URI: widest line: DOM 246.5390625px, Pretext 244.4375px
+- chromium shrinkwrap urls / Times New Roman @ 248-249px: Data URI: widest line: DOM 247.1015625px, Pretext 244.4375px
+- chromium shrinkwrap urls / Times New Roman @ 250-251px: Data URI: widest line: DOM 247.1015625px, Pretext 249.78125px
+- chromium shrinkwrap urls / Times New Roman @ 260px: Data URI: widest line: DOM 259.0703125px, Pretext 259.5546875px
+- chromium shrinkwrap urls / Times New Roman @ 261-262px: Data URI: widest line: DOM 260.75px, Pretext 259.5546875px
+- chromium shrinkwrap urls / Times New Roman @ 263-265px: Data URI: widest line: DOM 260.75px, Pretext 262.21875px
+- chromium shrinkwrap urls / Times New Roman @ 274-279px: Data URI: widest line: DOM 270.625px, Pretext 273.7734375px
+- chromium shrinkwrap urls / Times New Roman @ 286-287px: Data URI: widest line: DOM 282.1796875px, Pretext 285.328125px
+- chromium shrinkwrap urls / Times New Roman @ 288px: Data URI: widest line: DOM 287.4140625px, Pretext 285.328125px
+- chromium shrinkwrap urls / Times New Roman @ 289-290px: Data URI: widest line: DOM 287.4140625px, Pretext 288.8984375px
+- chromium shrinkwrap urls / Times New Roman @ 291-293px: Data URI: widest line: DOM 287.4140625px, Pretext 290.65625px
+- chromium shrinkwrap urls / Times New Roman @ 296-300px: Data URI: widest line: DOM 293.734375px, Pretext 295.1015625px
+- chromium shrinkwrap urls / Times New Roman @ 301px: Data URI: widest line: DOM 300.7578125px, Pretext 295.1015625px
+- chromium shrinkwrap urls / Times New Roman @ 302px: Data URI: widest line: DOM 301.3359375px, Pretext 295.1015625px
+- chromium shrinkwrap urls / Times New Roman @ 303px: Data URI: widest line: DOM 301.3359375px, Pretext 302.234375px
+- chromium shrinkwrap urls / Times New Roman @ 304-305px: Data URI: widest line: DOM 301.3359375px, Pretext 304px
+- chromium shrinkwrap urls / Times New Roman @ 307-310px: Data URI: widest line: DOM 306.984375px, Pretext 305.2890625px
+- chromium shrinkwrap urls / Times New Roman @ 311-314px: Data URI: widest line: DOM 306.984375px, Pretext 310.2265625px
+- chromium shrinkwrap urls / Times New Roman @ 319-321px: Data URI: widest line: DOM 318.5390625px, Pretext 316.84375px
+- chromium shrinkwrap urls / Times New Roman @ 322px: Data URI: widest line: DOM 318.5390625px, Pretext 321.78125px
+- chromium shrinkwrap urls / Times New Roman @ 333px: Data URI: widest line: DOM 332.75px, Pretext 325.7421875px
+- chromium shrinkwrap urls / Times New Roman @ 334px: Data URI: widest line: DOM 333.328125px, Pretext 325.7421875px
+- chromium shrinkwrap urls / Times New Roman @ 335px: Data URI: widest line: DOM 333.328125px, Pretext 334.2109375px
+- chromium shrinkwrap urls / Times New Roman @ 336-337px: Data URI: widest line: DOM 333.328125px, Pretext 335.9921875px
+- chromium shrinkwrap urls / Times New Roman @ 339-340px: Data URI: widest line: DOM 337.296875px, Pretext 338.671875px
+- chromium shrinkwrap urls / Times New Roman @ 341-345px: Data URI: widest line: DOM 337.296875px, Pretext 340.4375px
+- chromium shrinkwrap urls / Times New Roman @ 351-353px: Data URI: widest line: DOM 350.5234375px, Pretext 345.296875px
+- chromium shrinkwrap urls / Times New Roman @ 354-355px: Data URI: widest line: DOM 350.5234375px, Pretext 353.765625px
+- chromium shrinkwrap urls / Times New Roman @ 356-358px: Data URI: widest line: DOM 355.0703125px, Pretext 355.546875px
+- chromium shrinkwrap urls / Times New Roman @ 363px: Data URI: widest line: DOM 362.9765625px, Pretext 358.2265625px
+- chromium shrinkwrap urls / Times New Roman @ 364-366px: Data URI: widest line: DOM 363.5546875px, Pretext 358.2265625px
+- chromium shrinkwrap urls / Times New Roman @ 368-370px: Data URI: baseline: DOM 3 lines, Pretext 4
+- chromium shrinkwrap urls / Times New Roman @ 371-374px: Data URI: widest line: DOM 367.421875px, Pretext 370.6640625px
+- chromium shrinkwrap urls / Times New Roman @ 376-383px: Data URI: widest line: DOM 374.625px, Pretext 375.109375px
+- chromium shrinkwrap urls / Times New Roman @ 384-386px: Data URI: widest line: DOM 383.421875px, Pretext 375.109375px
+- chromium shrinkwrap urls / Times New Roman @ 392-394px: Data URI: widest line: DOM 391.421875px, Pretext 386.1796875px
+- chromium shrinkwrap urls / Times New Roman @ 395-397px: Data URI: widest line: DOM 391.421875px, Pretext 394.6640625px
+- chromium shrinkwrap urls / Times New Roman @ 401-402px: Data URI: widest line: DOM 397.734375px, Pretext 400.0078125px
+- chromium shrinkwrap urls / Times New Roman @ 403-405px: Data URI: widest line: DOM 402.09375px, Pretext 400.0078125px
+- chromium shrinkwrap urls / Times New Roman @ 406-409px: Data URI: widest line: DOM 402.09375px, Pretext 405.3359375px
+- chromium shrinkwrap urls / Times New Roman @ 414-416px: Data URI: widest line: DOM 413.6484375px, Pretext 409.2890625px
+- chromium shrinkwrap urls / Times New Roman @ 417-420px: Data URI: widest line: DOM 413.6484375px, Pretext 416.890625px
+- chromium shrinkwrap urls / Times New Roman @ 425-427px: Data URI: widest line: DOM 424.3203125px, Pretext 420.84375px
+- chromium shrinkwrap urls / Times New Roman @ 428-430px: Data URI: widest line: DOM 424.3203125px, Pretext 427.5625px
+- chromium shrinkwrap urls / Times New Roman @ 435-437px: Data URI: widest line: DOM 434.1015625px, Pretext 430.6171875px
+- chromium shrinkwrap urls / Times New Roman @ 438-442px: Data URI: widest line: DOM 434.1015625px, Pretext 437.34375px
+- chromium shrinkwrap urls / Times New Roman @ 446-448px: Data URI: widest line: DOM 445.65625px, Pretext 442.171875px
+- chromium shrinkwrap urls / Times New Roman @ 449-453px: Data URI: widest line: DOM 445.65625px, Pretext 448.8984375px
+- chromium shrinkwrap urls / Times New Roman @ 458-460px: Data URI: widest line: DOM 457.203125px, Pretext 453.7265625px
+- chromium shrinkwrap urls / Times New Roman @ 461-465px: Data URI: widest line: DOM 457.203125px, Pretext 460.4453125px
+- chromium shrinkwrap urls / Times New Roman @ 470-472px: Data URI: widest line: DOM 469.6484375px, Pretext 465.28125px
+- chromium shrinkwrap urls / Times New Roman @ 473-476px: Data URI: widest line: DOM 469.6484375px, Pretext 472.890625px
+- chromium shrinkwrap urls / Times New Roman @ 482-484px: Data URI: widest line: DOM 481.203125px, Pretext 476.8359375px
+- chromium shrinkwrap urls / Times New Roman @ 485-487px: Data URI: widest line: DOM 481.203125px, Pretext 484.4453125px
+- chromium shrinkwrap urls / Times New Roman @ 494-496px: Data URI: widest line: DOM 493.640625px, Pretext 487.5078125px
+- chromium shrinkwrap urls / Times New Roman @ 497-498px: Data URI: widest line: DOM 493.640625px, Pretext 496.8828125px
+- chromium shrinkwrap urls / Times New Roman @ 500-503px: Data URI: widest line: DOM 499.8671875px, Pretext 498.1796875px
+- chromium shrinkwrap urls / Times New Roman @ 504-509px: Data URI: widest line: DOM 499.8671875px, Pretext 503.109375px
+- chromium shrinkwrap urls / Times New Roman @ 512-513px: Data URI: widest line: DOM 512.0078125px, Pretext 509.734375px
+- chromium shrinkwrap urls / Times New Roman @ 514-519px: Data URI: widest line: DOM 512.0078125px, Pretext 513.78125px
+- chromium shrinkwrap urls / Times New Roman @ 520-521px: Data URI: widest line: DOM 520px, Pretext 513.78125px
+- chromium shrinkwrap urls / Times New Roman @ 522-525px: Data URI: widest line: DOM 520px, Pretext 521.2890625px
+- chromium shrinkwrap urls / Times New Roman @ 530-532px: Data URI: widest line: DOM 529.6015625px, Pretext 525.328125px
+- chromium shrinkwrap urls / Times New Roman @ 533-535px: Data URI: widest line: DOM 529.6015625px, Pretext 532.84375px
+- chromium shrinkwrap urls / Times New Roman @ 542-543px: Data URI: widest line: DOM 541.15625px, Pretext 536px
+- chromium shrinkwrap urls / Times New Roman @ 544px: Data URI: widest line: DOM 541.15625px, Pretext 544px
+- chromium shrinkwrap urls / Times New Roman @ 545-549px: Data URI: widest line: DOM 541.15625px, Pretext 544.3984375px
+- chromium shrinkwrap urls / Times New Roman @ 553-555px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium shrinkwrap urls / Times New Roman @ 556-564px: Data URI: widest line: DOM 552.7109375px, Pretext 555.953125px
+- chromium shrinkwrap urls / Times New Roman @ 565-567px: Data URI: widest line: DOM 564.265625px, Pretext 555.953125px
+- chromium shrinkwrap urls / Times New Roman @ 568-569px: Data URI: widest line: DOM 564.265625px, Pretext 567.5078125px
+- chromium shrinkwrap urls / Times New Roman @ 570-572px: Data URI: widest line: DOM 569.59375px, Pretext 567.5078125px
+- chromium shrinkwrap urls / Times New Roman @ 573-578px: Data URI: widest line: DOM 569.59375px, Pretext 572.8359375px
+- chromium shrinkwrap urls / Times New Roman @ 579-581px: Data URI: widest line: DOM 578.4921875px, Pretext 572.8359375px
+- chromium shrinkwrap urls / Times New Roman @ 582-585px: Data URI: widest line: DOM 578.4921875px, Pretext 581.734375px
+- chromium shrinkwrap urls / Times New Roman @ 586-588px: Data URI: widest line: DOM 585.59375px, Pretext 581.734375px
+- chromium shrinkwrap urls / Times New Roman @ 589-594px: Data URI: widest line: DOM 585.59375px, Pretext 588.8359375px
+- chromium shrinkwrap urls / Times New Roman @ 595-597px: Data URI: widest line: DOM 594.4921875px, Pretext 588.8359375px
+- chromium shrinkwrap urls / Times New Roman @ 598-600px: Data URI: widest line: DOM 594.4921875px, Pretext 597.734375px
+- chromium shrinkwrap urls / Times New Roman @ 568px: npm scope: widest line: DOM 568.0078125px, Pretext 542.6796875px
+- chromium shrinkwrap urls / Times New Roman @ 121px: Snake case: widest line: DOM 120.015625px, Pretext 119.1015625px
+- chromium shrinkwrap urls / Times New Roman @ 122px: Snake case: widest line: DOM 120.015625px, Pretext 121.7890625px
+- chromium shrinkwrap urls / Times New Roman @ 125-126px: Snake case: widest line: DOM 122.6875px, Pretext 124.4453125px
+- chromium shrinkwrap urls / Times New Roman @ 128px: Snake case: widest line: DOM 128px, Pretext 126.2109375px
+- chromium shrinkwrap urls / Times New Roman @ 130px: Snake case: widest line: DOM 128.90625px, Pretext 129.7734375px
+- chromium shrinkwrap urls / Times New Roman @ 136-137px: Snake case: widest line: DOM 136px, Pretext 132.4609375px
+- chromium shrinkwrap urls / Times New Roman @ 144px: Snake case: widest line: DOM 143.265625px, Pretext 144px
+- chromium shrinkwrap urls / Times New Roman @ 145-146px: Snake case: widest line: DOM 144.8984375px, Pretext 144.1328125px
+- chromium shrinkwrap urls / Times New Roman @ 147-149px: Snake case: widest line: DOM 144.8984375px, Pretext 146.671875px
+- chromium shrinkwrap urls / Times New Roman @ 152px: Snake case: baseline: DOM 8 lines, Pretext 9
+- chromium shrinkwrap urls / Times New Roman @ 153px: Snake case: widest line: DOM 151.984375px, Pretext 152.8984375px
+- chromium shrinkwrap urls / Times New Roman @ 161px: Snake case: widest line: DOM 159.984375px, Pretext 160.015625px
+- chromium shrinkwrap urls / Times New Roman @ 163-164px: Snake case: widest line: DOM 162.6875px, Pretext 161.7890625px
+- chromium shrinkwrap urls / Times New Roman @ 165-166px: Snake case: widest line: DOM 162.6875px, Pretext 164.4609375px
+- chromium shrinkwrap urls / Times New Roman @ 169-170px: Snake case: widest line: DOM 168.890625px, Pretext 166.359375px
+- chromium shrinkwrap urls / Times New Roman @ 171px: Snake case: widest line: DOM 170.359375px, Pretext 170.6640625px
+- chromium shrinkwrap urls / Times New Roman @ 177px: Snake case: widest line: DOM 176.015625px, Pretext 174.2109375px
+- chromium shrinkwrap urls / Times New Roman @ 178-179px: Snake case: widest line: DOM 176.015625px, Pretext 177.7890625px
+- chromium shrinkwrap urls / Times New Roman @ 186-189px: Snake case: widest line: DOM 184.015625px, Pretext 185.78125px
+- chromium shrinkwrap urls / Times New Roman @ 197-198px: Snake case: widest line: DOM 196.4453125px, Pretext 194.6875px
+- chromium shrinkwrap urls / Times New Roman @ 199px: Snake case: widest line: DOM 196.4453125px, Pretext 198.21875px
+- chromium shrinkwrap urls / Times New Roman @ 205-206px: Snake case: widest line: DOM 204.4453125px, Pretext 204.4140625px
+- chromium shrinkwrap urls / Times New Roman @ 211-212px: Snake case: widest line: DOM 210.671875px, Pretext 206.2421875px
+- chromium shrinkwrap urls / Times New Roman @ 213px: Snake case: widest line: DOM 210.671875px, Pretext 212.4453125px
+- chromium shrinkwrap urls / Times New Roman @ 219-220px: Snake case: widest line: DOM 218.6875px, Pretext 217.796875px
+- chromium shrinkwrap urls / Times New Roman @ 221-223px: Snake case: widest line: DOM 218.6875px, Pretext 220.4609375px
+- chromium shrinkwrap urls / Times New Roman @ 227-228px: Snake case: widest line: DOM 226.6875px, Pretext 223.0859375px
+- chromium shrinkwrap urls / Times New Roman @ 235-236px: Snake case: widest line: DOM 234.6875px, Pretext 233.7578125px
+- chromium shrinkwrap urls / Times New Roman @ 237-240px: Snake case: widest line: DOM 234.6875px, Pretext 236.4609375px
+- chromium shrinkwrap urls / Times New Roman @ 242-243px: Snake case: widest line: DOM 241.8046875px, Pretext 240.0234375px
+- chromium shrinkwrap urls / Times New Roman @ 244-245px: Snake case: widest line: DOM 241.8046875px, Pretext 243.578125px
+- chromium shrinkwrap urls / Times New Roman @ 257-258px: Snake case: widest line: DOM 256.90625px, Pretext 256.8671875px
+- chromium shrinkwrap urls / Times New Roman @ 259-263px: Snake case: widest line: DOM 256.90625px, Pretext 258.6796875px
+- chromium shrinkwrap urls / Times New Roman @ 268px: Snake case: widest line: DOM 267.578125px, Pretext 263.1328125px
+- chromium shrinkwrap urls / Times New Roman @ 270-274px: Snake case: widest line: DOM 268.421875px, Pretext 269.3515625px
+- chromium shrinkwrap urls / Times New Roman @ 277px: Snake case: widest line: DOM 276.46875px, Pretext 274.6875px
+- chromium shrinkwrap urls / Times New Roman @ 279-282px: Snake case: widest line: DOM 277.3203125px, Pretext 278.2421875px
+- chromium shrinkwrap urls / Times New Roman @ 286px: Snake case: widest line: DOM 285.4921875px, Pretext 282.6875px
+- chromium shrinkwrap urls / Times New Roman @ 288-293px: Snake case: widest line: DOM 286.34375px, Pretext 287.265625px
+- chromium shrinkwrap urls / Times New Roman @ 302-303px: Snake case: baseline: DOM 5 lines, Pretext 6
+- chromium shrinkwrap urls / Times New Roman @ 304px: Snake case: widest line: DOM 302.34375px, Pretext 303.6953125px
+- chromium shrinkwrap urls / Times New Roman @ 363-364px: Snake case: widest line: DOM 362.6953125px, Pretext 354.6953125px
+- chromium shrinkwrap urls / Times New Roman @ 365-368px: Snake case: widest line: DOM 362.6953125px, Pretext 364.46875px
+- chromium shrinkwrap urls / Times New Roman @ 369px: Snake case: widest line: DOM 368.0234375px, Pretext 364.46875px
+- chromium shrinkwrap urls / Times New Roman @ 370-379px: Snake case: widest line: DOM 368.0234375px, Pretext 369.796875px
+- chromium shrinkwrap urls / Times New Roman @ 380-381px: Snake case: widest line: DOM 379.578125px, Pretext 369.796875px
+- chromium shrinkwrap urls / Times New Roman @ 382-391px: Snake case: widest line: DOM 379.578125px, Pretext 381.3515625px
+- chromium shrinkwrap urls / Times New Roman @ 392px: Snake case: widest line: DOM 391.1328125px, Pretext 381.3515625px
+- chromium shrinkwrap urls / Times New Roman @ 393-399px: Snake case: widest line: DOM 391.1328125px, Pretext 392.90625px
+- chromium shrinkwrap urls / Times New Roman @ 400px: Snake case: widest line: DOM 399.1328125px, Pretext 392.90625px
+- chromium shrinkwrap urls / Times New Roman @ 401-405px: Snake case: widest line: DOM 399.1328125px, Pretext 400.90625px
+- chromium shrinkwrap urls / Times New Roman @ 406-407px: Snake case: widest line: DOM 405.359375px, Pretext 400.90625px
+- chromium shrinkwrap urls / Times New Roman @ 408-416px: Snake case: widest line: DOM 405.359375px, Pretext 407.1328125px
+- chromium shrinkwrap urls / Times New Roman @ 417-418px: Snake case: widest line: DOM 416.9140625px, Pretext 407.1328125px
+- chromium shrinkwrap urls / Times New Roman @ 419-427px: Snake case: widest line: DOM 416.9140625px, Pretext 418.6875px
+- chromium shrinkwrap urls / Times New Roman @ 428-429px: Snake case: widest line: DOM 427.5859375px, Pretext 418.6875px
+- chromium shrinkwrap urls / Times New Roman @ 430-436px: Snake case: widest line: DOM 427.5859375px, Pretext 429.359375px
+- chromium shrinkwrap urls / Times New Roman @ 437-438px: Snake case: widest line: DOM 436.484375px, Pretext 429.359375px
+- chromium shrinkwrap urls / Times New Roman @ 439-444px: Snake case: widest line: DOM 436.484375px, Pretext 438.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 445-446px: Snake case: widest line: DOM 444.484375px, Pretext 438.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 447-453px: Snake case: widest line: DOM 444.484375px, Pretext 446.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 454-455px: Snake case: widest line: DOM 453.3828125px, Pretext 446.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 456-463px: Snake case: widest line: DOM 453.3828125px, Pretext 455.15625px
+- chromium shrinkwrap urls / Times New Roman @ 464px: Snake case: widest line: DOM 463.15625px, Pretext 455.15625px
+- chromium shrinkwrap urls / Times New Roman @ 465-466px: Snake case: widest line: DOM 463.15625px, Pretext 464.9296875px
+- chromium shrinkwrap urls / Times New Roman @ 474-475px: Snake case: widest line: DOM 473.828125px, Pretext 466.46875px
+- chromium shrinkwrap urls / Times New Roman @ 476-481px: Snake case: widest line: DOM 473.828125px, Pretext 475.6015625px
+- chromium shrinkwrap urls / Times New Roman @ 482-483px: Snake case: widest line: DOM 481.828125px, Pretext 475.6015625px
+- chromium shrinkwrap urls / Times New Roman @ 484-496px: Snake case: widest line: DOM 481.828125px, Pretext 483.6015625px
+- chromium shrinkwrap urls / Times New Roman @ 497-498px: Snake case: widest line: DOM 496.9296875px, Pretext 483.6015625px
+- chromium shrinkwrap urls / Times New Roman @ 499-508px: Snake case: widest line: DOM 496.9296875px, Pretext 498.703125px
+- chromium shrinkwrap urls / Times New Roman @ 509-510px: Snake case: widest line: DOM 508.484375px, Pretext 498.703125px
+- chromium shrinkwrap urls / Times New Roman @ 511-519px: Snake case: widest line: DOM 508.484375px, Pretext 510.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 520px: Snake case: widest line: DOM 519.15625px, Pretext 510.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 521-530px: Snake case: widest line: DOM 519.15625px, Pretext 520.9296875px
+- chromium shrinkwrap urls / Times New Roman @ 531-532px: Snake case: widest line: DOM 530.7109375px, Pretext 520.9296875px
+- chromium shrinkwrap urls / Times New Roman @ 533-540px: Snake case: widest line: DOM 530.7109375px, Pretext 532.484375px
+- chromium shrinkwrap urls / Times New Roman @ 541-542px: Snake case: widest line: DOM 540.484375px, Pretext 532.484375px
+- chromium shrinkwrap urls / Times New Roman @ 543-551px: Snake case: widest line: DOM 540.484375px, Pretext 542.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 552px: Snake case: widest line: DOM 551.15625px, Pretext 542.2578125px
+- chromium shrinkwrap urls / Times New Roman @ 553-560px: Snake case: widest line: DOM 551.15625px, Pretext 552.9296875px
+- chromium shrinkwrap urls / Times New Roman @ 561px: Snake case: widest line: DOM 560.1796875px, Pretext 552.9296875px
+- chromium shrinkwrap urls / Times New Roman @ 562-568px: Snake case: widest line: DOM 560.1796875px, Pretext 561.953125px
+- chromium balance latin / Georgia @ 142px: Gatsby reserve: baseline: DOM 9 lines, Pretext 10
+- chromium balance latin / Georgia @ 143-153px: Gatsby reserve: at 142px: DOM 9 lines, Pretext 10
+- chromium balance latin / Georgia @ 592px: Gatsby reserve: baseline: DOM 2 lines, Pretext 3
+- chromium balance latin / Georgia @ 593-600px: Gatsby reserve: at 592px: DOM 2 lines, Pretext 3
+- chromium balance cjk / Georgia @ 159px: Japanese: baseline: DOM 5 lines, Pretext 6
+- chromium balance cjk / Georgia @ 160-190px: Japanese: at 159px: DOM 5 lines, Pretext 6
+- chromium balance cjk / Georgia @ 191px: Japanese: baseline: DOM 4 lines, Pretext 5
+- chromium balance cjk / Georgia @ 192-254px: Japanese: at 191px: DOM 4 lines, Pretext 5
+- chromium balance cjk / Georgia @ 255px: Japanese: baseline: DOM 3 lines, Pretext 4
+- chromium balance cjk / Georgia @ 256-380px: Japanese: at 255px: DOM 3 lines, Pretext 4
+- chromium balance cjk / Georgia @ 381px: Japanese: baseline: DOM 2 lines, Pretext 3
+- chromium balance cjk / Georgia @ 382-600px: Japanese: at 381px: DOM 2 lines, Pretext 3
+- chromium balance cjk / Georgia @ 191px: Japanese short: baseline: DOM 4 lines, Pretext 5
+- chromium balance cjk / Georgia @ 192-253px: Japanese short: at 191px: DOM 4 lines, Pretext 5
+- chromium balance cjk / Georgia @ 381px: Japanese short: baseline: DOM 2 lines, Pretext 3
+- chromium balance cjk / Georgia @ 382-600px: Japanese short: at 381px: DOM 2 lines, Pretext 3
+- chromium balance cjk / Georgia @ 120-126px: Kumo no ito: at 111px: DOM 8 lines, Pretext 9
+- chromium balance cjk / Georgia @ 127px: Kumo no ito: baseline: DOM 7 lines, Pretext 8
+- chromium balance cjk / Georgia @ 128-142px: Kumo no ito: at 127px: DOM 7 lines, Pretext 8
+- chromium balance cjk / Georgia @ 143px: Kumo no ito: baseline: DOM 6 lines, Pretext 7
+- chromium balance cjk / Georgia @ 144-173px: Kumo no ito: at 143px: DOM 6 lines, Pretext 7
+- chromium balance cjk / Georgia @ 207px: Kumo no ito: baseline: DOM 4 lines, Pretext 5
+- chromium balance cjk / Georgia @ 208-270px: Kumo no ito: at 207px: DOM 4 lines, Pretext 5
+- chromium balance cjk / Georgia @ 271px: Kumo no ito: baseline: DOM 3 lines, Pretext 4
+- chromium balance cjk / Georgia @ 272-413px: Kumo no ito: at 271px: DOM 3 lines, Pretext 4
+- chromium balance cjk / Georgia @ 414-415px: Kumo no ito: baseline: DOM 2 lines, Pretext 3
+- chromium balance cjk / Georgia @ 416-600px: Kumo no ito: at 415px: DOM 2 lines, Pretext 3
+- chromium balance arabic / Arial @ 251px: Numbers+RTL: baseline: DOM 2 lines, Pretext 3
+- chromium balance arabic / Arial @ 252-500px: Numbers+RTL: at 251px: DOM 2 lines, Pretext 3
+- chromium balance arabic / Arial @ 135px: Support thread: baseline: DOM 5 lines, Pretext 6
+- chromium balance arabic / Arial @ 136-153px: Support thread: at 135px: DOM 5 lines, Pretext 6
+- chromium balance arabic / Arial @ 590px: Support thread: baseline: DOM 1 lines, Pretext 2
+- chromium balance arabic / Arial @ 591-600px: Support thread: at 590px: DOM 1 lines, Pretext 2
+- chromium balance arabic / Times New Roman @ 294px: Long mixed: baseline: DOM 4 lines, Pretext 5
+- chromium balance arabic / Times New Roman @ 295-377px: Long mixed: at 294px: DOM 4 lines, Pretext 5
+- chromium balance arabic / Times New Roman @ 124px: Support thread: baseline: DOM 5 lines, Pretext 6
+- chromium balance arabic / Times New Roman @ 125-151px: Support thread: at 124px: DOM 5 lines, Pretext 6
+- chromium balance arabic / Times New Roman @ 284px: Support thread: baseline: DOM 2 lines, Pretext 3
+- chromium balance arabic / Times New Roman @ 285-563px: Support thread: at 284px: DOM 2 lines, Pretext 3
+- chromium balance arabic / Times New Roman @ 564px: Support thread: baseline: DOM 1 lines, Pretext 2
+- chromium balance arabic / Times New Roman @ 565-600px: Support thread: at 564px: DOM 1 lines, Pretext 2
+- chromium balance emoji-chat / Arial @ 535px: Flags: baseline: DOM 1 lines, Pretext 2
+- chromium balance emoji-chat / Arial @ 536-600px: Flags: at 535px: DOM 1 lines, Pretext 2
+- chromium balance emoji-chat / Arial @ 257px: ZWJ family: baseline: DOM 2 lines, Pretext 3
+- chromium balance emoji-chat / Arial @ 258-497px: ZWJ family: at 257px: DOM 2 lines, Pretext 3
+- chromium balance emoji-chat / Times New Roman @ 206px: Weather report: baseline: DOM 2 lines, Pretext 3
+- chromium balance emoji-chat / Times New Roman @ 207-412px: Weather report: at 206px: DOM 2 lines, Pretext 3
+- chromium balance urls / Helvetica Neue @ 274px: Bare URL: baseline: DOM 2 lines, Pretext 3
+- chromium balance urls / Helvetica Neue @ 275-542px: Bare URL: at 274px: DOM 2 lines, Pretext 3
+- chromium balance urls / Helvetica Neue @ 125px: Query string: baseline: DOM 10 lines, Pretext 11
+- chromium balance urls / Helvetica Neue @ 126-128px: Query string: at 125px: DOM 10 lines, Pretext 11
+- chromium balance urls / Helvetica Neue @ 246px: Query string: baseline: DOM 5 lines, Pretext 6
+- chromium balance urls / Helvetica Neue @ 247-273px: Query string: at 246px: DOM 5 lines, Pretext 6
+- chromium balance urls / Helvetica Neue @ 144-145px: Data URI: baseline: DOM 8 lines, Pretext 9
+- chromium balance urls / Helvetica Neue @ 146-165px: Data URI: at 145px: DOM 8 lines, Pretext 9
+- chromium balance urls / Helvetica Neue @ 230-231px: Data URI: baseline: DOM 5 lines, Pretext 6
+- chromium balance urls / Helvetica Neue @ 232-283px: Data URI: at 231px: DOM 5 lines, Pretext 6
+- chromium balance urls / Helvetica Neue @ 379-380px: Data URI: baseline: DOM 3 lines, Pretext 4
+- chromium balance urls / Helvetica Neue @ 381-562px: Data URI: at 380px: DOM 3 lines, Pretext 4
+- chromium balance urls / Helvetica Neue @ 563-565px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium balance urls / Helvetica Neue @ 566-600px: Data URI: at 565px: DOM 2 lines, Pretext 3
+- chromium balance urls / Helvetica Neue @ 245px: npm scope: baseline: DOM 3 lines, Pretext 4
+- chromium balance urls / Helvetica Neue @ 246-487px: npm scope: at 245px: DOM 3 lines, Pretext 4
+- chromium balance urls / Arial @ 177px: Bare URL: baseline: DOM 3 lines, Pretext 4
+- chromium balance urls / Arial @ 178-263px: Bare URL: at 177px: DOM 3 lines, Pretext 4
+- chromium balance urls / Arial @ 153px: Unix path: baseline: DOM 5 lines, Pretext 6
+- chromium balance urls / Arial @ 154-195px: Unix path: at 153px: DOM 5 lines, Pretext 6
+- chromium balance urls / Arial @ 148px: Data URI: baseline: DOM 8 lines, Pretext 9
+- chromium balance urls / Arial @ 149-166px: Data URI: at 148px: DOM 8 lines, Pretext 9
+- chromium balance urls / Arial @ 286-288px: Data URI: baseline: DOM 4 lines, Pretext 5
+- chromium balance urls / Arial @ 289-379px: Data URI: at 288px: DOM 4 lines, Pretext 5
+- chromium balance urls / Arial @ 568-570px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium balance urls / Arial @ 571-600px: Data URI: at 570px: DOM 2 lines, Pretext 3
+- chromium balance urls / Arial @ 129px: Snake case: baseline: DOM 9 lines, Pretext 10
+- chromium balance urls / Arial @ 130-157px: Snake case: at 129px: DOM 9 lines, Pretext 10
+- chromium balance urls / Times New Roman @ 127px: Data URI: baseline: DOM 9 lines, Pretext 10
+- chromium balance urls / Times New Roman @ 128-142px: Data URI: at 127px: DOM 9 lines, Pretext 10
+- chromium balance urls / Times New Roman @ 161px: Data URI: baseline: DOM 7 lines, Pretext 8
+- chromium balance urls / Times New Roman @ 162-188px: Data URI: at 161px: DOM 7 lines, Pretext 8
+- chromium balance urls / Times New Roman @ 368-370px: Data URI: baseline: DOM 3 lines, Pretext 4
+- chromium balance urls / Times New Roman @ 371-552px: Data URI: at 370px: DOM 3 lines, Pretext 4
+- chromium balance urls / Times New Roman @ 553-555px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium balance urls / Times New Roman @ 556-600px: Data URI: at 555px: DOM 2 lines, Pretext 3
+- chromium balance urls / Times New Roman @ 152px: Snake case: baseline: DOM 8 lines, Pretext 9
+- chromium balance urls / Times New Roman @ 153-170px: Snake case: at 152px: DOM 8 lines, Pretext 9
+- chromium balance urls / Times New Roman @ 302-303px: Snake case: baseline: DOM 5 lines, Pretext 6
+- chromium balance urls / Times New Roman @ 304-330px: Snake case: at 303px: DOM 5 lines, Pretext 6
+- chromium fitFontSize latin / Georgia @ 142px: Gatsby reserve: baseline: DOM 9 lines, Pretext 10
+- chromium fitFontSize latin / Georgia @ 592px: Gatsby reserve: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize latin / Times New Roman @ 143px: Gatsby reserve: returned 10px, at 10px: DOM 5 lines, Pretext 6
+- chromium fitFontSize latin / Times New Roman @ 516px: Gatsby decencies: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 129px: Japanese: returned 12px, at 13px: DOM 5 lines, Pretext 6
+- chromium fitFontSize cjk / Georgia @ 143px: Japanese: returned 12px, at 12px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 155px: Japanese: returned 12px, at 13px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 159px: Japanese: baseline: DOM 5 lines, Pretext 6
+- chromium fitFontSize cjk / Georgia @ 167px: Japanese: returned 13px, at 14px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 179px: Japanese: returned 14px, at 15px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 191px: Japanese: baseline: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 203px: Japanese: returned 16px, at 17px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 255px: Japanese: baseline: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 271px: Japanese: returned 16px, at 17px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 287px: Japanese: returned 17px, at 18px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 303px: Japanese: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 318-319px: Japanese: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 334-335px: Japanese: returned 20px, at 21px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 350-351px: Japanese: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 381px: Japanese: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 500-501px: Japanese: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 524-525px: Japanese: returned 21px, at 22px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 547-549px: Japanese: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 571-572px: Japanese: returned 23px, at 24px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 595-596px: Japanese: returned 24px, at 25px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 143px: Japanese short: returned 12px, at 12px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 155px: Japanese short: returned 12px, at 13px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 167px: Japanese short: returned 13px, at 14px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 179px: Japanese short: returned 14px, at 15px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 191px: Japanese short: baseline: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 203px: Japanese short: returned 16px, at 17px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 381px: Japanese short: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 499-501px: Japanese short: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 523-525px: Japanese short: returned 21px, at 22px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 547-549px: Japanese short: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 571-572px: Japanese short: returned 23px, at 24px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 594-596px: Japanese short: returned 24px, at 25px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 127px: Kumo no ito: baseline: DOM 7 lines, Pretext 8
+- chromium fitFontSize cjk / Georgia @ 143px: Kumo no ito: baseline: DOM 6 lines, Pretext 7
+- chromium fitFontSize cjk / Georgia @ 194px: Kumo no ito: returned 14px, at 15px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 207px: Kumo no ito: baseline: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 220px: Kumo no ito: returned 16px, at 17px: DOM 4 lines, Pretext 5
+- chromium fitFontSize cjk / Georgia @ 271px: Kumo no ito: baseline: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 288px: Kumo no ito: returned 16px, at 17px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 305px: Kumo no ito: returned 17px, at 18px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 322px: Kumo no ito: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 339px: Kumo no ito: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 356px: Kumo no ito: returned 20px, at 21px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 373px: Kumo no ito: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- chromium fitFontSize cjk / Georgia @ 414-415px: Kumo no ito: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 543-545px: Kumo no ito: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 569-571px: Kumo no ito: returned 21px, at 22px: DOM 2 lines, Pretext 3
+- chromium fitFontSize cjk / Georgia @ 595-597px: Kumo no ito: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Helvetica Neue @ 305px: Bukhala names: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- chromium fitFontSize arabic / Arial @ 251px: Numbers+RTL: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 135px: Support thread: baseline: DOM 5 lines, Pretext 6
+- chromium fitFontSize arabic / Arial @ 401px: Support thread: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 420px: Support thread: returned 21px, at 22px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 439px: Support thread: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 458px: Support thread: returned 23px, at 24px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 477-478px: Support thread: returned 24px, at 25px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 496-497px: Support thread: returned 25px, at 26px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 515-516px: Support thread: returned 26px, at 27px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 534-535px: Support thread: returned 27px, at 28px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 554px: Support thread: returned 28px, at 29px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 573px: Support thread: returned 29px, at 30px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Arial @ 590px: Support thread: baseline: DOM 1 lines, Pretext 2
+- chromium fitFontSize arabic / Arial @ 592px: Support thread: returned 30px, at 31px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 294px: Long mixed: baseline: DOM 4 lines, Pretext 5
+- chromium fitFontSize arabic / Times New Roman @ 401px: Long mixed: returned 16px, at 17px: DOM 3 lines, Pretext 4
+- chromium fitFontSize arabic / Times New Roman @ 448px: Long mixed: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- chromium fitFontSize arabic / Times New Roman @ 519px: Long mixed: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- chromium fitFontSize arabic / Times New Roman @ 124px: Support thread: baseline: DOM 5 lines, Pretext 6
+- chromium fitFontSize arabic / Times New Roman @ 284px: Support thread: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 373px: Support thread: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 391px: Support thread: returned 21px, at 22px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 409px: Support thread: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 426-427px: Support thread: returned 23px, at 24px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 444-445px: Support thread: returned 24px, at 25px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 462px: Support thread: returned 25px, at 26px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 480px: Support thread: returned 26px, at 27px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 497-498px: Support thread: returned 27px, at 28px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 515-516px: Support thread: returned 28px, at 29px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 533-534px: Support thread: returned 29px, at 30px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 551px: Support thread: returned 30px, at 31px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 564px: Support thread: baseline: DOM 1 lines, Pretext 2
+- chromium fitFontSize arabic / Times New Roman @ 568-569px: Support thread: returned 31px, at 32px: DOM 2 lines, Pretext 3
+- chromium fitFontSize arabic / Times New Roman @ 586-587px: Support thread: returned 32px, at 33px: DOM 2 lines, Pretext 3
+- chromium fitFontSize emoji-chat / Arial @ 535px: Flags: baseline: DOM 1 lines, Pretext 2
+- chromium fitFontSize emoji-chat / Arial @ 257px: ZWJ family: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize emoji-chat / Times New Roman @ 206px: Weather report: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 274px: Bare URL: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 394px: Bare URL: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 411px: Bare URL: returned 23px, at 24px: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 428px: Bare URL: returned 24px, at 25px: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 445px: Bare URL: returned 25px, at 26px: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 531px: Bare URL: returned 30px, at 31px: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 548px: Bare URL: returned 31px, at 32px: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 565px: Bare URL: returned 32px, at 33px: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 125px: Query string: baseline: DOM 10 lines, Pretext 11
+- chromium fitFontSize urls / Helvetica Neue @ 169px: Query string: returned 10px, at 11px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Helvetica Neue @ 246px: Query string: baseline: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Helvetica Neue @ 397px: Query string: returned 16px, at 17px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 467px: Query string: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 144-145px: Data URI: baseline: DOM 8 lines, Pretext 9
+- chromium fitFontSize urls / Helvetica Neue @ 158-159px: Data URI: returned 10px, at 11px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Helvetica Neue @ 172-173px: Data URI: returned 11px, at 12px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Helvetica Neue @ 187-188px: Data URI: returned 12px, at 13px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Helvetica Neue @ 230-231px: Data URI: baseline: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Helvetica Neue @ 379-380px: Data URI: baseline: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 403px: Data URI: returned 16px, at 17px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 427px: Data URI: returned 17px, at 18px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 450-451px: Data URI: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 474-475px: Data URI: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 498px: Data URI: returned 20px, at 21px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 522px: Data URI: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 563-565px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Helvetica Neue @ 245px: npm scope: baseline: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 291px: npm scope: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Helvetica Neue @ 337px: npm scope: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Arial @ 177px: Bare URL: baseline: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Arial @ 235px: Query string: returned 13px, at 14px: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Arial @ 441px: Query string: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Arial @ 153px: Unix path: baseline: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Arial @ 148px: Data URI: baseline: DOM 8 lines, Pretext 9
+- chromium fitFontSize urls / Arial @ 215-216px: Data URI: returned 12px, at 12px: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Arial @ 233-234px: Data URI: returned 12px, at 13px: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Arial @ 251-252px: Data URI: returned 13px, at 14px: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Arial @ 268-270px: Data URI: returned 14px, at 15px: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Arial @ 286-288px: Data URI: baseline: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Arial @ 304-306px: Data URI: returned 16px, at 17px: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Arial @ 568-570px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Arial @ 129px: Snake case: baseline: DOM 9 lines, Pretext 10
+- chromium fitFontSize urls / Georgia @ 189px: Data URI: returned 12px, at 13px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Times New Roman @ 127px: Data URI: baseline: DOM 9 lines, Pretext 10
+- chromium fitFontSize urls / Times New Roman @ 161px: Data URI: baseline: DOM 7 lines, Pretext 8
+- chromium fitFontSize urls / Times New Roman @ 368-370px: Data URI: baseline: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Times New Roman @ 391-393px: Data URI: returned 16px, at 17px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Times New Roman @ 414-416px: Data URI: returned 17px, at 18px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Times New Roman @ 437-440px: Data URI: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Times New Roman @ 460-463px: Data URI: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Times New Roman @ 483-486px: Data URI: returned 20px, at 21px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Times New Roman @ 506-509px: Data URI: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- chromium fitFontSize urls / Times New Roman @ 553-555px: Data URI: baseline: DOM 2 lines, Pretext 3
+- chromium fitFontSize urls / Times New Roman @ 145px: npm scope: returned 12px, at 12px: DOM 4 lines, Pretext 5
+- chromium fitFontSize urls / Times New Roman @ 152px: Snake case: baseline: DOM 8 lines, Pretext 9
+- chromium fitFontSize urls / Times New Roman @ 189px: Snake case: returned 10px, at 10px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Times New Roman @ 208px: Snake case: returned 10px, at 11px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Times New Roman @ 227px: Snake case: returned 11px, at 12px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Times New Roman @ 246px: Snake case: returned 12px, at 13px: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Times New Roman @ 302-303px: Snake case: baseline: DOM 5 lines, Pretext 6
+- chromium fitFontSize urls / Times New Roman @ 490px: Path with spaces: returned 23px, at 24px: DOM 2 lines, Pretext 3
+- webkit shrinkwrap urls / Helvetica Neue @ 213px: Query string: widest line: DOM 210.48001098632812px, Pretext 212.92800903320312px
+- webkit shrinkwrap urls / Helvetica Neue @ 163px: Windows path: widest line: DOM 162.3359832763672px, Pretext 162.04803466796875px
+- webkit shrinkwrap urls / Helvetica Neue @ 136-137px: Data URI: widest line: DOM 135.39199829101562px, Pretext 135.1520013809204px
+- webkit shrinkwrap urls / Helvetica Neue @ 182px: Data URI: widest line: DOM 181.0079803466797px, Pretext 181.02400398254395px
+- webkit shrinkwrap urls / Helvetica Neue @ 183px: Data URI: widest line: DOM 182.2080078125px, Pretext 181.02400398254395px
+- webkit shrinkwrap urls / Helvetica Neue @ 273-274px: Data URI: widest line: DOM 270.7999572753906px, Pretext 272.91200256347656px
+- webkit shrinkwrap urls / Helvetica Neue @ 531px: Data URI: widest line: DOM 523.5520629882812px, Pretext 530.3680019378662px
+- webkit shrinkwrap urls / Helvetica Neue @ 532px: Data URI: widest line: DOM 531.552001953125px, Pretext 530.3680019378662px
+- webkit shrinkwrap urls / Helvetica Neue @ 535px: Data URI: widest line: DOM 532.736083984375px, Pretext 534.8160018920898px
+- webkit shrinkwrap urls / Helvetica Neue @ 536-541px: Data URI: widest line: DOM 536.0000610351562px, Pretext 534.8160018920898px
+- webkit shrinkwrap urls / Arial @ 135px: Data URI: widest line: DOM 134.2890625px, Pretext 134.5625px
+- webkit shrinkwrap urls / Arial @ 136-138px: Data URI: widest line: DOM 135.75px, Pretext 134.5625px
+- webkit shrinkwrap urls / Arial @ 268-269px: Data URI: widest line: DOM 264.15625px, Pretext 267.921875px
+- webkit shrinkwrap urls / Arial @ 528-536px: Data URI: widest line: DOM 527.890625px, Pretext 527.390625px
+- webkit shrinkwrap urls / Arial @ 542px: Data URI: widest line: DOM 536.875px, Pretext 541.21875px
+- webkit shrinkwrap urls / Arial @ 543-546px: Data URI: widest line: DOM 542.40625px, Pretext 541.21875px
+- webkit shrinkwrap urls / Times New Roman @ 175px: Data URI: widest line: DOM 172.4375px, Pretext 174.53125px
+- webkit shrinkwrap urls / Times New Roman @ 176-177px: Data URI: widest line: DOM 176px, Pretext 175.109375px
+- webkit shrinkwrap urls / Times New Roman @ 267-268px: Data URI: widest line: DOM 265.7734375px, Pretext 266.6796875px
+- webkit shrinkwrap urls / Times New Roman @ 269-270px: Data URI: widest line: DOM 268.453125px, Pretext 266.6796875px
+- webkit shrinkwrap urls / Times New Roman @ 511px: Data URI: widest line: DOM 509.734375px, Pretext 510.5390625px
+- webkit shrinkwrap urls / Times New Roman @ 512-518px: Data URI: widest line: DOM 512.0078125px, Pretext 510.5390625px
+- webkit shrinkwrap urls / Times New Roman @ 519px: Data URI: widest line: DOM 512.0078125px, Pretext 518.5390625px
+- webkit shrinkwrap urls / Times New Roman @ 520-523px: Data URI: widest line: DOM 520px, Pretext 519.8203125px
+- webkit shrinkwrap urls / Times New Roman @ 524-525px: Data URI: widest line: DOM 520px, Pretext 523.5546875px
+- webkit shrinkwrap urls / Times New Roman @ 526-529px: Data URI: widest line: DOM 525.328125px, Pretext 523.5546875px
+- firefox shrinkwrap urls / Helvetica Neue @ 120px: Query string: widest line: DOM 119.44999694824219px, Pretext 119.68333435058594px
+- firefox shrinkwrap urls / Helvetica Neue @ 142-143px: Query string: widest line: DOM 141.38333129882812px, Pretext 141.5333251953125px
+- firefox shrinkwrap urls / Helvetica Neue @ 209-212px: Query string: widest line: DOM 208.64999389648438px, Pretext 208.8000030517578px
+- firefox shrinkwrap urls / Helvetica Neue @ 213px: Query string: widest line: DOM 208.64999389648438px, Pretext 212.9833221435547px
+- firefox shrinkwrap urls / Helvetica Neue @ 414-421px: Query string: widest line: DOM 413.33331298828125px, Pretext 413.48333740234375px
+- firefox shrinkwrap urls / Helvetica Neue @ 149px: Windows path: widest line: DOM 148.93333435058594px, Pretext 148.1666717529297px
+- firefox shrinkwrap urls / Helvetica Neue @ 150-153px: Windows path: widest line: DOM 148.93333435058594px, Pretext 149.0833282470703px
+- firefox shrinkwrap urls / Helvetica Neue @ 298-306px: Windows path: widest line: DOM 297.1000061035156px, Pretext 297.25px
+- firefox shrinkwrap urls / Helvetica Neue @ 124px: Data URI: widest line: DOM 123.25px, Pretext 123.26666736602783px
+- firefox shrinkwrap urls / Helvetica Neue @ 128px: Data URI: widest line: DOM 127.38333129882812px, Pretext 127.40000295639038px
+- firefox shrinkwrap urls / Helvetica Neue @ 136px: Data URI: widest line: DOM 135.98333740234375px, Pretext 136.0000023841858px
+- firefox shrinkwrap urls / Helvetica Neue @ 144-146px: Data URI: widest line: DOM 143.68333435058594px, Pretext 143.7000002861023px
+- firefox shrinkwrap urls / Helvetica Neue @ 155px: Data URI: widest line: DOM 154.93333435058594px, Pretext 154.96666860580444px
+- firefox shrinkwrap urls / Helvetica Neue @ 165px: Data URI: widest line: DOM 164.71665954589844px, Pretext 164.73333358764648px
+- firefox shrinkwrap urls / Helvetica Neue @ 169px: Data URI: widest line: DOM 168.26666259765625px, Pretext 168.28333520889282px
+- firefox shrinkwrap urls / Helvetica Neue @ 177-180px: Data URI: widest line: DOM 176.86666870117188px, Pretext 176.88333463668823px
+- firefox shrinkwrap urls / Helvetica Neue @ 186px: Data URI: widest line: DOM 185.75px, Pretext 185.76666688919067px
+- firefox shrinkwrap urls / Helvetica Neue @ 202-206px: Data URI: widest line: DOM 201.75px, Pretext 201.7666687965393px
+- firefox shrinkwrap urls / Helvetica Neue @ 213-219px: Data URI: widest line: DOM 212.14999389648438px, Pretext 212.16666865348816px
+- firefox shrinkwrap urls / Helvetica Neue @ 228px: Data URI: widest line: DOM 227.81666564941406px, Pretext 219.8833327293396px
+- firefox shrinkwrap urls / Helvetica Neue @ 229px: Data URI: widest line: DOM 227.81666564941406px, Pretext 228.41666412353516px
+- firefox shrinkwrap urls / Helvetica Neue @ 238-240px: Data URI: widest line: DOM 237.60000610351562px, Pretext 237.6166648864746px
+- firefox shrinkwrap urls / Helvetica Neue @ 248px: Data URI: widest line: DOM 247.96665954589844px, Pretext 247.98333168029785px
+- firefox shrinkwrap urls / Helvetica Neue @ 259px: Data URI: widest line: DOM 258.933349609375px, Pretext 258.949999332428px
+- firefox shrinkwrap urls / Helvetica Neue @ 268-273px: Data URI: widest line: DOM 267.23333740234375px, Pretext 267.24999952316284px
+- firefox shrinkwrap urls / Helvetica Neue @ 277-282px: Data URI: widest line: DOM 276.41668701171875px, Pretext 276.43333292007446px
+- firefox shrinkwrap urls / Helvetica Neue @ 289-292px: Data URI: widest line: DOM 288.25px, Pretext 288.26666593551636px
+- firefox shrinkwrap urls / Helvetica Neue @ 302-303px: Data URI: widest line: DOM 301.2833251953125px, Pretext 301.300000667572px
+- firefox shrinkwrap urls / Helvetica Neue @ 316-321px: Data URI: widest line: DOM 315.83331298828125px, Pretext 315.85000109672546px
+- firefox shrinkwrap urls / Helvetica Neue @ 338px: Data URI: widest line: DOM 337.51666259765625px, Pretext 337.5333344936371px
+- firefox shrinkwrap urls / Helvetica Neue @ 347px: Data URI: baseline: DOM 4 lines, Pretext 5
+- firefox shrinkwrap urls / Helvetica Neue @ 348-354px: Data URI: widest line: DOM 347px, Pretext 347.0166690349579px
+- firefox shrinkwrap urls / Helvetica Neue @ 358-364px: Data URI: widest line: DOM 357.3666687011719px, Pretext 357.3833348751068px
+- firefox shrinkwrap urls / Helvetica Neue @ 373-374px: Data URI: widest line: DOM 372.48333740234375px, Pretext 372.5000021457672px
+- firefox shrinkwrap urls / Helvetica Neue @ 386-394px: Data URI: widest line: DOM 385.79998779296875px, Pretext 385.8166687488556px
+- firefox shrinkwrap urls / Helvetica Neue @ 395px: Data URI: widest line: DOM 394.70001220703125px, Pretext 394.7166693210602px
+- firefox shrinkwrap urls / Helvetica Neue @ 397-405px: Data URI: widest line: DOM 396.4666748046875px, Pretext 396.4833357334137px
+- firefox shrinkwrap urls / Helvetica Neue @ 409-416px: Data URI: widest line: DOM 408.6166687011719px, Pretext 408.63333535194397px
+- firefox shrinkwrap urls / Helvetica Neue @ 425-428px: Data URI: widest line: DOM 424.04998779296875px, Pretext 424.0666677951813px
+- firefox shrinkwrap urls / Helvetica Neue @ 430-437px: Data URI: widest line: DOM 429.70001220703125px, Pretext 429.71666836738586px
+- firefox shrinkwrap urls / Helvetica Neue @ 438px: Data URI: widest line: DOM 437.9666748046875px, Pretext 429.71666836738586px
+- firefox shrinkwrap urls / Helvetica Neue @ 439px: Data URI: widest line: DOM 437.9666748046875px, Pretext 438.9000017642975px
+- firefox shrinkwrap urls / Helvetica Neue @ 440-447px: Data URI: widest line: DOM 439.4666748046875px, Pretext 438.9000017642975px
+- firefox shrinkwrap urls / Helvetica Neue @ 448-450px: Data URI: widest line: DOM 447.1499938964844px, Pretext 447.7500011920929px
+- firefox shrinkwrap urls / Helvetica Neue @ 451px: Data URI: widest line: DOM 447.1499938964844px, Pretext 450.4333345890045px
+- firefox shrinkwrap urls / Helvetica Neue @ 452-456px: Data URI: widest line: DOM 451.01666259765625px, Pretext 450.4333345890045px
+- firefox shrinkwrap urls / Helvetica Neue @ 457-462px: Data URI: widest line: DOM 456.933349609375px, Pretext 456.95000195503235px
+- firefox shrinkwrap urls / Helvetica Neue @ 468-471px: Data URI: widest line: DOM 467.29998779296875px, Pretext 467.3166687488556px
+- firefox shrinkwrap urls / Helvetica Neue @ 478-481px: Data URI: widest line: DOM 477.66668701171875px, Pretext 477.68333554267883px
+- firefox shrinkwrap urls / Helvetica Neue @ 489-492px: Data URI: widest line: DOM 488.0333251953125px, Pretext 488.0500023365021px
+- firefox shrinkwrap urls / Helvetica Neue @ 493-498px: Data URI: widest line: DOM 492.76666259765625px, Pretext 492.78333592414856px
+- firefox shrinkwrap urls / Helvetica Neue @ 502-507px: Data URI: widest line: DOM 501.95001220703125px, Pretext 501.96666979789734px
+- firefox shrinkwrap urls / Helvetica Neue @ 511-517px: Data URI: widest line: DOM 510.54998779296875px, Pretext 510.56666922569275px
+- firefox shrinkwrap urls / Helvetica Neue @ 521-529px: Data URI: widest line: DOM 520.9166870117188px, Pretext 520.933336019516px
+- firefox shrinkwrap urls / Helvetica Neue @ 530-539px: Data URI: widest line: DOM 529.2166748046875px, Pretext 529.2333352565765px
+- firefox shrinkwrap urls / Helvetica Neue @ 540-549px: Data URI: widest line: DOM 539.5833129882812px, Pretext 539.6000010967255px
+- firefox shrinkwrap urls / Helvetica Neue @ 550-560px: Data URI: widest line: DOM 549.9500122070312px, Pretext 549.9666678905487px
+- firefox shrinkwrap urls / Helvetica Neue @ 561-570px: Data URI: widest line: DOM 560.316650390625px, Pretext 560.333334684372px
+- firefox shrinkwrap urls / Helvetica Neue @ 571-581px: Data URI: widest line: DOM 570.683349609375px, Pretext 570.7000014781952px
+- firefox shrinkwrap urls / Helvetica Neue @ 582-593px: Data URI: widest line: DOM 581.9500122070312px, Pretext 581.9666678905487px
+- firefox shrinkwrap urls / Helvetica Neue @ 594-597px: Data URI: widest line: DOM 593.5px, Pretext 593.5166690349579px
+- firefox shrinkwrap urls / Helvetica Neue @ 598-600px: Data URI: widest line: DOM 597.0499877929688px, Pretext 597.0666692256927px
+- firefox shrinkwrap urls / Helvetica Neue @ 181px: Snake case: widest line: DOM 180.93333435058594px, Pretext 180.81668090820312px
+- firefox shrinkwrap urls / Helvetica Neue @ 182px: Snake case: widest line: DOM 181.85000610351562px, Pretext 181.66665649414062px
+- firefox shrinkwrap urls / Helvetica Neue @ 353px: Snake case: widest line: DOM 352.79998779296875px, Pretext 343.1666564941406px
+- firefox shrinkwrap urls / Helvetica Neue @ 354-361px: Snake case: widest line: DOM 352.79998779296875px, Pretext 353.5333251953125px
+- firefox shrinkwrap urls / Arial @ 150-152px: Data URI: widest line: DOM 148.53334045410156px, Pretext 149.3333387374878px
+- firefox shrinkwrap urls / Arial @ 223px: Data URI: widest line: DOM 222.81666564941406px, Pretext 219.68333649635315px
+- firefox shrinkwrap urls / Arial @ 224px: Data URI: widest line: DOM 222.81666564941406px, Pretext 224.00000858306885px
+- firefox shrinkwrap urls / Arial @ 225px: Data URI: widest line: DOM 222.81666564941406px, Pretext 224.2999985218048px
+- firefox shrinkwrap urls / Arial @ 226-230px: Data URI: widest line: DOM 225.48333740234375px, Pretext 224.2999985218048px
+- firefox shrinkwrap urls / Arial @ 443px: Data URI: widest line: DOM 442.5px, Pretext 435.0166685581207px
+- firefox shrinkwrap urls / Arial @ 444-445px: Data URI: widest line: DOM 442.5px, Pretext 443.9166691303253px
+- firefox shrinkwrap urls / Arial @ 446-451px: Data URI: widest line: DOM 445.1000061035156px, Pretext 443.9166691303253px
+- firefox shrinkwrap urls / Arial @ 452-453px: Data URI: widest line: DOM 451.98333740234375px, Pretext 443.9166691303253px
+- firefox shrinkwrap urls / Arial @ 454-455px: Data URI: widest line: DOM 451.98333740234375px, Pretext 453.16667771339417px
+- firefox shrinkwrap urls / Arial @ 456px: Data URI: widest line: DOM 451.98333740234375px, Pretext 455.76667046546936px
+- firefox shrinkwrap urls / Arial @ 457-462px: Data URI: widest line: DOM 456.95001220703125px, Pretext 455.76667046546936px
+- firefox shrinkwrap urls / Arial @ 184px: Snake case: widest line: DOM 183.71665954589844px, Pretext 180.43333435058594px
+- firefox shrinkwrap urls / Arial @ 185-187px: Snake case: widest line: DOM 184.88333129882812px, Pretext 184.89999389648438px
+- firefox shrinkwrap urls / Arial @ 361px: Snake case: widest line: DOM 360.58331298828125px, Pretext 351.1000061035156px
+- firefox shrinkwrap urls / Arial @ 362-370px: Snake case: widest line: DOM 360.58331298828125px, Pretext 361.76666259765625px
+- firefox shrinkwrap urls / Times New Roman @ 166px: Windows path: widest line: DOM 165.88333129882812px, Pretext 163.7833251953125px
+- firefox shrinkwrap urls / Times New Roman @ 167px: Windows path: widest line: DOM 165.88333129882812px, Pretext 166.20001220703125px
+- firefox shrinkwrap urls / Times New Roman @ 326-329px: Windows path: widest line: DOM 325.0333251953125px, Pretext 325.3500061035156px
+- firefox shrinkwrap urls / Times New Roman @ 149px: Data URI: widest line: DOM 147.53334045410156px, Pretext 148.73333501815796px
+- firefox shrinkwrap urls / Times New Roman @ 150-152px: Data URI: widest line: DOM 149.46665954589844px, Pretext 148.73333501815796px
+- firefox shrinkwrap urls / Times New Roman @ 154px: Data URI: widest line: DOM 152.86666870117188px, Pretext 153.1333351135254px
+- firefox shrinkwrap urls / Times New Roman @ 225px: Data URI: widest line: DOM 225px, Pretext 224.2666687965393px
+- firefox shrinkwrap urls / Times New Roman @ 226px: Data URI: widest line: DOM 225.11666870117188px, Pretext 226.00000381469727px
+- firefox shrinkwrap urls / Times New Roman @ 227px: Data URI: widest line: DOM 225.11666870117188px, Pretext 226.63333654403687px
+- firefox shrinkwrap urls / Times New Roman @ 228-230px: Data URI: widest line: DOM 227.51666259765625px, Pretext 226.63333654403687px
+- firefox shrinkwrap urls / Times New Roman @ 435-436px: Data URI: widest line: DOM 434.25px, Pretext 434.9833359718323px
+- firefox shrinkwrap urls / Times New Roman @ 437px: Data URI: widest line: DOM 434.25px, Pretext 436.66666650772095px
+- firefox shrinkwrap urls / Times New Roman @ 438-444px: Data URI: widest line: DOM 437.3999938964844px, Pretext 436.66666650772095px
+- firefox shrinkwrap urls / Times New Roman @ 445px: Data URI: widest line: DOM 444.183349609375px, Pretext 436.66666650772095px
+- firefox shrinkwrap urls / Times New Roman @ 446-449px: Data URI: widest line: DOM 444.183349609375px, Pretext 445.06666898727417px
+- firefox shrinkwrap urls / Times New Roman @ 450px: Data URI: widest line: DOM 444.183349609375px, Pretext 449.6833338737488px
+- firefox shrinkwrap urls / Times New Roman @ 451-454px: Data URI: widest line: DOM 450.566650390625px, Pretext 449.6833338737488px
+- firefox shrinkwrap urls / Times New Roman @ 182px: Snake case: widest line: DOM 181.3000030517578px, Pretext 179.5px
+- firefox shrinkwrap urls / Times New Roman @ 183px: Snake case: widest line: DOM 181.3000030517578px, Pretext 182.183349609375px
+- firefox shrinkwrap urls / Times New Roman @ 354px: Snake case: widest line: DOM 353.70001220703125px, Pretext 343.0333251953125px
+- firefox shrinkwrap urls / Times New Roman @ 355-362px: Snake case: widest line: DOM 353.70001220703125px, Pretext 354.5833435058594px
+- firefox balance urls / Helvetica Neue @ 347px: Data URI: baseline: DOM 4 lines, Pretext 5
+- firefox balance urls / Helvetica Neue @ 348-520px: Data URI: at 347px: DOM 4 lines, Pretext 5
+- firefox fitFontSize urls / Helvetica Neue @ 347px: Data URI: baseline: DOM 4 lines, Pretext 5
