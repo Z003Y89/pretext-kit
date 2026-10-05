@@ -388,3 +388,23 @@ Runs after Tasks 7, 10, 8 and 9's step 4, before the final review.
 - [ ] **Step 2: Run the mutation tests** (Section 4) on a throwaway branch, record the results, and delete the branch.
 - [ ] **Step 3: Run `verify/reproduce.sh` once** from a fresh clone in the scratchpad, and confirm the tallies match `RESULTS.md`.
 - [ ] **Step 4: Commit** `docs: evaluation report`.
+
+### Task 12: watchFonts
+
+Runs with Task 9's step 4 (after Task 8).
+
+**Files:**
+- Create: `src/fonts.ts`, `test/fonts.test.ts`; Modify: `src/index.ts`, `README.md` (Fonts section), `demo/demo.ts` (use it)
+
+**Interfaces:**
+- Consumes: `clearCache` from `@chenglou/pretext`.
+- Produces: `watchFonts(onChange: () => void, fonts?: FontFaceSet): () => void`. `fonts` defaults to `document.fonts`. On each `loadingdone` event whose `fontfaces` is non-empty, it calls `clearCache()` and then `onChange()` once. The app prepares its text again in `onChange`, since handles keep the old widths (Pretext README). It returns an unsubscribe function. When `fonts` is absent (Node, a worker without `self.fonts`), it does nothing and returns a no-op.
+
+- [ ] **Step 1: Write failing tests** with a stand-in `FontFaceSet` (an `EventTarget` that dispatches `loadingdone` events carrying a `fontfaces` array):
+  - `onChange` runs once per event with faces;
+  - an event with an empty `fontfaces` is ignored;
+  - after unsubscribe, nothing runs;
+  - `clearCache` is called before `onChange`. Check this by preparing text at a stand-in width, changing the stand-in measurer's width, firing the event, and asserting that a fresh `prepare()` inside `onChange` sees the new width;
+  - with no `fonts` and no `document`, it returns a function and throws nothing.
+- [ ] **Step 2: Run** `npm test`. Expected: FAIL. **Step 3: Implement.** **Step 4: Run** `npm test && npm run check`. Expected: PASS.
+- [ ] **Step 5: Use it** in `demo/demo.ts`, load one web font late in the demo, and check by hand in the built-in browser that the layout updates. **Commit** `feat: watchFonts re-measures after fonts load`.
