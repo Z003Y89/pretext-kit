@@ -358,3 +358,33 @@ test('bad ranges throw', () => assert.throws(() => prepareSizes(T, font, { min: 
 - [ ] **Step 3: Implement.** One bisection shared by `fitFontSize` and `fitFontSizeRich`, taking the probe as a parameter (the pattern `src/width.ts` uses for its rich twins), not two copies. Lazy handles per size as in Task 5.
 - [ ] **Step 4: Run** `npm test && npm run check`. Expected: PASS. **Commit** `feat: fitFontSizeRich sizes icons and text as one row`.
 - [ ] **Step 5: Sweep.** Add helper `'fitFontSizeRich'` to `sweep()`. Rows: an icon (`display: inline-block; vertical-align: top; width: round(1.25·px)px; height: px`), then a label from the Latin, German, French and emoji corpora with `margin-left: round(0.5·px)px` (matching `extraWidth`), in one `white-space: normal; overflow-wrap: break-word` container of width W, with box `{ width: W, maxLines: 1 }` and `{ width: W, height: 3 × lineHeight }`, sizes 8-32, line height `round(1.5·px)`. `pass` iff the painted row at `px` fits (lines ≤ maxLines or height ≤ box height, and `scrollWidth ≤ W`) and at `px + 1` it doesn't (or `px` is max). The same `pretext-gap` and `platform` attribution rules as Task 6 apply. Run `npm run verify`, expect zero `kit-mismatch`, and commit `test: browser sweep for icon and label rows` with `RESULTS.md`.
+
+### Task 11: Evaluation report (institutional grade)
+
+Runs after Tasks 7, 10, 8 and 9's step 4, before the final review.
+
+**Files:**
+- Create: `EVALUATION.md`; `verify/reproduce.sh`; Modify: `README.md` (link it), `verify/run.ts` (only if a needed number isn't recorded yet)
+
+**Requirements** (every number comes from a committed run artifact, with the command that regenerates it):
+- [ ] **Step 1: Write `EVALUATION.md`** with these sections:
+  1. **Claims under test**, one per helper, stated as a falsifiable property, e.g. "`balance(p, W)` returns the narrowest whole-px width at which the browser paints `layout(p, W).lineCount` lines."
+  2. **Method**: corpora (sources, counts, languages, scripts), fonts (families, files present, probe result), widths, sizes, line heights, zoom factors; the oracle (the browser's painted DOM), how lines and widths are read from it, and how each outcome is assigned. The attribution rule, in order: kit vs Pretext's own numbers → kit-mismatch; else property vs DOM → pretext-gap; proven platform causes → platform; unreadable paint → unreliable. Browser builds, Playwright pin, OS, device, date.
+  3. **Results**: per helper × browser × zoom, the counts of pass, pretext-gap, platform, unreliable and kit-mismatch, with rates and **95% Wilson upper bounds on the kit-mismatch rate**. With 0 mismatches in n cases, the bound is about 3.7/n; state that number. Where the cases are clustered (the same text at adjacent widths), also report the bound over distinct texts × fonts, which is the conservative unit, and say which bound a reader should quote.
+  4. **Sensitivity (mutation testing)**: plant at least four bugs, run the sweep, and record that each is caught and by how many cases. Revert each one. The bugs: shrinkwrap +1px; balance returning shrinkwrap; fitFontSize returning px−1; clamp without the tail; truncateMiddle ignoring keepEnd; fontFromStyle dropping the weight. A check that catches none of them is a defect to fix before the report is written.
+  5. **Cost**: the Task 8 bench numbers (median and p95 over runs), machine, and builds.
+  6. **Threats to validity**:
+     - one OS (macOS 14) and one machine;
+     - Playwright builds trail stable releases (and WebKit 26, not Safari 27);
+     - system fonts only, no web fonts;
+     - stand-in text corpora rather than app text;
+     - clustered cases;
+     - the oracle is the painted DOM, not pixels (the SVG probe was not used for clamp's cut);
+     - pretext-gaps are attributed to Pretext but not root-caused;
+     - logic tests run on a stand-in Canvas.
+     Name what would reduce each threat.
+  7. **Reproduction**: `verify/reproduce.sh` (clone at pinned commits, build Pretext, `npm ci`, install pinned browsers, `npm test`, `npm run verify`) and the expected outputs.
+  8. **Known limitations** as user-facing statements (Safari 26 line heights, the macOS system font, CJK/emoji fallback, the Pretext gaps by cluster).
+- [ ] **Step 2: Run the mutation tests** (Section 4) on a throwaway branch, record the results, and delete the branch.
+- [ ] **Step 3: Run `verify/reproduce.sh` once** from a fresh clone in the scratchpad, and confirm the tallies match `RESULTS.md`.
+- [ ] **Step 4: Commit** `docs: evaluation report`.
