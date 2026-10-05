@@ -43,8 +43,10 @@ install(options?: { onMissingGlyph?: 'throw' | 'notdef', rounding?: 'none' | 'wh
 
 Apps register the same font files their CSS loads (`@font-face` sources), under the same family names, then use Pretext
 and the kit as usual. A vitest example and a jest + jsdom example go in the README, including the jsdom emoji hazard
-(jsdom's zero `getBoundingClientRect` makes Pretext's emoji correction zero emoji widths; the stand-in keeps emoji
-within the bound so the correction never fires, and coverage rules apply to emoji like any glyph).
+(jsdom's zero `getBoundingClientRect` makes Pretext's emoji correction zero emoji widths when a registered emoji font's
+advance exceeds size + 0.5px; register one at ≤ 1em, such as Apple Color Emoji, stub `getBoundingClientRect`, or keep
+jsdom's `document` from Pretext; Pretext's own `😀` probe gets a 1em stand-in when no emoji font is registered, so
+©®™ text never throws, and coverage rules otherwise apply to emoji like any glyph).
 
 ## What the stand-in implements (from Pretext's measurement path)
 
