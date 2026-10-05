@@ -6,6 +6,7 @@
 // The fonts are test/fonts' Inter and Roboto Regular, registered under the aliases the page's
 // @font-face rules use. install() runs before the first prepare(), as the README requires.
 
+import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,6 +18,15 @@ const here = dirname(fileURLToPath(import.meta.url))
 const fonts = join(here, '../test/fonts')
 const pkg = (name: string): string => JSON.parse(readFileSync(join(here, '../node_modules', name, 'package.json'), 'utf8')).version
 
+// The kit is built against Pretext main (README, Versions), so the commit says more than the version.
+function pretextBuild(): string {
+  try {
+    return execFileSync('git', ['-C', join(here, '../node_modules/@chenglou/pretext'), 'rev-parse', '--short=7', 'HEAD'], { encoding: 'utf8' }).trim()
+  } catch {
+    return pkg('@chenglou/pretext')
+  }
+}
+
 for (const f of FACES) await registerFont(f.family, new Uint8Array(readFileSync(join(fonts, f.file))))
 install()
 
@@ -26,7 +36,7 @@ const data: ParityData = {
   generated: {
     node: process.version,
     harfbuzzjs: pkg('harfbuzzjs'),
-    pretext: pkg('@chenglou/pretext'),
+    pretext: pretextBuild(),
     kit: JSON.parse(readFileSync(join(here, '../package.json'), 'utf8')).version,
   },
   faces: FACES,

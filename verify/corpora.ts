@@ -224,3 +224,21 @@ export const UI_LABELS: Corpus = {
     { label: 'Speichern', text: 'Speichern' },
   ],
 }
+
+// What the sweep runs per helper beyond corpora and widths, shared with examples/build-accuracy-data.ts
+// so the accuracy explorer counts cases exactly as the sweep makes them.
+
+// clamp runs at maxLines 1 to CLAMP_MAX_LINES.
+export const CLAMP_MAX_LINES = 5
+
+// fitFontSizeRich runs each width in two boxes. The height box holds three lines of the sweep's base
+// 16px/24px text, so it is fixed across the sizes searched, as a real box is.
+export const RICH_HEIGHT = 3 * LINE_HEIGHT
+export type RichBox = { width: number, maxLines?: number, height?: number }
+export const RICH_BOXES: { name: string, of: (width: number) => RichBox }[] = [
+  { name: 'maxLines 1', of: width => ({ width, maxLines: 1 }) },
+  { name: `height ${RICH_HEIGHT}`, of: width => ({ width, height: RICH_HEIGHT }) },
+]
+
+// fitFontSizeRich sweeps the left-to-right corpora an icon row holds, and real UI labels.
+export const RICH_CORPORA: Corpus[] = [...CORPORA.filter(c => ['latin', 'german', 'french', 'emoji-chat'].includes(c.name)), UI_LABELS]

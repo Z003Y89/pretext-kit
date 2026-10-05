@@ -74,15 +74,18 @@ export function compute(): Case[] {
   return out
 }
 
-// Agreement: the same line count, the same fitted size, and the widest line within a thousandth of
-// a pixel (the headless sweep finds Inter and Roboto bit-exact in Chromium; this leaves room only
-// for float summation order).
+// Agreement is the answers a layout acts on: the same line count and the same fitted size. Widths
+// are a second readout: within a thousandth of a pixel (the headless sweep finds Inter and Roboto
+// bit-exact in Chromium; this leaves room only for float summation order). In Chromium all three
+// must hold; other engines shape and measure with their own Canvas, so their widths differ by design.
 export const WIDTH_TOLERANCE = 0.001
-export function agrees(a: Result, b: Result): { lines: boolean, widest: boolean, fit: boolean, all: boolean } {
+export type Agreement = { lines: boolean, fit: boolean, widest: boolean, exact: boolean, primary: boolean, strict: boolean }
+export function agrees(a: Result, b: Result): Agreement {
   const lines = a.lines === b.lines
-  const widest = Math.abs(a.widest - b.widest) <= WIDTH_TOLERANCE
   const fit = a.fit === b.fit
-  return { lines, widest, fit, all: lines && widest && fit }
+  const widest = Math.abs(a.widest - b.widest) <= WIDTH_TOLERANCE
+  const primary = lines && fit
+  return { lines, fit, widest, exact: a.widest === b.widest, primary, strict: primary && widest }
 }
 
 export type ParityData = {

@@ -327,3 +327,12 @@ table.parity td.empty { padding: 12px; color: var(--muted); font-size: 13px; }
 .pc-line { display: flex; gap: 10px; white-space: nowrap; }
 .pc-line .who { min-width: 4ch; opacity: 0.75; }
 .pc-line .off { text-decoration: line-through; font-weight: 600; }
+.pc-line .drift { text-decoration: line-through; text-decoration-color: var(--platform-ink); color: var(--platform-ink); }
+.scope { max-width: 80ch; margin: -6px 0 12px; }
+#summary dd { overflow-wrap: normal; }
+.scroll-cue { display: none; margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.scroll-cue::after { content: " →"; }
+@media (max-width: 720px) {
+  .scroll-cue { display: block; }
+  table.parity tbody th { min-width: 128px; max-width: 150px; }
+}

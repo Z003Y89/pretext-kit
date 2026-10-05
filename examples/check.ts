@@ -1,8 +1,8 @@
 // npm run examples:check (after npm run examples): loads every page in headless Chromium at 360,
 // 768 and 1280px, fails on any console error or page error and on any kit-side box whose content
-// doesn't fit it at the slider settings below. headless-parity must agree in every row in Chromium;
-// it is also loaded in WebKit and Firefox, whose counts are reported, not judged (the headless claim
-// is Chromium's). With --screenshots (npm run examples:screenshots) it
+// doesn't fit it at the slider settings below. headless-parity must match in every case in Chromium,
+// line count, fitted size and width alike; it is also loaded in WebKit and Firefox, whose counts are
+// reported, not judged (the headless claim is Chromium's). With --screenshots (npm run examples:screenshots) it
 // also rewrites the README's screenshots in examples/screenshots/; without it, it leaves them alone.
 
 import { spawn } from 'node:child_process'
@@ -60,12 +60,14 @@ async function scrollLists(page: Page, at: number): Promise<void> {
   await page.evaluate(at => { for (const s of document.querySelectorAll<HTMLElement>('.vl-scroller')) s.scrollTop = at * (s.scrollHeight - s.clientHeight) }, at)
 }
 
-async function parity(page: Page): Promise<{ agree: number, total: number, browser: string }> {
+type Parity = { agree: number, strict: number, exact: number, within: number, total: number, browser: string }
+async function parity(page: Page): Promise<Parity> {
   return page.evaluate(() => {
     const d = document.documentElement.dataset
-    return { agree: Number(d.agree), total: Number(d.total), browser: d.browser ?? '' }
+    return { agree: Number(d.agree), strict: Number(d.strict), exact: Number(d.exact), within: Number(d.within), total: Number(d.total), browser: d.browser ?? '' }
   })
 }
+const describe = (r: Parity) => `${r.agree} of ${r.total} agree (line count and fitted size) in ${r.browser}; widest line ${r.exact} bit-exact, ${r.within} within 0.001px`
 
 async function frame(page: Page): Promise<void> {
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
@@ -198,10 +200,10 @@ for (const vw of VIEWPORTS) {
       log.push(`${where}: ${screen.settings.length} settings (${screens} screen layouts): kit boxes overflowing 0, best-effort CSS boxes overflowing ${cssTotal}; CSS toolbars wrapped onto 2+ rows ${wrappedTotal}/${screens}, CSS badges cut ${cutTotal}; after a drag: ${cost}`)
     } else if (p === 'headless-parity') {
       const r = await parity(page)
-      if (r.agree !== r.total || r.total === 0) failures.push(`${where}: headless parity ${r.agree} of ${r.total} agree in ${r.browser}`)
+      if (r.strict !== r.total || r.total === 0) failures.push(`${where}: headless parity: ${r.strict} of ${r.total} match in line count, fitted size and width in ${r.browser}`)
       const o = await overflow(page)
       for (const k of o.kit) failures.push(`${where}: ${k}`)
-      log.push(`${where}: ${r.agree} of ${r.total} agree in ${r.browser}`)
+      log.push(`${where}: ${describe(r)}`)
       if (SHOTS && vw === 1280) await page.screenshot({ path: join(shots, `${p}.png`), fullPage: false })
     } else if (SHOTS && vw === 1280 && p === 'accuracy') {
       await page.click('#factor-filter button[value="1"]')
@@ -228,7 +230,7 @@ for (const type of [webkit, firefox]) {
   await page.goto(base + 'headless-parity.html')
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true')
   const r = await parity(page)
-  log.push(`${where}: ${r.agree} of ${r.total} agree in ${r.browser} (reported, not judged)`)
+  log.push(`${where}: ${describe(r)} (reported, not judged)`)
   await other.close()
 }
 server.kill()

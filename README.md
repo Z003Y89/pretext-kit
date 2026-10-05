@@ -311,10 +311,11 @@ visibly lays the page out again. `npm run examples:check` loads every page in he
 1280px (`npm run examples:screenshots` also rewrites `examples/screenshots/`) and fails on a console error or on a kit-side box that overflows for any reason other than a pretext-gap
 (a paragraph the browser wraps differently from Pretext's own layout of it). In its last run neither side
 overflowed anywhere; best-effort CSS wrapped the toolbar onto a second row in 8 of 21 settings at 1280px and in
-every setting at 360px. It also fails unless every headless-parity case agrees in Chromium (288 of 288 in
-its last run, Chromium 149), and reports WebKit and Firefox without judging them: in WebKit 26.5, 274 of 288 (line
-counts all equal, one fitted size and 13 widest lines differing); in Firefox 151, 0 of 288, since Firefox's Canvas
-widths differ from Chromium's in every case, though every line count and fitted size was the same.
+every setting at 360px. It also fails unless every headless-parity case matches in Chromium, line count, fitted size and width
+(288 of 288 in its last run, Chromium 149 on macOS, widths bit-exact), and reports WebKit and Firefox without
+judging them, as they are outside the claim: WebKit 26.5 agrees in line count and fitted size in 287 of 288 (one
+fitted size differs; 275 widths bit-exact), Firefox 151 in 288 of 288 (its Canvas widths differ from Chromium's in
+every case, median 0.024px, max 3.09px).
 
 | | |
 |---|---|
@@ -347,11 +348,12 @@ import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
 import { registerFont, install } from 'pretext-kit/headless'
 
 // The same files your CSS @font-face loads, under the same family names. TTF/OTF/TTC, WOFF or WOFF2.
+// Register each weight you measure: '600 14px Inter' needs the 600 file, registered with { weight: 600 }.
 await registerFont('Inter', new Uint8Array(readFileSync('fonts/Inter-Regular.ttf')))
 install()
 
 // Before the first prepare(): a static import of Pretext above is fine, as Pretext reads the engine only then.
-const { lineCount } = measureLineStats(prepareWithSegments('Speichern', '600 14px Inter'), 160)
+const { lineCount } = measureLineStats(prepareWithSegments('Speichern', '14px Inter'), 160)
 ```
 
 A runnable version is `examples/vitest-label-fit.test.ts`.
@@ -407,7 +409,7 @@ install()
 import { it, expect } from 'vitest'
 import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
 it('fits one line at 160px', () => {
-  const { lineCount } = measureLineStats(prepareWithSegments('Speichern', '600 14px Inter'), 160)
+  const { lineCount } = measureLineStats(prepareWithSegments('Speichern', '14px Inter'), 160)
   expect(lineCount).toBe(1)
 })
 ```
@@ -433,7 +435,7 @@ install()
 ```
 
 Verified by running jest 30 with `jest-environment-jsdom` on a copy of this repo (a test with `document.body` present
-measured `'Speichern © 2026'` at 600 14px Inter in one line at 160px).
+measured `'Speichern © 2026'` at 600 14px Inter, with only the Regular file registered and so measured in it, in one line at 160px).
 
 ### jsdom
 
@@ -458,7 +460,10 @@ One case is inherent: a standalone U+2010 segment in a font that lacks that glyp
 generic stand-in) rather than throwing, because Pretext's hyphen probe and a real segment are the same `measureText`
 call, so the two cannot be told apart.
 
-The [headless parity example](#examples) shows the same agreement live, in whichever browser opens it.
+The [headless parity example](#examples) runs the same comparison live, in whichever browser opens it. In
+Chromium on macOS every line count, fitted size and width matches; in WebKit and Firefox, which are outside the claim
+(Pretext there uses that engine's rules and Canvas), it compares line counts and fitted sizes, and shows the widths
+apart.
 
 ## Not in v1
 
@@ -477,4 +482,6 @@ each file says so in its header.
 [MIT](LICENSE). The LICENSE file also reproduces Pretext's MIT notice. The examples bundle Inter
 ([SIL Open Font License 1.1](examples/fonts/inter-OFL.txt)) and ship strings hyphenated at build time by the
 [hyphen](https://github.com/ytiurin/hyphen) package (ISC; its TeX hyph-utf8 patterns are MIT-licensed). The German
-patterns stay out of the pages.
+patterns stay out of the pages. The headless tests, the parity sweep and the headless-parity example use the test
+fonts in `test/fonts`: Inter ([OFL 1.1](test/fonts/OFL.txt)), Roboto ([Apache 2.0](test/fonts/Roboto-LICENSE.txt))
+and Shantell Sans ([OFL 1.1](test/fonts/ShantellSans-OFL.txt)).

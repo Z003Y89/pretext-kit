@@ -15,7 +15,9 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CORPORA, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, UI_LABELS, widths } from '../verify/corpora.ts'
+import {
+  CLAMP_MAX_LINES, CORPORA, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, RICH_BOXES, RICH_CORPORA, UI_LABELS, widths,
+} from '../verify/corpora.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const verify = process.env.VERIFY_DIR ?? join(here, '../verify')
@@ -26,13 +28,7 @@ type Case = {
 }
 const OUTCOMES = ['pass', 'pretext-gap', 'platform', 'unreliable', 'kit-mismatch'] as const
 type Outcome = typeof OUTCOMES[number]
-// verify/sweep.ts: clamp runs at maxLines 1-5 (CLAMP_MAX_LINES there).
-const CLAMP_MAX_LINES = 5
 const SAMPLES_PER_OUTCOME = 8
-// verify/sweep.ts: fitFontSizeRich runs each width in two boxes (RICH_BOXES there: maxLines 1, and a
-// fixed height) over the corpora an icon row holds and the real UI labels (RICH_CORPORA there).
-const RICH_BOXES = 2
-const RICH_CORPORA = [...CORPORA.filter(c => ['latin', 'german', 'french', 'emoji-chat'].includes(c.name)), UI_LABELS]
 
 const cases: Case[] = JSON.parse(gunzipSync(readFileSync(join(verify, 'results/latest.json.gz'))).toString('utf8'))
 const results = readFileSync(join(verify, 'RESULTS.md'), 'utf8')
@@ -83,7 +79,7 @@ function totalsFor(helper: string, factor: number, fromResults: number): Map<str
   const step = steps.get(factor)?.[helper]
   if (step === undefined) throw new Error(`RESULTS.md gives no width step for ${helper} at factor ${factor}`)
   const ws = helper === 'truncateMiddle' ? widths(step, LABEL_WIDTH_MIN, LABEL_WIDTH_MAX) : widths(step)
-  const perText = ws.length * FONT_STACKS.length * (helper === 'clamp' ? CLAMP_MAX_LINES : helper === 'fitFontSizeRich' ? RICH_BOXES : 1)
+  const perText = ws.length * FONT_STACKS.length * (helper === 'clamp' ? CLAMP_MAX_LINES : helper === 'fitFontSizeRich' ? RICH_BOXES.length : 1)
   for (const c of corporaFor(helper)) out.set(c.name, c.texts.length * perText)
   return out
 }
@@ -139,7 +135,9 @@ for (const run of runs) {
     const sum = (k: Outcome | 'total') => Object.values(made).reduce((n, c) => n + c[k], 0)
     const off = (['cases', ...OUTCOMES] as const).filter(k => sum(k === 'cases' ? 'total' : k) !== fromResults[k])
     if (off.length > 0 && COUNTABLE.includes(helper)) {
-      warnings.push(`${where} ${helper}: per-corpus counts disagree with RESULTS.md (${off.join(', ')}); shown as one cell`)
+      // The counts come from verify/corpora.ts, which the sweep itself reads: a disagreement means the
+      // sweep changed in a way this script doesn't follow, so stop rather than show a guess.
+      problems.push(`${where} ${helper}: per-corpus counts disagree with RESULTS.md (${off.join(', ')})`)
       uncounted.add(helper)
       made = { [NO_CORPUS]: cellOf(all, fromResults.cases) }
     }

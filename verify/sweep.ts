@@ -6,8 +6,10 @@ import {
   balance, clamp, clampStats, fitFontSize, fitFontSizeRich, fontFromStyle, measureTail, prepareLabel, prepareSizes, prepareSizesRich, shrinkwrap, truncateMiddle,
 } from '../src/index.ts'
 import type { Clamped, FitResult, FitResultRich, PreparedLabel, PreparedSizesRich, StyleFont, Tail } from '../src/index.ts'
-import { CORPORA, FONT_SIZE, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, LINE_HEIGHT, UI_LABELS, widths } from './corpora.ts'
-import type { FontStack } from './corpora.ts'
+import {
+  CLAMP_MAX_LINES, CORPORA, FONT_SIZE, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, LINE_HEIGHT, RICH_BOXES, RICH_CORPORA, widths,
+} from './corpora.ts'
+import type { FontStack, RichBox } from './corpora.ts'
 import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
 
 export type Helper = 'shrinkwrap' | 'balance' | 'fitFontSize' | 'fitFontSizeRich' | 'fontFromStyle' | 'clamp' | 'truncateMiddle'
@@ -55,7 +57,6 @@ const GRID = 1 / 64
 // importing the kit's, so a changed constant in src cannot move the kit and its judge together.
 const FIT = 1 / 64
 const ELLIPSIS = '…'
-const CLAMP_MAX_LINES = 5
 
 // Step 1 everywhere unless a run overrides it; run.ts sets this when a browser is too slow at step 1.
 window.sweepWidthStep = { shrinkwrap: 1, balance: 1, fitFontSize: 1, fitFontSizeRich: 1, clamp: 1, truncateMiddle: 1 }
@@ -410,12 +411,6 @@ function fitCase(stack: FontStack, text: string, width: number): Verdict & { cau
 // make it the same test as maxLines 3.
 const RICH_MIN = 8
 const RICH_MAX = 32
-const RICH_HEIGHT = 3 * LINE_HEIGHT
-type RichBox = { width: number, maxLines?: number, height?: number }
-const RICH_BOXES: { name: string, of: (width: number) => RichBox }[] = [
-  { name: 'maxLines 1', of: width => ({ width, maxLines: 1 }) },
-  { name: `height ${RICH_HEIGHT}`, of: width => ({ width, height: RICH_HEIGHT }) },
-]
 const richLh = (px: number): number => Math.round(px * 1.5)
 const iconWidth = (px: number): number => Math.round(px * 1.25)
 const iconGap = (px: number): number => Math.round(px * 0.5)
@@ -876,8 +871,6 @@ window.fontPresence = async (): Promise<FontPresence[]> => {
 // truncateMiddle sweeps the labels it is for, and the soft-hyphenated corpora as every helper does.
 const MIDDLE_CORPORA = [LABELS, ...CORPORA.filter(c => c.name === 'german' || c.name === 'french')]
 
-// fitFontSizeRich sweeps the left-to-right corpora an icon row holds, and real UI labels.
-const RICH_CORPORA = [...CORPORA.filter(c => ['latin', 'german', 'french', 'emoji-chat'].includes(c.name)), UI_LABELS]
 
 const corporaFor = (helper: Helper) => helper === 'truncateMiddle' ? MIDDLE_CORPORA
   : helper === 'fitFontSizeRich' ? RICH_CORPORA

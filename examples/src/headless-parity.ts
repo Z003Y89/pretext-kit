@@ -1,39 +1,47 @@
 // headless-parity: loads the Node side's numbers (headless-parity-data.json, written by
 // pretext-kit/headless) and computes the same cases here, in this browser's Canvas, from the same
 // font files loaded through @font-face under the same family aliases. Each row shows both and says
-// whether they agree.
+// whether they agree: the same line count and the same fitted size. Widths are a second readout.
 
 import { agrees, compute, FACES, LABELS, SIZES, WIDTHS, WIDTH_TOLERANCE } from './parity.ts'
-import type { Case, ParityData, Result } from './parity.ts'
+import type { Agreement, Case, ParityData, Result } from './parity.ts'
 import { byId, setReadout } from './page.ts'
 
 const st = { face: 0, size: SIZES[0]!, only: 'all' }
 const summaryBox = byId<HTMLElement>('summary')
 const browserLine = byId<HTMLElement>('browser')
+const scopeLine = byId<HTMLElement>('scope')
 const tableBox = byId<HTMLElement>('table')
 const faceBox = byId<HTMLElement>('face-filter')
 const sizeBox = byId<HTMLElement>('size-filter')
 const onlyBox = byId<HTMLElement>('only-filter')
 
-// The engine the claim is about is Chromium's; the page names the one it runs in.
-export function browserName(): string {
+type Engine = 'chromium' | 'webkit' | 'firefox' | 'other'
+function detect(): { name: string, engine: Engine, mac: boolean } {
   const ua = navigator.userAgent
+  const mac = /Macintosh|Mac OS X/.test(ua)
   const m = (re: RegExp) => re.exec(ua)?.[1]
   const firefox = m(/Firefox\/([\d.]+)/)
-  if (firefox !== undefined) return `Firefox ${firefox}`
+  if (firefox !== undefined) return { name: `Firefox ${firefox}`, engine: 'firefox', mac }
   const edge = m(/Edg\/([\d.]+)/)
-  if (edge !== undefined) return `Edge ${edge} (Chromium)`
+  if (edge !== undefined) return { name: `Edge ${edge} (Chromium)`, engine: 'chromium', mac }
   const chrome = m(/(?:Chrome|Chromium)\/([\d.]+)/)
-  if (chrome !== undefined) return `Chromium ${chrome}`
-  const safari = m(/Version\/([\d.]+).*Safari/)
-  if (/AppleWebKit/.test(ua)) return `WebKit${safari !== undefined ? ` (Safari ${safari})` : ''}`
-  return ua
+  if (chrome !== undefined) return { name: `Chromium ${chrome}`, engine: 'chromium', mac }
+  if (/AppleWebKit/.test(ua)) {
+    const safari = m(/Version\/([\d.]+).*Safari/)
+    return { name: `WebKit${safari !== undefined ? ` (Safari ${safari})` : ''}`, engine: 'webkit', mac }
+  }
+  return { name: ua, engine: 'other', mac }
 }
-const isChromium = (name: string) => name.startsWith('Chromium') || name.startsWith('Edge')
 
-type Row = { node: Case, here: Case, ok: ReturnType<typeof agrees> }
+function scopeOf(engine: Engine, mac: boolean): string {
+  if (engine === 'chromium' && mac) return 'Chromium on macOS: the engine and platform measured; every number should match, widths included.'
+  if (engine === 'chromium') return 'Chromium, not on macOS: the claim is measured on macOS; Windows and Linux are pending one check each, so a difference here is a finding, not a bug report yet.'
+  return 'Outside the claim: Pretext here uses this engine\'s rules and Canvas, so line counts and fitted sizes are what to compare; widths differ by design.'
+}
+
+type Row = { node: Case, here: Case, ok: Agreement }
 let rows: Row[] = []
-let browser = ''
 
 async function loadFonts(): Promise<void> {
   for (const f of FACES) {
@@ -49,7 +57,7 @@ Promise.all([
   }),
   loadFonts(),
 ]).then(([data]) => {
-  browser = browserName()
+  const browser = detect()
   const t0 = performance.now()
   const here = compute()
   const ms = performance.now() - t0
@@ -62,12 +70,18 @@ Promise.all([
   })
   if (rows.length !== here.length) throw new Error(`${rows.length} Node cases, ${here.length} browser cases`)
   buildFilters()
+  const agree = count(r => r.ok.primary)
   summarize(data, ms)
+  browserLine.textContent = `${agree} of ${rows.length} agree in ${browser.name}: the same line count and the same fitted size.`
+  browserLine.classList.toggle('done', agree === rows.length)
+  scopeLine.textContent = scopeOf(browser.engine, browser.mac)
   render()
-  const agree = rows.filter(r => r.ok.all).length
   const root = document.documentElement
-  root.dataset.browser = browser
+  root.dataset.browser = browser.name
   root.dataset.agree = String(agree)
+  root.dataset.strict = String(count(r => r.ok.strict))
+  root.dataset.exact = String(count(r => r.ok.exact))
+  root.dataset.within = String(count(r => r.ok.widest))
   root.dataset.total = String(rows.length)
   root.dataset.ready = 'true'
 })
@@ -95,34 +109,26 @@ function buildFilters(): void {
 }
 
 const count = (f: (r: Row) => boolean) => rows.filter(f).length
+// "0px" for no difference; otherwise enough digits to see how small it is.
+const px = (d: number) => d === 0 ? '0px' : `${d < 0.001 ? d.toExponential(1) : d.toFixed(3)}px`
 
 function summarize(data: ParityData, ms: number): void {
   const n = rows.length
-  const agree = count(r => r.ok.all)
-  const maxDelta = Math.max(...rows.map(r => Math.abs(r.node.widest - r.here.widest)))
-  const exact = count(r => r.node.widest === r.here.widest)
-  const labelRows = new Set(rows.filter(r => !r.ok.all).map(r => r.node.label))
+  const deltas = rows.map(r => Math.abs(r.node.widest - r.here.widest)).sort((a, b) => a - b)
+  const median = n % 2 === 1 ? deltas[(n - 1) / 2]! : (deltas[n / 2 - 1]! + deltas[n / 2]!) / 2
+  const labelsOff = new Set(rows.filter(r => !r.ok.primary).map(r => r.node.label))
   setReadout(summaryBox, [
-    { label: 'Agree', value: `${agree} of ${n} cases` },
-    { label: 'Labels with a difference', value: `${labelRows.size} of ${LABELS.length}` },
+    { label: 'Agree', value: `${count(r => r.ok.primary)} of ${n}` },
     { label: 'Line counts equal', value: `${count(r => r.ok.lines)} of ${n}` },
     { label: 'Fitted sizes equal', value: `${count(r => r.ok.fit)} of ${n}` },
-    { label: 'Widest line', value: `${exact} of ${n} bit-exact; max |Δ| ${maxDelta.toPrecision(3)}px` },
+    { label: 'Labels with a difference', value: `${labelsOff.size} of ${LABELS.length}` },
+    { label: `Widest line (tolerance ${WIDTH_TOLERANCE}px)`, value: `${count(r => r.ok.exact)} bit-exact, ${count(r => r.ok.widest)} within; median |Δ| ${px(median)}, max ${px(deltas[n - 1]!)}` },
     { label: 'Node side', value: `Node ${data.generated.node}, harfbuzzjs ${data.generated.harfbuzzjs}, Pretext ${data.generated.pretext}` },
     { label: 'This browser', value: `${n} cases in ${ms.toFixed(0)} ms` },
   ])
-  const verdict = agree === n
-    ? `All ${n} of ${n} agree in ${browser}.`
-    : `${agree} of ${n} agree in ${browser}.`
-  const scope = isChromium(browser)
-    ? ' This is the engine the claim covers.'
-    : ' The stand-in follows Chromium\'s rules (it sets a Chrome user agent before Pretext loads); in this browser Pretext uses this engine\'s own rules and fonts are shaped by its own text stack, so differences here are expected and are not covered by the claim.'
-  browserLine.textContent = verdict + scope
-  browserLine.classList.toggle('done', agree === n)
 }
 
-const fmtWidth = (w: number) => w.toFixed(3)
-const fmtFit = (px: number | null) => px === null ? 'none' : `${px}px`
+const fmtFit = (p: number | null) => p === null ? 'none' : `${p}px`
 const visible = (s: string) => s.replaceAll('­', '·').replaceAll(' ', '⍽')
 
 function render(): void {
@@ -136,7 +142,7 @@ function render(): void {
   let n = 0
   for (let label = 0; label < LABELS.length; label++) {
     const cells = WIDTHS.map(w => shown.find(r => r.node.label === label && r.node.width === w)!)
-    const ok = cells.every(c => c.ok.all)
+    const ok = cells.every(c => c.ok.primary)
     if (st.only === 'differ' && ok) continue
     n++
     const tr = body.insertRow()
@@ -166,15 +172,18 @@ function render(): void {
     td.textContent = 'No differences for this font and size.'
   }
   const wrap = document.createElement('div')
-  wrap.className = 'grid-wrap'
+  wrap.className = 'grid-wrap parity-wrap'
   wrap.append(table)
-  tableBox.replaceChildren(wrap)
+  const cue = document.createElement('p')
+  cue.className = 'scroll-cue'
+  cue.textContent = 'The table scrolls sideways: three box widths.'
+  tableBox.replaceChildren(cue, wrap)
 }
 
 function cell(r: Row): HTMLTableCellElement {
   const td = document.createElement('td')
   const box = document.createElement('div')
-  box.className = `pc ${r.ok.all ? 'c-pass' : 'c-mismatch'}`
+  box.className = `pc ${r.ok.primary ? 'c-pass' : 'c-mismatch'}`
   const line = (who: string, x: Result) => {
     const d = document.createElement('div')
     d.className = 'pc-line'
@@ -182,20 +191,20 @@ function cell(r: Row): HTMLTableCellElement {
     w.className = 'who'
     w.textContent = who
     const parts = [
-      [`${x.lines} ${x.lines === 1 ? 'line' : 'lines'}`, r.ok.lines],
-      [fmtWidth(x.widest), r.ok.widest],
-      [`fit ${fmtFit(x.fit)}`, r.ok.fit],
+      [`${x.lines} ${x.lines === 1 ? 'line' : 'lines'}`, r.ok.lines ? '' : 'off'],
+      [`fit ${fmtFit(x.fit)}`, r.ok.fit ? '' : 'off'],
+      [x.widest.toFixed(3), r.ok.widest ? '' : 'drift'],
     ] as const
-    d.append(w, ...parts.map(([t, ok]) => {
+    d.append(w, ...parts.map(([t, cls]) => {
       const s = document.createElement('span')
       s.textContent = t
-      if (!ok) s.className = 'off'
+      if (cls !== '') s.className = cls
       return s
     }))
     return d
   }
   box.append(line('Node', r.node), line('here', r.here))
-  box.title = `${r.ok.all ? 'agree' : 'differ'}: widest |Δ| ${Math.abs(r.node.widest - r.here.widest).toPrecision(3)}px (tolerance ${WIDTH_TOLERANCE}px)`
+  box.title = `${r.ok.primary ? 'agree' : 'differ'}; widest line |Δ| ${px(Math.abs(r.node.widest - r.here.widest))} (tolerance ${WIDTH_TOLERANCE}px)`
   td.append(box)
   return td
 }
