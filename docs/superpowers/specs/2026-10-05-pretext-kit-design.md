@@ -71,18 +71,18 @@ chips.
 
 ```ts
 clamp(prepared: PreparedTextWithSegments, width: number, maxLines: number, tail?: Tail): Clamped
-type Tail = { width: number, spaceWidth: number, hyphenWidth: number }  // room the painter appends after the cut (an ellipsis, "… more"),
-                                                  // the font's space, and the hyphen glyph a soft-hyphen break paints
-type Clamped = { truncated: boolean, lineCount: number, lines: { text: string, width: number }[] }
-clampStats(prepared, width, maxLines): { truncated: boolean, lineCount: number }   // rows you don't paint: layout() only
-measureTail(text: string, font: string): Tail     // e.g. measureTail('…', FONT), measured once; spaceWidth from a no-break space,
-                                                  // since a handle doesn't expose its font
+type Tail = { text: string, font: string, options?: PrepareOptions, width: number, spaceWidth: number }
+                                                  // what the painter appends after the cut (an ellipsis, "… more"), in its font;
+                                                  // the cut is measured joined with it, so kerning and shaping across the seam count
+measureTail(text: string, font: string, options?: PrepareOptions): Tail  // e.g. measureTail('…', FONT), measured once
 ```
 Matches `-webkit-line-clamp`. The clamped line breaks where it would without the clamp; the tail follows it if it
 fits; otherwise the line is cut after the last grapheme that leaves the tail room, inside a word if need be, keeping at
 least one grapheme. That is the rule browsers apply, per RESEARCH.md, Line Clamp And Ellipsis, which also gives the
-demo's 8,025-layout agreement. Lifted from `ellipsis.model.ts` (`clampLines`, `fillLine`), with its constants
-becoming parameters.
+demo's 8,025-layout agreement. Ported from `ellipsis.model.ts` (`clampLines`), with its constants becoming parameters. The browser sweep showed
+that summing pieces misplaces the cut (Pretext ends a fresh line at the first soft hyphen even when it overflows,
+Arabic and kerned text shape differently joined), so the cut is the longest grapheme prefix that, measured joined
+with the tail as one text, fits: a binary search of a few `prepare()` calls (`src/cut.ts`, shared with `truncateMiddle`).
 
 ```ts
 prepareLabel(text: string, font: string): PreparedLabel           // grapheme starts found once
