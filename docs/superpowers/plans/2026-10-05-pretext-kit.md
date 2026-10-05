@@ -317,5 +317,21 @@ test('bad ranges throw', () => assert.throws(() => prepareSizes(T, font, { min: 
   - **Zoom and scale**: browser/Electron zoom needs no correction (cite the deviceScaleFactor runs). A text-size setting is a different font px: prepare per size (`prepareSizes` covers it). Fonts aren't supported through `font-feature-settings`/`font-variant-numeric` (e.g. tabular figures): Canvas can't express them.
   - **Mixed rows**: an icon + badge + text row with `prepareRichInline([{ width: 16 }, { text: '207/0011', font, break: 'never', extraWidth: 12 }, { text: 'Dr. Lind', font }])` and `shrinkwrapRich`.
   - **Versions**: pin the Pretext commit; the kit calls six Pretext functions (list them).
+  - **Recipes** (code in the README, not the library): a React virtual list (a `useMemo` of prepared handles keyed by text, heights → `stack` on width change, `findIndexAt` for the visible range, `anchorDelta` applied to `scrollTop` only when layout moved the anchor); a calendar block choosing the first of `[title + time, title, time, '…']` whose `clamp(…, maxLines = floor(blockHeight / lineHeight))` isn't truncated; a German label fit check (`measureLineStats(prepare(label, font), buttonContentWidth).lineCount === 1`).
 - [ ] **Step 4: Run** `npm test && npm run check && npm run build`. Expected: all pass, `dist/index.js` and `.d.ts` emitted.
 - [ ] **Step 5: Commit** `docs: README, demo and bench`.
+
+### Task 9: fontFromStyle
+
+**Files:**
+- Create: `src/style.ts`, `test/style.test.ts`; Modify: `src/index.ts`, `README.md` (Fonts section uses it), `demo/demo.ts` and `verify/sweep.ts` (derive their fonts with it instead of hand-built strings)
+
+**Interfaces:**
+- Produces: `fontFromStyle(style: Pick<CSSStyleDeclaration, 'fontStyle' | 'fontVariant' | 'fontWeight' | 'fontStretch' | 'fontSize' | 'fontFamily' | 'letterSpacing' | 'lineHeight'>): { font: string, letterSpacing: number, lineHeight: number }`. Takes a `getComputedStyle()` result, read once per style, not per text, where the browser has already resolved `rem`/`em` to px. `font` is the Canvas shorthand `"<style> <weight> <stretch?> <size> <family>"`, leaving out `normal` parts. `letterSpacing` is the px number (`normal` → 0). `lineHeight` is the px number; `normal` throws a `RangeError` whose message says to set a numeric line-height, since `normal` depends on font metrics Pretext doesn't read.
+
+- [ ] **Step 1: Write failing tests** with plain objects standing in for computed styles: `{ fontStyle: 'italic', fontWeight: '700', fontStretch: '100%', fontSize: '16px', fontFamily: 'Inter, sans-serif', letterSpacing: '0.5px', lineHeight: '24px', fontVariant: 'normal' }` → `{ font: 'italic 700 16px Inter, sans-serif', letterSpacing: 0.5, lineHeight: 24 }`; all-normal → `'400 16px Inter'`-style output with `letterSpacing: 0`; `lineHeight: 'normal'` throws `RangeError`; condensed stretch (`'75%'`) maps to the Canvas keyword `condensed` (75% condensed, 87.5% semi-condensed, 112.5% semi-expanded, 125% expanded; other percentages throw `RangeError`, as the Canvas shorthand has only keywords).
+- [ ] **Step 2: Run** `npm test`. Expected: FAIL.
+- [ ] **Step 3: Implement** `src/style.ts` and export it.
+- [ ] **Step 4: Use it** in `verify/sweep.ts` and `demo/demo.ts`: each takes its font, letter spacing and line height from a styled element's computed style. Re-run `npm run verify` and expect the same zero `kit-mismatch` (this proves the helper in three browsers).
+- [ ] **Step 5: Run** `npm test && npm run check`. Expected: PASS. **Commit** `feat: fontFromStyle reads the font from computed style`.
+
