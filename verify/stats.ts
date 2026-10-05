@@ -12,8 +12,9 @@
 //      factors pooled), the conservative one, since a text's cases at adjacent widths are not independent;
 //   3. the at-answer overflow sentences for fitFontSize and fitFontSizeRich (verify/overflow.ts).
 //
-// node verify/stats.ts --compare-log=<file> instead compares the per-helper tallies `npm run verify`
-// printed to <file> (for any browser × factor it ran) against RESULTS.md, for verify/reproduce.sh.
+// node verify/stats.ts --compare-log=<file> [--results=<RESULTS.md>] instead compares the per-helper tallies
+// `npm run verify` printed to <file> (for any browser × factor it ran) against RESULTS.md (or the given copy, since
+// a full run rewrites verify/RESULTS.md itself), for verify/reproduce.sh.
 import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { dirname, join } from 'node:path'
@@ -32,7 +33,9 @@ type Listed = {
   detail?: string, box?: string, maxLines?: number, cause?: string,
 }
 
-const results = readFileSync(join(here, 'RESULTS.md'), 'utf8')
+// --results=<file> reads another RESULTS.md, e.g. the committed one when a run has just overwritten the working copy.
+const resultsArg = process.argv.slice(2).find(a => a.startsWith('--results='))?.slice(10)
+const results = readFileSync(resultsArg ?? join(here, 'RESULTS.md'), 'utf8')
 
 // ---- RESULTS.md: width steps and per-helper tables -------------------------------------------------
 const steps = new Map<number, Record<string, number>>()
@@ -191,7 +194,8 @@ function report(): void {
   console.log('### Per helper, browser and factor (case unit)')
   console.log('')
   console.log('Against Pretext\'s own numbers every case is judged (n = cases); against the painting only cases that are')
-  console.log('neither pretext-gap nor unreliable (n = judged). 95% upper bounds on the kit-mismatch rate.')
+  console.log('neither pretext-gap nor unreliable (n = judged; platform cases count as judged and not failing).')
+  console.log('Upper ends of two-sided 95% intervals, so each is a one-sided 97.5% upper bound; the bounds are not simultaneous.')
   console.log('')
   console.log('| helper | browser@factor | cases | pass | pretext-gap | platform | unreliable | kit-mismatch | judged | upper, vs Pretext (Wilson) | upper, vs painting (Wilson) | upper, vs painting (exact) |')
   console.log('|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|')
@@ -204,38 +208,56 @@ function report(): void {
   }
   console.log('')
 
-  // Table 2: text × font unit, factors pooled.
+  // Tables 2 and 3: clustered units, factors pooled. A unit fails if any of its cases is a kit-mismatch.
+  // fontFromStyle has no text: its unit is a stack × style variant (the pinned style over 42 sizes, or one of
+  // the three single-property variants at 16px), and it has no text-only table.
+  const STYLE_UNITS = 4 // the pinned style and three variants (verify/sweep.ts, STYLE_VARIANTS)
+  const clustered = (mode: 'text-font' | 'text'): void => {
+    console.log('| helper | browser | units | cases per unit | units never judged | failing units | upper (Wilson) | upper (exact) |')
+    console.log('|---|---|---:|---:|---:|---:|---:|---:|')
+    for (const helper of helpers) for (const browser of browsers) {
+      if (helper === 'fontFromStyle' && mode === 'text') continue
+      const bRuns = runs.filter(r => r.browser === browser && r.helpers.has(helper))
+      if (bRuns.length === 0) continue
+      const perTextFont = bRuns.reduce((s, r) => s + casesPerUnit(helper, r.factor), 0)
+      const perUnit = helper === 'fontFromStyle' ? 0 : mode === 'text' ? perTextFont * FONT_STACKS.length : perTextFont
+      const unitKey = (c: Listed): string => {
+        if (helper === 'fontFromStyle') return `${c.font}|${c.corpus}`
+        const label = labelsOf.get(helper)!.find(l => c.detail?.startsWith(`${l.split('/').slice(1).join('/')}: `) && l.startsWith(`${c.corpus}/`))
+        if (label === undefined) throw new Error(`cannot name the text of ${JSON.stringify(c)}`)
+        return mode === 'text' ? label : `${c.font}|${label}`
+      }
+      const unjudgedCases = new Map<string, number>()
+      const failing = new Set<string>()
+      for (const c of listed) {
+        if (c.helper !== helper || c.browser !== browser) continue
+        const k = unitKey(c)
+        if (c.outcome === 'pretext-gap' || c.outcome === 'unreliable') unjudgedCases.set(k, (unjudgedCases.get(k) ?? 0) + 1)
+        if (c.outcome === 'kit-mismatch') failing.add(k)
+      }
+      const units = helper === 'fontFromStyle' ? FONT_STACKS.length * STYLE_UNITS
+        : mode === 'text' ? labelsOf.get(helper)!.length : labelsOf.get(helper)!.length * FONT_STACKS.length
+      if (helper === 'fontFromStyle' && unjudgedCases.size > 0) throw new Error('fontFromStyle cases are never pretext-gap or unreliable')
+      const never = [...unjudgedCases.values()].filter(n => n === perUnit).length
+      const n = units - never
+      const per = helper === 'fontFromStyle' ? `${bRuns.length} or ${bRuns.length * (bRuns[0]!.helpers.get(helper)!.cases / FONT_STACKS.length - (STYLE_UNITS - 1))}` : String(perUnit)
+      console.log(`| ${helper} | ${browser} | ${units} | ${per} | ${never} | ${failing.size} | ${pct(wilsonUpper(failing.size, n))} | ${pct(clopperPearsonUpper(failing.size, n))} |`)
+    }
+    console.log('')
+  }
   console.log('### Per helper and browser (text × font stack unit, factors pooled)')
   console.log('')
   console.log('A unit fails if any of its cases, at any width, line count, box or factor, is a kit-mismatch. A unit')
   console.log('none of whose cases could be judged against the painting (all pretext-gap or unreliable) is left out.')
+  console.log('fontFromStyle\'s unit is a stack × style variant.')
   console.log('')
-  console.log('| helper | browser | units | cases per unit | units never judged | failing units | upper (Wilson) | upper (exact) |')
-  console.log('|---|---|---:|---:|---:|---:|---:|---:|')
-  for (const helper of helpers) for (const browser of browsers) {
-    const bRuns = runs.filter(r => r.browser === browser && r.helpers.has(helper))
-    if (bRuns.length === 0) continue
-    const perUnit = bRuns.reduce((s, r) => s + casesPerUnit(helper, r.factor), 0)
-    const unitKey = (c: Listed): string => {
-      if (helper === 'fontFromStyle') return `${c.font}|${c.corpus}|${c.width}`
-      const label = labelsOf.get(helper)!.find(l => c.detail?.startsWith(`${l.split('/').slice(1).join('/')}: `) && l.startsWith(`${c.corpus}/`))
-      if (label === undefined) throw new Error(`cannot name the text of ${JSON.stringify(c)}`)
-      return `${c.font}|${label}`
-    }
-    const unjudgedCases = new Map<string, number>()
-    const failing = new Set<string>()
-    for (const c of listed) {
-      if (c.helper !== helper || c.browser !== browser) continue
-      const k = unitKey(c)
-      if (c.outcome === 'pretext-gap' || c.outcome === 'unreliable') unjudgedCases.set(k, (unjudgedCases.get(k) ?? 0) + 1)
-      if (c.outcome === 'kit-mismatch') failing.add(k)
-    }
-    const units = unitsOf(helper, bRuns[0]!.helpers.get(helper)!.cases)
-    const never = [...unjudgedCases.values()].filter(n => n === perUnit).length
-    const n = units - never
-    console.log(`| ${helper} | ${browser} | ${units} | ${perUnit} | ${never} | ${failing.size} | ${pct(wilsonUpper(failing.size, n))} | ${pct(clopperPearsonUpper(failing.size, n))} |`)
-  }
+  clustered('text-font')
+  console.log('### Per helper and browser (text unit: all four font stacks, widths and factors pooled)')
   console.log('')
+  console.log('A sensitivity check on the unit: if a text that fails in one font tends to fail in the others, the text,')
+  console.log('not the text × font pair, is the independent unit, and the bound is wider.')
+  console.log('')
+  clustered('text')
 
   // Pooled across browsers, for the headline.
   let allCases = 0
@@ -248,7 +270,7 @@ function report(): void {
     allMismatch += t['kit-mismatch']
     allPlatform += t.platform
   }
-  console.log(`All runs: ${allCases} cases, ${allJudged} judged against the painting, ${allMismatch} kit-mismatch, ${allPlatform} platform.`)
+  console.log(`All runs: ${allCases} cases, ${allJudged} judged against the painting (platform cases included), ${allMismatch} kit-mismatch, ${allPlatform} platform.`)
   console.log('')
 
   // Headless parity (verify/HEADLESS_RESULTS.md, from `npm run verify:headless`).

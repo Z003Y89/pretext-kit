@@ -1,0 +1,46 @@
+Preparing worktree (detached HEAD 18db330)
+worktree of 18db330 at <tmp>/kit; chromium@1
+control shrinkwrap: 161616 cases, 0 kit-mismatch; npm test passes
+control balance: 161616 cases, 0 kit-mismatch; npm test passes
+control fitFontSize: 161616 cases, 0 kit-mismatch; npm test passes
+control fitFontSizeRich: 203944 cases, 0 kit-mismatch; npm test passes
+control clamp: 808080 cases, 0 kit-mismatch; npm test passes
+control truncateMiddle: 56496 cases, 0 kit-mismatch; npm test passes
+control fontFromStyle: 180 cases, 0 kit-mismatch; npm test passes
+| shrinkwrap +1px | shrinkwrap | 161616 | 150273 | 10744 | fails (5 failing) |
+| balance returns shrinkwrap | balance | 161616 | 120948 | 40115 | fails (4 failing) |
+| fitFontSize returns px − 1 (min stays min) | fitFontSize | 161616 | 161581 | 35 | fails (8 failing) |
+| fitFontSizeRich ignores the icon box | fitFontSizeRich | 203944 | 59725 | 144168 | fails (3 failing) |
+| clamp without the tail | clamp | 808080 | 158851 | 648730 | fails (6 failing) |
+| truncateMiddle ignores keepEnd | truncateMiddle | 56496 | 6688 | 49807 | fails (4 failing) |
+| fontFromStyle drops the weight | fontFromStyle | 180 | 4 | 176 | fails (5 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | shrinkwrap | 161616 | 54 | 156521 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | balance | 161616 | 0 (not caught here) | 156946 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | fitFontSize | 161616 | 0 (not caught here) | 161312 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | clamp | 808080 | 267 | 807241 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | truncateMiddle | 56496 | 74 | 56422 | fails (2 failing) |
+| cuts at code points, not grapheme clusters (subtle) | clamp | 808080 | 43 | 807460 | passes |
+| cuts at code points, not grapheme clusters (subtle) | truncateMiddle | 56496 | 0 (not caught here) | 56493 | passes |
+| fontFromStyle drops italic (subtle) | fontFromStyle | 180 | 4 | 176 | fails (2 failing) |
+| fontFromStyle drops letter spacing (subtle) | fontFromStyle | 180 | 4 | 176 | fails (3 failing) |
+
+Mutants planted in a worktree of 18db330; sweep: chromium@1, the affected helpers only. A mutant is caught if any of its rows has a kit-mismatch.
+
+| planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |
+|---|---|---:|---:|---:|---|
+| shrinkwrap +1px | shrinkwrap | 161616 | 150273 | 10744 | fails (5 failing) |
+| balance returns shrinkwrap | balance | 161616 | 120948 | 40115 | fails (4 failing) |
+| fitFontSize returns px − 1 (min stays min) | fitFontSize | 161616 | 161581 | 35 | fails (8 failing) |
+| fitFontSizeRich ignores the icon box | fitFontSizeRich | 203944 | 59725 | 144168 | fails (3 failing) |
+| clamp without the tail | clamp | 808080 | 158851 | 648730 | fails (6 failing) |
+| truncateMiddle ignores keepEnd | truncateMiddle | 56496 | 6688 | 49807 | fails (4 failing) |
+| fontFromStyle drops the weight | fontFromStyle | 180 | 4 | 176 | fails (5 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | shrinkwrap | 161616 | 54 | 156521 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | balance | 161616 | 0 (not caught here) | 156946 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | fitFontSize | 161616 | 0 (not caught here) | 161312 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | clamp | 808080 | 267 | 807241 | fails (2 failing) |
+| FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | truncateMiddle | 56496 | 74 | 56422 | fails (2 failing) |
+| cuts at code points, not grapheme clusters (subtle) | clamp | 808080 | 43 | 807460 | passes |
+| cuts at code points, not grapheme clusters (subtle) | truncateMiddle | 56496 | 0 (not caught here) | 56493 | passes |
+| fontFromStyle drops italic (subtle) | fontFromStyle | 180 | 4 | 176 | fails (2 failing) |
+| fontFromStyle drops letter spacing (subtle) | fontFromStyle | 180 | 4 | 176 | fails (3 failing) |

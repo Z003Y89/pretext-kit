@@ -3,9 +3,11 @@
 Exact text-sizing helpers for web UIs, built on [Pretext](https://github.com/chenglou/pretext), in the browser and,
 with no browser, in Node. pretext-kit is not part of Pretext and is not maintained by its authors; it calls Pretext's
 public API and adds the answers apps keep re-deriving on top of it: the font size that fits a box, the width that
-balances lines, clamped and middle-cut text, list heights. Every helper is checked against what Chromium, WebKit and
-Firefox actually paint ([verify/RESULTS.md](verify/RESULTS.md)); [EVALUATION.md](EVALUATION.md) states the claims,
-the confidence bounds, the threats to validity and the known limitations.
+balances lines, clamped and middle-cut text, list heights. `shrinkwrap`, `balance`, `fitFontSize`,
+`fitFontSizeRich`, `clamp`, `truncateMiddle` and `fontFromStyle` are checked against what Chromium, WebKit and Firefox
+actually paint ([verify/RESULTS.md](verify/RESULTS.md)); `shrinkwrapRich`, `balanceRich`, `watchFonts` and the list
+helpers (`stack`, `findIndexAt`, `anchorDelta`) are unit-tested only. [EVALUATION.md](EVALUATION.md) states the
+claims, the confidence bounds, the threats to validity and the known limitations.
 
 - **`pretext-kit/headless`**: Pretext and every helper in Node, vitest, jest (jsdom too) and CI, shaping your own
   font files with HarfBuzz, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" becomes a unit test.
@@ -106,11 +108,13 @@ and the browser's own wrapping at that value paints the predicted lines.
 
 ## What's exact
 
-`npm run verify` sweeps every helper in Chromium, WebKit and Firefox (Playwright 1.61.0, macOS), at
+`npm run verify` sweeps `shrinkwrap`, `balance`, `fitFontSize`, `fitFontSizeRich`, `clamp`, `truncateMiddle` and
+`fontFromStyle` in Chromium, WebKit and Firefox (Playwright 1.61.0, macOS), at
 deviceScaleFactor 1, 1.25 and 2, over Latin, CJK, Arabic, emoji chat, URLs, soft-hyphenated German and French, and
 file paths, in four named fonts, at every width from 120 to 600px (80–400px for `truncateMiddle`; every fourth
 width at 1.25 and 2). Each case is judged against Pretext's own numbers
-first, then against the painted DOM. The recorded run has **zero kit-mismatch cases** in every browser at every
+first, then against the painted DOM. `shrinkwrapRich`, `balanceRich`, `watchFonts`, `stack`, `findIndexAt` and
+`anchorDelta` are not swept: they are covered by `npm test` on a stand-in Canvas only. The recorded run has **zero kit-mismatch cases** in every browser at every
 factor. The remaining non-pass cases are where Pretext itself differs from the browser (`pretext-gap`), or a proven
 browser quirk (`platform`: WebKit 26 floors fractional line heights); none is patched in the kit. Builds, counts and
 every finding grouped by cause: [verify/RESULTS.md](verify/RESULTS.md). The [accuracy example](#examples) shows them
@@ -158,7 +162,7 @@ For UI labels, author the soft hyphens yourself at compound joints (`'Tages\u00A
 dictionaries pick syllable breaks (Tagesab-schlussbericht) that a German reader finds wrong in a button. Use
 `hyphen/de` for running text and titles.
 
-The sweep's German and French corpora are hyphenated throughout and run through every helper: zero kit-mismatch
+The sweep's German and French corpora are hyphenated throughout and run through every swept helper: zero kit-mismatch
 in all three browsers. Their pretext-gaps are under 0.5% of the German cases and under 1% of the French ones in
 every browser and zoom factor (WebKit also has line-height `platform` cases, which are safe). See
 [RESULTS.md](verify/RESULTS.md) for the per-browser counts. Pretext's README

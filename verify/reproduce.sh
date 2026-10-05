@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Reproduces EVALUATION.md from nothing: clones pretext-kit and Pretext at pinned commits side by side,
-# builds Pretext, installs the kit's locked dependencies and Playwright's pinned browsers, then runs
-# the logic tests, the type check, the browser sweep and the headless parity sweep, and compares the
-# sweep's tallies with the committed verify/RESULTS.md.
+# Rebuilds the evaluation's evidence from fresh clones: clones pretext-kit and Pretext at pinned commits side by
+# side, builds Pretext, installs the kit's locked dependencies and Playwright's pinned browsers, then runs the logic
+# tests, the type check, the browser sweep and the headless parity sweep, and compares the sweep's tallies with the
+# committed verify/RESULTS.md. It does not rerun the bench, the mutation tests (node verify/mutants.ts) or
+# verify/stats.ts's bounds, and it can only reproduce on a Mac like the one the results were recorded on.
 #
 #   verify/reproduce.sh [--dir=DIR] [--kit-repo=PATH_OR_URL] [--kit-commit=SHA] [--sweep=chromium@1]
 #
@@ -11,7 +12,7 @@
 #   --kit-commit  the commit to check out (default: that repository's HEAD)
 #   --sweep=chromium@1
 #                 run the browser sweep in Chromium at deviceScaleFactor 1 only (about 3 minutes rather
-#                 than about 25); the comparison then covers only that browser × factor
+#                 than about 20); the comparison then covers only that browser × factor
 #
 # Needs macOS 14 (the recorded run's OS; the sweep's pinned fonts are macOS fonts), git, Node 24 and npm,
 # and network access for npm and, unless they are cached, Playwright's browser downloads.
@@ -64,12 +65,14 @@ step npm-ci npm ci --no-audit --no-fund
 step browsers npx playwright install chromium webkit firefox
 step test npm test
 step check npm run check
+# A full sweep rewrites verify/RESULTS.md, so the tallies are compared with the committed copy.
+git show HEAD:verify/RESULTS.md > "$LOGS/RESULTS.committed.md"
 if [ "$SWEEP" = chromium@1 ]; then
   step verify node verify/run.ts --only=chromium --factors=1
 else
   step verify npm run verify
 fi
-step compare node verify/stats.ts --compare-log="$LOGS/verify.log"
+step compare node verify/stats.ts --compare-log="$LOGS/verify.log" --results="$LOGS/RESULTS.committed.md"
 step verify-headless npm run verify:headless
 
 echo

@@ -8,7 +8,7 @@
 //
 //   node verify/mutants.ts [--browser=chromium] [--factor=1]
 //
-// Takes about 8 minutes for Chromium at factor 1. Run it with no other Playwright browser open.
+// Takes about 15 minutes for Chromium at factor 1. Its output is committed as verify/results/mutants.txt. Run it with no other Playwright browser open.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -20,42 +20,64 @@ const args = process.argv.slice(2)
 const browser = args.find(a => a.startsWith('--browser='))?.slice(10) ?? 'chromium'
 const factor = args.find(a => a.startsWith('--factor='))?.slice(9) ?? '1'
 
-type Mutant = { name: string, helper: string, file: string, from: string, to: string }
+// subtle: a bug that changes answers by at most a fraction of a pixel or a single grapheme, which a weak check could miss.
+type Mutant = { name: string, helpers: string[], file: string, from: string, to: string, subtle?: boolean }
 const MUTANTS: Mutant[] = [
   {
-    name: 'shrinkwrap +1px', helper: 'shrinkwrap', file: 'src/width.ts',
+    name: 'shrinkwrap +1px', helpers: ['shrinkwrap'], file: 'src/width.ts',
     from: '  return { width: Math.min(width, maxWidth), lineCount: s.lineCount }',
     to: '  return { width: Math.min(width + 1, maxWidth), lineCount: s.lineCount }',
   },
   {
-    name: 'balance returns shrinkwrap', helper: 'balance', file: 'src/width.ts',
+    name: 'balance returns shrinkwrap', helpers: ['balance'], file: 'src/width.ts',
     from: 'export function balance(prepared: PreparedTextWithSegments, maxWidth: number): WidthFit {\n  return balanceWith(',
     to: 'export function balance(prepared: PreparedTextWithSegments, maxWidth: number): WidthFit {\n  return shrinkwrapWith(',
   },
   {
-    name: 'fitFontSize returns px − 1 (min stays min)', helper: 'fitFontSize', file: 'src/font-size.ts',
+    name: 'fitFontSize returns px − 1 (min stays min)', helpers: ['fitFontSize'], file: 'src/font-size.ts',
     from: '  return { px, prepared: handleAt(sizes, px), lineCount: probe(px) }',
     to: '  const q = px > sizes.min ? px - 1 : px\n  return { px: q, prepared: handleAt(sizes, q), lineCount: probe(q) }',
   },
   {
-    name: 'fitFontSizeRich ignores the icon box', helper: 'fitFontSizeRich', file: 'src/font-size.ts',
+    name: 'fitFontSizeRich ignores the icon box', helpers: ['fitFontSizeRich'], file: 'src/font-size.ts',
     from: '    h = prepareRichInline(sizes.items(px), sizes.options)',
     to: '    h = prepareRichInline(sizes.items(px).filter(item => item.text !== undefined), sizes.options)',
   },
   {
-    name: 'clamp without the tail', helper: 'clamp', file: 'src/clamp.ts',
+    name: 'clamp without the tail', helpers: ['clamp'], file: 'src/clamp.ts',
     from: '  if (measureText(tail, whole + tail.text) <= width + FIT_TOLERANCE) {',
     to: '  if (measureText(tail, whole) <= width + FIT_TOLERANCE) {',
   },
   {
-    name: 'truncateMiddle ignores keepEnd', helper: 'truncateMiddle', file: 'src/middle.ts',
+    name: 'truncateMiddle ignores keepEnd', helpers: ['truncateMiddle'], file: 'src/middle.ts',
     from: '  if (keepEnd !== undefined) {',
     to: '  if (keepEnd !== undefined && false) {',
   },
   {
-    name: 'fontFromStyle drops the weight', helper: 'fontFromStyle', file: 'src/style.ts',
+    name: 'fontFromStyle drops the weight', helpers: ['fontFromStyle'], file: 'src/style.ts',
     from: "  font += style.fontWeight + ' '\n",
     to: '',
+  },
+  {
+    name: 'FIT_TOLERANCE removed (0 instead of 1/64)', helpers: ['shrinkwrap', 'balance', 'fitFontSize', 'clamp', 'truncateMiddle'],
+    file: 'src/fit.ts', subtle: true,
+    from: 'export const FIT_TOLERANCE = 1 / 64',
+    to: 'export const FIT_TOLERANCE = 0',
+  },
+  {
+    name: 'cuts at code points, not grapheme clusters', helpers: ['clamp', 'truncateMiddle'], file: 'src/cut.ts', subtle: true,
+    from: '  for (const g of graphemeSegmenter.segment(text)) ends.push(g.index + g.segment.length)',
+    to: '  { let i = 0; for (const c of text) ends.push(i += c.length) }',
+  },
+  {
+    name: 'fontFromStyle drops italic', helpers: ['fontFromStyle'], file: 'src/style.ts', subtle: true,
+    from: "  if (style.fontStyle !== 'normal') font += style.fontStyle + ' '\n",
+    to: '',
+  },
+  {
+    name: 'fontFromStyle drops letter spacing', helpers: ['fontFromStyle'], file: 'src/style.ts', subtle: true,
+    from: "  const letterSpacing = style.letterSpacing === 'normal' ? 0 : px(style.letterSpacing, 'letter-spacing')",
+    to: '  const letterSpacing = 0',
   },
 ]
 
@@ -88,7 +110,7 @@ const rows: string[] = []
 let escaped = 0
 try {
   console.log(`worktree of ${head} at ${tree}; ${browser}@${factor}`)
-  const helpers = [...new Set(MUTANTS.map(m => m.helper))]
+  const helpers = [...new Set(MUTANTS.flatMap(m => m.helpers))]
   const control = sweep(helpers)
   const controlTests = unitTests()
   for (const h of helpers) {
@@ -104,13 +126,18 @@ try {
     const parts = source.split(m.from)
     if (parts.length !== 2) throw new Error(`mutant "${m.name}": expected one occurrence in ${m.file}, found ${parts.length - 1}`)
     writeFileSync(path, parts.join(m.to))
-    const t = sweep([m.helper]).get(m.helper)
-    if (t === undefined) throw new Error(`mutant "${m.name}": the sweep printed no tally (did it crash?)`)
+    const tallies = sweep(m.helpers)
     const tests = unitTests()
-    if (t.mismatch === 0) escaped++
-    const row = `| ${m.name} | ${m.helper} | ${t.cases} | ${t.mismatch}${t.mismatch === 0 ? ' (**not caught**)' : ''} | ${t.pass} | ${tests} |`
-    rows.push(row)
-    console.log(row)
+    let caught = 0
+    for (const h of m.helpers) {
+      const t = tallies.get(h)
+      if (t === undefined) throw new Error(`mutant "${m.name}": the sweep printed no tally for ${h} (did it crash?)`)
+      caught += t.mismatch
+      const row = `| ${m.name}${m.subtle === true ? ' (subtle)' : ''} | ${h} | ${t.cases} | ${t.mismatch}${t.mismatch === 0 ? ' (not caught here)' : ''} | ${t.pass} | ${tests} |`
+      rows.push(row)
+      console.log(row)
+    }
+    if (caught === 0) escaped++
   }
 } finally {
   execFileSync('git', ['worktree', 'remove', '--force', tree], { cwd: root })
@@ -118,7 +145,7 @@ try {
 }
 
 console.log('')
-console.log(`Mutants planted in a worktree of ${head}; sweep: ${browser}@${factor}, the affected helper only.`)
+console.log(`Mutants planted in a worktree of ${head}; sweep: ${browser}@${factor}, the affected helpers only. A mutant is caught if any of its rows has a kit-mismatch.`)
 console.log('')
 console.log('| planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |')
 console.log('|---|---|---:|---:|---:|---|')
