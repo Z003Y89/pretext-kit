@@ -71,7 +71,8 @@ chips.
 
 ```ts
 clamp(prepared: PreparedTextWithSegments, width: number, maxLines: number, tail?: Tail): Clamped
-type Tail = { width: number, spaceWidth: number }  // room the painter appends after the cut (an ellipsis, "… more"), and the font's space
+type Tail = { width: number, spaceWidth: number, hyphenWidth: number }  // room the painter appends after the cut (an ellipsis, "… more"),
+                                                  // the font's space, and the hyphen glyph a soft-hyphen break paints
 type Clamped = { truncated: boolean, lineCount: number, lines: { text: string, width: number }[] }
 clampStats(prepared, width, maxLines): { truncated: boolean, lineCount: number }   // rows you don't paint: layout() only
 measureTail(text: string, font: string): Tail     // e.g. measureTail('…', FONT), measured once; spaceWidth from a no-break space,
@@ -98,8 +99,9 @@ prepareSizes(text: string, font: (px: number) => string, range: { min: number, m
 fitFontSize(sizes: PreparedSizes, box: { width: number, height?: number, maxLines?: number }, lineHeight: (px: number) => number):
   { px: number, prepared: PreparedTextWithSegments, lineCount: number } | null   // null: even `min` doesn't fit
 ```
-The largest whole-pixel size whose text fits the box: every line within `width`, total height within `height`, and
-at most `maxLines` lines. Sizes are whole pixels because Firefox measures Canvas at rounded sizes (README, Caveats).
+The largest whole-pixel size whose text fits the box: no unbreakable piece wider than `width` (under
+`overflow-wrap: break-word` that is when the browser overflows; Pretext can report a soft-hyphen or other line slightly
+past `width` that the browser still paints inside it), total height within `height`, and at most `maxLines` lines. Sizes are whole pixels because Firefox measures Canvas at rounded sizes (README, Caveats).
 
 Fit isn't monotonic in size for wrapped text, which is why sizes are searched and never scaled. The search binary-searches
 sizes, then checks the size above the answer. `PreparedSizes` prepares a size the first time a search asks for it and
@@ -135,7 +137,7 @@ demo/             one page: each helper next to the plain-CSS result, resizable
 ```
 
 Each file depends on Pretext's public exports only, never on its internals, so a Pretext release can't break the kit
-silently. `SegmentBreakKind` and the like stay unused.
+silently. Of the handle's fields, only the README-documented `segments`/`kinds` are read (to find soft-hyphen breaks).
 
 **Later engines (sub-projects 2-3).** The helpers call six Pretext functions: `measureLineStats`, `walkLineRanges`,
 `layoutNextLine`, `layoutNextLineRange`, `layout` and `prepareWithSegments`. A React Native or native backend only has
