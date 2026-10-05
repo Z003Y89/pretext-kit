@@ -9,25 +9,22 @@ import { FIT_TOLERANCE } from './fit.ts'
 
 // The text painted after a clamped paragraph's last line (an ellipsis, "… more"), with the font
 // and prepare options of the paragraph, so the cut can be measured joined to it.
-export type Tail = { text: string, font: string, options?: PrepareOptions | undefined, width: number, spaceWidth: number }
+export type Tail = { text: string, font: string, options?: PrepareOptions | undefined, width: number }
 export type ClampedLine = { text: string, width: number }
 export type Clamped = { truncated: boolean, lineCount: number, lines: ClampedLine[] }
 
 const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
-const NO_TAIL: Tail = { text: '', font: '', width: 0, spaceWidth: 0 }
+const NO_TAIL: Tail = { text: '', font: '', width: 0 }
 
 // Browsers draw a clamp's ellipsis in the paragraph's first font, or three periods where
 // that font has none, so the tail is measured in the paragraph's font, with the options the
-// paragraph was prepared with. A lone space collapses to nothing, so a no-break space stands
-// in for the space between words.
+// paragraph was prepared with.
 export function measureTail(text: string, font: string, options?: PrepareOptions): Tail {
-  return {
-    text,
-    font,
-    options,
-    width: measureNaturalWidth(prepareWithSegments(text, font, options)),
-    spaceWidth: measureNaturalWidth(prepareWithSegments('\u00A0', font, options)),
-  }
+  return { text, font, options, width: measureNaturalWidth(prepareWithSegments(text, font, options)) }
+}
+
+function checkMaxLines(maxLines: number): void {
+  if (!Number.isInteger(maxLines) || maxLines < 1) throw new RangeError('maxLines must be an integer of at least 1')
 }
 
 // The first `maxLines` lines of a paragraph at `width`. When text is left over, the last
@@ -41,7 +38,7 @@ export function measureTail(text: string, font: string, options?: PrepareOptions
 // soft hyphen paints a hyphen there; a cut runs on past it and paints none, since a browser
 // cuts a truncated line between graphemes without hyphenating it.
 export function clamp(prepared: PreparedTextWithSegments, width: number, maxLines: number, tail: Tail = NO_TAIL): Clamped {
-  if (!(maxLines >= 1)) throw new RangeError('maxLines must be at least 1')
+  checkMaxLines(maxLines)
   const lines: ClampedLine[] = []
   let cursor = START
   for (let i = 0; i < maxLines; i++) {
@@ -74,6 +71,7 @@ export function clamp(prepared: PreparedTextWithSegments, width: number, maxLine
 // layout() alone gives a clamped paragraph's line count and whether it is truncated, with no
 // line built: all a list needs for the rows it doesn't paint.
 export function clampStats(prepared: PreparedTextWithSegments, width: number, maxLines: number): { truncated: boolean, lineCount: number } {
+  checkMaxLines(maxLines)
   const total = layout(prepared, width, 1).lineCount
   return { truncated: total > maxLines, lineCount: Math.min(total, maxLines) }
 }

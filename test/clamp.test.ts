@@ -40,6 +40,13 @@ test('not truncated when maxLines covers the text', () => {
   assert.equal(c.truncated, false); assert.equal(c.lineCount, 3)
 })
 test('maxLines below 1 throws', () => assert.throws(() => clamp(p(T), 50, 0), RangeError))
+// Final review M2: maxLines counts lines, so only a whole number of at least 1 is one.
+test('maxLines must be an integer of at least 1, in clamp and clampStats', () => {
+  for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => clamp(p(T), 50, bad), RangeError, `clamp ${bad}`)
+    assert.throws(() => clampStats(p(T), 50, bad), RangeError, `clampStats ${bad}`)
+  }
+})
 test('empty text', () => assert.deepEqual(clamp(p(''), 50, 2), { truncated: false, lineCount: 0, lines: [] }))
 test('clampStats agrees with clamp without building lines', () => {
   const texts = [T, '']
@@ -50,7 +57,7 @@ test('clampStats agrees with clamp without building lines', () => {
   }
 })
 test('measureTail measures in the font and keeps what the cut is measured with', () =>
-  assert.deepEqual(measureTail('…', FONT), { text: '…', font: FONT, options: undefined, width: 10, spaceWidth: 5 }))
+  assert.deepEqual(measureTail('…', FONT), { text: '…', font: FONT, options: undefined, width: 10 }))
 // Found by the browser sweep's German corpus: the cut was built from pieces Pretext ended at soft
 // hyphens, so it held a hyphen mid-line that the line's text has nowhere there.
 test('a cut of a line ending at a soft hyphen paints no hyphen', () =>

@@ -645,9 +645,8 @@ function tailOf(f: StyleFont): Tail {
 function judgeClampModel(p: PreparedTextWithSegments, f: StyleFont, width: number, maxLines: number, tail: Tail, c: Clamped): string | undefined {
   // The tail is the kit's measurement too, so it is checked against Pretext's widths first.
   const ellipsis = naturalWidth(ELLIPSIS, f)
-  const nbsp = naturalWidth('\u00A0', f)
-  if (tail.text !== ELLIPSIS || tail.font !== f.font || tail.options?.letterSpacing !== f.letterSpacing || tail.width !== ellipsis || tail.spaceWidth !== nbsp) {
-    return `measureTail gave ${JSON.stringify(tail)}, Pretext measures '…' ${ellipsis} and a no-break space ${nbsp}`
+  if (tail.text !== ELLIPSIS || tail.font !== f.font || tail.options?.letterSpacing !== f.letterSpacing || tail.width !== ellipsis) {
+    return `measureTail gave ${JSON.stringify(tail)}, Pretext measures '…' ${ellipsis}`
   }
   const total = layout(p, width, LINE_HEIGHT).lineCount
   const said = `returned ${c.lineCount} lines, truncated ${c.truncated}`
@@ -756,9 +755,13 @@ const SOFT_HYPHEN = /\u00AD/g
 
 function truncateMiddleCase(stack: FontStack, text: string, width: number): CaseVerdict {
   const f = fontAt(stack, FONT_SIZE, LINE_HEIGHT)
-  const from = text.lastIndexOf('/')
+  const label = labelOf(text, f)
+  // keepEnd.from indexes label.text, Pretext's collapsed text; no corpus label has white space to
+  // collapse, so it is the label as given, which the checks below index too.
+  if (label.text !== text) return { outcome: 'kit-mismatch', detail: `label.text ${JSON.stringify(label.text)} differs from the label` }
+  const from = label.text.lastIndexOf('/')
   const keepEnd = from >= 0 ? { from } : undefined
-  const out = truncateMiddle(labelOf(text, f), width, keepEnd)
+  const out = truncateMiddle(label, width, keepEnd)
   const said = `returned ${JSON.stringify(out)}`
 
   // By Pretext's numbers first.
