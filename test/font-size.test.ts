@@ -2,7 +2,8 @@ import './setup.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
-import { fitFontSize, prepareSizes } from '../src/font-size.ts'
+import { measureRichInlineStats, prepareRichInline } from '@chenglou/pretext/rich-inline'
+import { fitFontSize, fitFontSizeRich, prepareSizes, prepareSizesRich } from '../src/font-size.ts'
 import { FIT_TOLERANCE } from '../src/fit.ts'
 
 const T = 'aa bb cc dd ee'
@@ -55,3 +56,40 @@ test('a NaN width throws', () =>
   assert.throws(() => fitFontSize(prepareSizes(T, font, { min: 8, max: 40 }), { width: NaN }, lh), RangeError))
 test('an infinite width never constrains', () =>
   assert.equal(fitFontSize(prepareSizes(T, font, { min: 8, max: 40 }), { width: Infinity, maxLines: 1 }, lh)!.px, 40))
+
+const row = (px: number) => [{ width: px }, { text: 'aa bb', font: font(px) }]
+const rowFits = (px: number, width: number) => {
+  const s = measureRichInlineStats(prepareRichInline(row(px)), width)
+  return s.lineCount <= 1 && s.maxLineWidth <= width + FIT_TOLERANCE
+}
+
+test('rich: an icon box and a label scale together', () =>   // 3.25px of width per px of size
+  assert.equal(fitFontSizeRich(prepareSizesRich(row, { min: 8, max: 40 }), { width: 100, maxLines: 1 }, lh)!.px, 30))
+test('rich: the answer fits and one size up does not', () => {
+  for (const w of [60, 100, 137]) {
+    const r = fitFontSizeRich(prepareSizesRich(row, { min: 8, max: 40 }), { width: w, maxLines: 1 }, lh)!
+    assert.ok(rowFits(r.px, w))
+    assert.ok(r.px === 40 || !rowFits(r.px + 1, w))
+  }
+})
+test('rich: text only agrees with fitFontSize', () => {
+  for (const w of [40, 70, 100, 150, 400]) {
+    const a = fitFontSize(prepareSizes(T, font, { min: 8, max: 40 }), { width: w, height: 60 }, lh)
+    const b = fitFontSizeRich(prepareSizesRich(px => [{ text: T, font: font(px) }], { min: 8, max: 40 }), { width: w, height: 60 }, lh)
+    assert.equal(b?.px, a?.px)
+    assert.equal(b?.lineCount, a?.lineCount)
+  }
+})
+test('rich: null when even min does not fit', () =>
+  assert.equal(fitFontSizeRich(prepareSizesRich(row, { min: 30, max: 40 }), { width: 10, maxLines: 1 }, lh), null))
+test('rich: a second fit reuses the prepared handle', () => {
+  const s = prepareSizesRich(row, { min: 8, max: 40 })
+  assert.equal(fitFontSizeRich(s, { width: 100, maxLines: 1 }, lh)!.prepared, fitFontSizeRich(s, { width: 100, maxLines: 1 }, lh)!.prepared)
+  assert.ok(s.handles.some(h => h === undefined))
+})
+test('rich: bad ranges throw, and a NaN width throws', () => {
+  assert.throws(() => prepareSizesRich(row, { min: 0, max: 4 }), RangeError)
+  assert.throws(() => prepareSizesRich(row, { min: 5, max: 4 }), RangeError)
+  assert.throws(() => prepareSizesRich(row, { min: 1.5, max: 4 }), RangeError)
+  assert.throws(() => fitFontSizeRich(prepareSizesRich(row, { min: 8, max: 40 }), { width: NaN }, lh), RangeError)
+})
