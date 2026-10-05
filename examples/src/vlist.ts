@@ -22,7 +22,8 @@ const ESTIMATE = 60
 // Deterministic messages of varied length, made of whole sentences (and whole titles) from the
 // screen's own copy in all three languages, so no message reads as cut off.
 function messages(): string[] {
-  const pool = LANGS.flatMap(l => STRINGS[l].cards.flatMap(c => [c.title, ...c.body.split(/(?<=[.;])\s+/)]))
+  // Split after a period that doesn't follow a digit ("am 1. November" stays whole); titles get one.
+  const pool = LANGS.flatMap(l => STRINGS[l].cards.flatMap(c => [c.title + '.', ...c.body.split(/(?<=[^\d]\.)\s+/)]))
   const out: string[] = []
   for (let i = 0; i < COUNT; i++) {
     const start = (i * 7) % pool.length

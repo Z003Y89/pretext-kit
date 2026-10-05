@@ -120,9 +120,11 @@ export const iconGapAt = (px: number) => Math.round(px * 0.45)
 export type Fit = { px: number, lineHeight: number, lines: number }
 // A button of a row (toolbar or footer): its width, and its label's fit, or null for icon-only.
 export type RowButton = { width: number, contentWidth: number, fit: Fit | null }
-// natural: every label at full size, widths from their text; shared: one smaller size for all;
-// icons: the widest labels collapsed to icons; two-lines: equal widths, labels on up to two lines
-// broken at spaces; all-icons: every button icon-only; stacked: buttons one under another.
+// natural: every label at full size, widths from their text; shared: one smaller size for all (and/or
+// tighter padding); icons: some buttons collapsed to icons in the app's collapse order (widest label
+// first without one), the rest labelled, on one line or the last label on two; two-lines: equal
+// widths, every label on up to two lines broken at spaces; all-icons: every button icon-only, content
+// widths; stacked: buttons one under another (footer).
 export type RowMode = 'natural' | 'shared' | 'icons' | 'two-lines' | 'all-icons' | 'stacked'
 export type Row = { mode: RowMode, height: number, icon: number, padX: number, buttons: RowButton[] }
 export type CardLayout = {
@@ -241,8 +243,10 @@ export function createModel(): Model {
   //      widths; then the same with tighter horizontal padding;
   //   3. icons (toolbar): buttons become icon-only one at a time in the app's collapse order (the least
   //      important first; widest label first only when the app gives no order), at most half of them;
-  //   4. two-lines: equal widths, every label on up to two lines, broken at spaces only;
-  //   5. all-icons (toolbar) or stacked (footer).
+  //   4. two-lines: equal widths, every label on up to two lines, broken at spaces only (then tighter);
+  //   5. toolbar with a collapse order: more icons until only the order's last button keeps its label,
+  //      on one line, else on two lines broken at spaces;
+  //   6. all-icons (toolbar, content widths, start-aligned) or stacked (footer).
   // Steps 1 and 2 are one fitFontSizeRich call over the whole row as one line (each label an item that
   // never breaks, padding and gaps as extra width), so the shared size is the kit's answer.
   function layoutRow(o: {
@@ -259,71 +263,109 @@ export function createModel(): Model {
       icons ? [{ width: lead(px) }, { text: ls[i]!, font: font(px) }] : [{ text: ls[i]!, font: font(px) }]
     const ownWidth = (i: number, px: number) => shrinkwrapRich(richOne(`${o.key}|own|${i}|${px}|${role.style.fontFamily}\n${ls[i]}`, own(i, px)), Number.POSITIVE_INFINITY).width
 
-    // Steps 1-3: one line, content widths, some labels possibly collapsed to icons.
+    // One line, content widths, the first k buttons of the collapse order shown as icons, at padding pad.
     const order = o.collapseOrder ?? ls.map((_, i) => i).sort((a, b) => ownWidth(b, max) - ownWidth(a, max))
-    const maxCollapsed = icons ? Math.floor(n / 2) : 0
-    const attempts: { k: number, pad: number }[] = [{ k: 0, pad: padX }, { k: 0, pad: o.tightPadX }]
-    for (let k = 1; k <= maxCollapsed; k++) attempts.push({ k, pad: o.tightPadX })
-    for (const { k, pad } of attempts) {
+    const oneLine = (k: number, pad: number): Row | null => {
       const collapsed = new Set(order.slice(0, k))
-      const padX = pad
       const items = (px: number): Array<RichInlineItem | RichInlineBox> => ls.flatMap((s, i) => {
         const after = i < n - 1 ? gap : 0
-        if (collapsed.has(i)) return [{ width: 2 * padX + iconAt(px) + after }]
+        if (collapsed.has(i)) return [{ width: 2 * pad + iconAt(px) + after }]
         return [
-          { width: padX + lead(px) },
-          { text: s, font: font(px), break: 'never' as const, extraWidth: padX + after },
+          { width: pad + lead(px) },
+          { text: s, font: font(px), break: 'never' as const, extraWidth: pad + after },
         ]
       })
       let u = max
       while (u >= floor) {
         const f = fitFontSizeRich(sizedRich(`${o.key}|row|${pad}|${[...collapsed].join(',')}|${role.style.fontFamily}\n${ls.join('\n')}`, items, floor, u), { width: inner, maxLines: 1 }, lh)
-        if (f === null) break
+        if (f === null) return null
         // Each button is its own text's width, whole pixels, so check the rounded sum still fits.
-        const widths = ls.map((_, i) => collapsed.has(i) ? 2 * padX + iconAt(f.px) : ownWidth(i, f.px) + 2 * padX)
+        const widths = ls.map((_, i) => collapsed.has(i) ? 2 * pad + iconAt(f.px) : ownWidth(i, f.px) + 2 * pad)
         const used = widths.reduce((a, b) => a + b, 0) + gap * (n - 1)
         if (used <= inner) {
           const buttons = widths.map((width, i) =>
-            ({ width, contentWidth: width - 2 * padX, fit: collapsed.has(i) ? null : { px: f.px, lineHeight: lh(f.px), lines: 1 } }))
-          const mode: RowMode = k > 0 ? 'icons' : f.px === max && pad === o.padX ? 'natural' : 'shared'
-          return { mode, icon: iconAt(f.px), padX, height: Math.max(lh(f.px), iconAt(f.px)) + 2 * padY, buttons }
+            ({ width, contentWidth: width - 2 * pad, fit: collapsed.has(i) ? null : { px: f.px, lineHeight: lh(f.px), lines: 1 } }))
+          const mode: RowMode = k > 0 ? 'icons' : f.px === max && pad === padX ? 'natural' : 'shared'
+          return { mode, icon: iconAt(f.px), padX: pad, height: Math.max(lh(f.px), iconAt(f.px)) + 2 * padY, buttons }
         }
-        u = f.px - 1
-      }
-    }
-
-    // Step 4: equal widths, up to two lines, every break at a space: no word (nor the icon and the
-    // first word) may be wider than the button.
-    const equal = Math.floor((inner - gap * (n - 1)) / n)
-    const content = equal - 2 * padX
-    const wordsFit = (i: number, px: number) => {
-      const words = ls[i]!.split(' ')
-      return words.every((w, j) => (j === 0 ? lead(px) : 0) + natural(w, font(px)) <= content + FIT_TOLERANCE)
-    }
-    const spaces = (i: number, u: number): Fit | null => {
-      while (u >= floor) {
-        const items = (px: number) => own(i, px)
-        const f = fitFontSizeRich(sizedRich(`${o.key}|two|${i}|${role.style.fontFamily}\n${ls[i]}`, items, floor, u), { width: content, maxLines: 2 }, lh)
-        if (f === null) return null
-        if (wordsFit(i, f.px)) return { px: f.px, lineHeight: lh(f.px), lines: f.lineCount }
         u = f.px - 1
       }
       return null
     }
-    const two = fitTogether(spaces, n, max)
-    if (two !== null) {
-      const tallest = Math.max(...two.map(f => f.lines * f.lineHeight))
-      return {
-        mode: 'two-lines', icon: iconAt(two[0]!.px), padX, height: tallest + 2 * padY,
-        buttons: two.map(f => ({ width: equal, contentWidth: content, fit: f })),
+
+    // Up to two lines in a content box this wide, every break at a space: no word (nor the icon and
+    // the first word) may be wider than the box.
+    const spaces = (i: number, u: number, content: number): Fit | null => {
+      const wordsFit = (px: number) => ls[i]!.split(' ').every((w, j) =>
+        (j === 0 ? lead(px) : 0) + natural(w, font(px)) <= content + FIT_TOLERANCE)
+      while (u >= floor) {
+        const items = (px: number) => own(i, px)
+        const f = fitFontSizeRich(sizedRich(`${o.key}|two|${i}|${role.style.fontFamily}\n${ls[i]}`, items, floor, u), { width: content, maxLines: 2 }, lh)
+        if (f === null) return null
+        if (wordsFit(f.px)) return { px: f.px, lineHeight: lh(f.px), lines: f.lineCount }
+        u = f.px - 1
+      }
+      return null
+    }
+
+    // Steps 1-3: full size, a shared size, tighter padding, then icons up to half the buttons.
+    const half = icons ? Math.floor(n / 2) : 0
+    for (const [k, pad] of [[0, padX], [0, o.tightPadX], ...Array.from({ length: half }, (_, j) => [j + 1, o.tightPadX])] as [number, number][]) {
+      const r = oneLine(k, pad)
+      if (r !== null) return r
+    }
+
+    // Step 4: equal widths, every label on up to two lines broken at spaces; then with tighter padding.
+    for (const pad of [padX, o.tightPadX]) {
+      const equal = Math.floor((inner - gap * (n - 1)) / n)
+      const content = equal - 2 * pad
+      const two = fitTogether((i, u) => spaces(i, u, content), n, max)
+      if (two !== null) {
+        const tallest = Math.max(...two.map(f => f.lines * f.lineHeight))
+        return {
+          mode: 'two-lines', icon: iconAt(two[0]!.px), padX: pad, height: tallest + 2 * padY,
+          buttons: two.map(f => ({ width: equal, contentWidth: content, fit: f })),
+        }
       }
     }
 
-    // Step 5.
+    if (icons && o.collapseOrder !== undefined) {
+      // Step 5a: keep collapsing in the app's order past half, until only its last button is labelled.
+      for (let k = half + 1; k <= n - 1; k++) {
+        const r = oneLine(k, o.tightPadX)
+        if (r !== null) return r
+      }
+      // Step 5b: that last label on up to two lines, broken at spaces, the others icons; content widths.
+      const keep = order[n - 1]!
+      for (const pad of [padX, o.tightPadX]) {
+        let u = max
+        while (u >= floor) {
+          const iconsWidth = (n - 1) * (2 * pad + iconAt(u))
+          const content = inner - iconsWidth - gap * (n - 1) - 2 * pad
+          const f = content > 0 ? spaces(keep, u, content) : null
+          if (f === null) break
+          const iconW = 2 * pad + iconAt(f.px)
+          const labelContent = shrinkwrapRich(richOne(`${o.key}|own|${keep}|${f.px}|${role.style.fontFamily}\n${ls[keep]}`, own(keep, f.px)), content).width
+          const used = (n - 1) * iconW + labelContent + 2 * pad + gap * (n - 1)
+          if (used <= inner) {
+            return {
+              mode: 'icons', icon: iconAt(f.px), padX: pad, height: Math.max(f.lines * f.lineHeight, iconAt(f.px)) + 2 * padY,
+              buttons: ls.map((_, i) => i === keep
+                ? { width: labelContent + 2 * pad, contentWidth: labelContent, fit: f }
+                : { width: iconW, contentWidth: iconAt(f.px), fit: null }),
+            }
+          }
+          u = f.px - 1
+        }
+      }
+    }
+
+    // Step 5c: every button icon-only, each as wide as its icon and padding, start-aligned.
     if (icons) {
+      const pad = n * (2 * padX + iconAt(floor)) + gap * (n - 1) <= inner ? padX : o.tightPadX
       return {
-        mode: 'all-icons', icon: iconAt(floor), padX, height: iconAt(floor) + 2 * padY,
-        buttons: ls.map(() => ({ width: equal, contentWidth: content, fit: null })),
+        mode: 'all-icons', icon: iconAt(floor), padX: pad, height: iconAt(floor) + 2 * padY,
+        buttons: ls.map(() => ({ width: 2 * pad + iconAt(floor), contentWidth: iconAt(floor), fit: null })),
       }
     }
     const full = inner - 2 * padX

@@ -22,8 +22,10 @@
       <li><b>A toolbar and a button pair in one shared size</b>, chosen by measuring: full size with content widths,
         else one smaller size (never below 90%), else tighter padding, else icon-only one button at a time in the
         app's order (settings, then export, then new invoice; the daily closing report, this screen's subject,
-        keeps its label longest), else two lines broken at spaces, else all icons. CSS wraps the row onto a second
-        line instead.</li>
+        keeps its label longest), else two lines broken at spaces. On a phone the kit keeps one row and only the
+        report's label; the other buttons become icons named by <code>aria-label</code>. CSS keeps every label at
+        the cost of 2–3 rows. (In German at a 320px screen even „Tagesabschlussbericht“ doesn't fit at 90% of its
+        size, so all four buttons are icons, each as wide as its icon.)</li>
       <li><b>Badges whose text fits</b> instead of an ellipsis: one badge size for the list, as wide as its text, and
         the case row wraps before a badge is cut.</li>
       <li><b>A middle cut without a known split point</b>: <code>truncateMiddle</code> keeps as much of each end of a
@@ -83,10 +85,6 @@
       <li><b>Attachments</b>: <code>truncateMiddle</code> with no split point. CSS: a start span with
         <code>text-overflow: ellipsis</code> and an end span from the last <code>_</code>, which <b>matches the kit
         when the split point is known</b>, as it is for these names.</li>
-      <li>A CSS weakness this page shows: in German at a 340–360px screen, Chromium's <code>text-wrap: balance</code>
-        with <code>overflow-wrap</code> splits „Quartalsabonnements“ as „Quartalsabonn|ements“, with no hyphen,
-        because <code>hyphens: auto</code> has no German dictionary there. The kit hyphenates that word only when it
-        is wider than the card, and never balances a title narrower than its widest word.</li>
       <li>Fonts come from <code>fontFromStyle(getComputedStyle(el))</code> on probe elements styled like each role;
         <code>watchFonts</code> clears Pretext's cache when Inter arrives, and the page prepares again.</li>
     </ul>

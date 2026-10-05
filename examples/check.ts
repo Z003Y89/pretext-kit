@@ -112,7 +112,8 @@ for (const vw of VIEWPORTS) {
         // The README's hero state: German, side by side where the page allows. Log what the kit's toolbar did.
         const half = await page.evaluate(() => Math.floor((document.getElementById('stage')!.clientWidth - 24) / 2))
         const w = vw === 360 ? 320 : half
-        await both(lang('de'), slider('width', w))(page)
+        for (const l of ['en', 'fr', 'de']) {
+        await both(lang(l), slider('width', w))(page)
         await frame(page)
         const tb = await page.evaluate(() => {
           const bar = document.querySelector<HTMLElement>('.screen.kit .toolbar')!
@@ -120,9 +121,13 @@ for (const vw of VIEWPORTS) {
           return `${bar.dataset.mode}: ` + buttons.map(b => b.getAttribute('aria-label') !== null ? `[${b.getAttribute('aria-label')} as icon]` : (b.textContent ?? '').trim()).join(' | ')
             + ` (${buttons.map(b => b.style.width).join(', ')}, padding ${buttons[0]!.style.paddingLeft})`
         })
-        log.push(`${where} de toolbar at a ${w}px screen: ${tb}`)
+        log.push(`${where} ${l} toolbar at a ${w}px screen: ${tb}`)
+        }
       }
       if (SHOTS && (vw === 1280 || (vw === 360 && p === 'responsive-ui'))) {
+        // The phone shot in English, where the report keeps its label; in German at 320px even it
+        // doesn't fit at 90% of its size, and all four buttons are icons.
+        if (p === 'responsive-ui' && vw === 360) await lang('en')(page)
         if (p === 'text-size') await slider('scale', 1.3)(page)
         await frame(page)
         await page.evaluate(p => (document.querySelector(p === 'languages' ? '.lang-block:nth-child(2)' : '#stage') as HTMLElement).scrollIntoView(), p)
