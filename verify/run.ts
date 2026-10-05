@@ -1,13 +1,17 @@
 import { build } from 'esbuild'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium, firefox, webkit } from 'playwright'
 import type { BrowserType } from 'playwright'
 import { WIDTH_MAX, WIDTH_MIN } from './corpora.ts'
+import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
 import type { CaseResult, Helper } from './sweep.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
+const playwrightVersion: string = JSON.parse(
+  readFileSync(join(here, '../node_modules/playwright/package.json'), 'utf8'),
+).version
 
 // An IIFE bundle, because file:// pages cannot load ES modules in every browser.
 await build({
@@ -33,7 +37,7 @@ for (const s of stepArg ?? []) {
 
 const BROWSERS: [string, BrowserType][] = [['chromium', chromium], ['webkit', webkit], ['firefox', firefox]]
 const HELPERS: Helper[] = helperArg ?? ['shrinkwrap', 'balance', 'fitFontSize']
-const OUTCOMES = ['pass', 'pretext-gap', 'kit-mismatch'] as const
+const OUTCOMES = ['pass', 'pretext-gap', 'platform', 'kit-mismatch'] as const
 
 type Run = { browser: string, version: string, helper: Helper, seconds: number, results: CaseResult[] }
 const runs: Run[] = []
@@ -68,9 +72,10 @@ function count(rs: CaseResult[], outcome: string): number {
 }
 
 function table(rows: [string, CaseResult[]][]): string[] {
-  const out = ['| | cases | pass | pretext-gap | kit-mismatch |', '|---|---:|---:|---:|---:|']
+  const out = ['| | cases | pass | pretext-gap | platform | kit-mismatch |', '|---|---:|---:|---:|---:|---:|']
   for (const [label, rs] of rows) {
-    out.push(`| ${label} | ${rs.length} | ${count(rs, 'pass')} | ${count(rs, 'pretext-gap')} | ${count(rs, 'kit-mismatch')} |`)
+    const n = OUTCOMES.map(o => count(rs, o)).join(' | ')
+    out.push(`| ${label} | ${rs.length} | ${n} |`)
   }
   return out
 }
@@ -86,7 +91,21 @@ if (full) {
     `Widths ${WIDTH_MIN}-${WIDTH_MAX}px, step per helper: ${Object.entries(steps).map(([k, v]) => `${k} ${v}`).join(', ')}.`,
     'A `pretext-gap` case is one where Pretext\'s own line count differs from the browser\'s at the width (or, for',
     'fitFontSize, at a size) the judgement needs, so the kit cannot be judged there. A `kit-mismatch` is the kit',
-    'answering wrongly where Pretext was right.',
+    'answering wrongly where Pretext was right. A `platform` case is a kit-mismatch whose cause is proven, case by',
+    'case, to be a browser painting something its CSS does not say; only the cause below is recognised.',
+    '',
+    `Playwright is pinned to ${playwrightVersion}: on macOS 14 Playwright ships a frozen WebKit build`,
+    '(webkit_mac14_arm64_special-2251), and Playwright 1.62 and later send it a protocol setting it rejects',
+    '(`Page.overrideSetting`: "Unknown setting: PushAPIEnabled"), so no WebKit page opens.',
+    '',
+    `**\`${WEBKIT_LINE_HEIGHT_FLOOR}\`.** WebKit 26 lays line boxes out at whole pixels, so a fractional`,
+    '`line-height` paints as its floor (16.5px paints 16px lines) while `getComputedStyle` still reports 16.5px;',
+    'Pretext\'s `PLATFORM_BUGS.md` ("Engine rules Pretext models") records that Safari 27 moved line boxes to the',
+    '1/64 px grid where Safari 26 did not. fitFontSize, given the CSS line height, then models a taller box than',
+    'WebKit paints and can answer one size below the largest that fits; it never answers a size that overflows. A case',
+    'gets this cause only if its line height is fractional, the contradicting painting is exactly lines × the floored',
+    'line height, and the same judgement passes when the kit is rerun with floored line heights. For exact fits in',
+    'Safari 26, use whole-px line heights.',
     '',
   ]
   for (const [name] of BROWSERS) {

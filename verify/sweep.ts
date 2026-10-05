@@ -4,9 +4,12 @@ import { balance, fitFontSize, fontFromStyle, prepareSizes, shrinkwrap } from '.
 import type { StyleFont } from '../src/index.ts'
 import { CORPORA, FONT_SIZE, FONT_STACKS, LINE_HEIGHT, widths } from './corpora.ts'
 import type { FontStack } from './corpora.ts'
+import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
 
 export type Helper = 'shrinkwrap' | 'balance' | 'fitFontSize' | 'clamp' | 'truncateMiddle'
-export type Outcome = 'pass' | 'pretext-gap' | 'kit-mismatch'
+// 'platform' is a case the kit got wrong only because the browser paints something its CSS does
+// not say, with the mechanism proven for that case; cause names the mechanism.
+export type Outcome = 'pass' | 'pretext-gap' | 'kit-mismatch' | 'platform'
 export type CaseResult = {
   helper: string
   corpus: string
@@ -15,7 +18,9 @@ export type CaseResult = {
   lines?: number
   outcome: Outcome
   detail?: string
+  cause?: string
 }
+
 
 declare global {
   interface Window {
@@ -137,6 +142,46 @@ function describe(px: number, c: SizeCheck, width: number): string {
 
 const sizesCache = new Map<string, ReturnType<typeof prepareSizes>>()
 
+type Verdict = {
+  outcome: Outcome
+  lines?: number
+  detail?: string
+  // The size whose painting contradicted the kit, kept so a mismatch can be attributed.
+  evidence?: { px: number, check: SizeCheck }
+}
+
+function judgeFit(result: ReturnType<typeof fitFontSize>, stack: FontStack, text: string, width: number): Verdict {
+  if (result === null) {
+    const at = checkSize(stack, text, FIT_MIN, width)
+    if (at.gap !== undefined) return { outcome: 'pretext-gap', detail: `null, ${at.gap}` }
+    if (!at.fits) return { outcome: 'pass', lines: at.painted.lines }
+    return { outcome: 'kit-mismatch', lines: at.painted.lines, detail: `null, but ${describe(FIT_MIN, at, width)}`, evidence: { px: FIT_MIN, check: at } }
+  }
+  const at = checkSize(stack, text, result.px, width)
+  if (at.gap !== undefined) return { outcome: 'pretext-gap', detail: `returned ${result.px}px, ${at.gap}` }
+  if (!at.fits) {
+    return {
+      outcome: 'kit-mismatch',
+      lines: at.painted.lines,
+      detail: `returned ${result.px}px, but ${describe(result.px, at, width)}`,
+      evidence: { px: result.px, check: at },
+    }
+  }
+  if (result.px < FIT_MAX) {
+    const next = checkSize(stack, text, result.px + 1, width)
+    if (next.gap !== undefined) return { outcome: 'pretext-gap', detail: `returned ${result.px}px, ${next.gap}` }
+    if (next.fits) {
+      return {
+        outcome: 'kit-mismatch',
+        lines: at.painted.lines,
+        detail: `returned ${result.px}px, but ${describe(result.px + 1, next, width)} and fits`,
+        evidence: { px: result.px + 1, check: next },
+      }
+    }
+  }
+  return { outcome: 'pass', lines: at.painted.lines }
+}
+
 function fitCase(corpus: string, stack: FontStack, label: string, text: string, width: number): CaseResult {
   const f = fontAt(stack, FONT_SIZE, LINE_HEIGHT)
   const base = { helper: 'fitFontSize', corpus, font: stack.label, width }
@@ -153,33 +198,24 @@ function fitCase(corpus: string, stack: FontStack, label: string, text: string, 
     })
     sizesCache.set(key, sizes)
   }
-  const result = fitFontSize(sizes, { width, height: FIT_HEIGHT }, px => fontAt(stack, px, px * FIT_LINE_HEIGHT_RATIO).lineHeight)
+  const box = { width, height: FIT_HEIGHT }
+  const lineHeight = (px: number): number => fontAt(stack, px, px * FIT_LINE_HEIGHT_RATIO).lineHeight
+  const v = judgeFit(fitFontSize(sizes, box, lineHeight), stack, text, width)
+  const out: CaseResult = { ...base, outcome: v.outcome }
+  if (v.lines !== undefined) out.lines = v.lines
+  if (v.detail !== undefined) out.detail = `${label}: ${v.detail}`
+  if (v.outcome !== 'kit-mismatch' || v.evidence === undefined) return out
 
-  if (result === null) {
-    const at = checkSize(stack, text, FIT_MIN, width)
-    if (at.gap !== undefined) return { ...base, outcome: 'pretext-gap', detail: `${label}: null, ${at.gap}` }
-    if (!at.fits) return { ...base, lines: at.painted.lines, outcome: 'pass' }
-    return { ...base, lines: at.painted.lines, outcome: 'kit-mismatch', detail: `${label}: null, but ${describe(FIT_MIN, at, width)}` }
-  }
-
-  const at = checkSize(stack, text, result.px, width)
-  if (at.gap !== undefined) return { ...base, outcome: 'pretext-gap', detail: `${label}: returned ${result.px}px, ${at.gap}` }
-  if (!at.fits) {
-    return { ...base, lines: at.painted.lines, outcome: 'kit-mismatch', detail: `${label}: returned ${result.px}px, but ${describe(result.px, at, width)}` }
-  }
-  if (result.px < FIT_MAX) {
-    const next = checkSize(stack, text, result.px + 1, width)
-    if (next.gap !== undefined) return { ...base, outcome: 'pretext-gap', detail: `${label}: returned ${result.px}px, ${next.gap}` }
-    if (next.fits) {
-      return {
-        ...base,
-        lines: at.painted.lines,
-        outcome: 'kit-mismatch',
-        detail: `${label}: returned ${result.px}px, but ${describe(result.px + 1, next, width)} and fits`,
-      }
-    }
-  }
-  return { ...base, lines: at.painted.lines, outcome: 'pass' }
+  // Safari 26 lays line boxes out at whole pixels (Pretext's PLATFORM_BUGS.md). A mismatch is put
+  // down to that only when all three hold for this case: the line height is fractional, the
+  // contradicting painting is exactly lines × its floor, and the kit's answer, recomputed with
+  // floored line heights, passes the same judgement. Anything less stays a kit-mismatch.
+  const { px, check } = v.evidence
+  const lh = lineHeight(px)
+  if (Number.isInteger(lh) || check.painted.height !== check.painted.lines * Math.floor(lh)) return out
+  const floored = judgeFit(fitFontSize(sizes, box, p => Math.floor(lineHeight(p))), stack, text, width)
+  if (floored.outcome !== 'pass') return out
+  return { ...out, outcome: 'platform', cause: WEBKIT_LINE_HEIGHT_FLOOR }
 }
 
 window.sweep = async (helper: Helper): Promise<CaseResult[]> => {
