@@ -5,7 +5,7 @@ import { parseFont, type ParsedFont } from './shorthand.ts'
 
 // Pretext picks its engine profile from the user agent; Node's and jsdom's pick Blink but not
 // desktop Blink, whose profile the stand-in's widths are Chrome's for.
-export const CHROME_USER_AGENT =
+const CHROME_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36'
 
 export type InstallOptions = {
@@ -375,9 +375,12 @@ function isEmojiProbe(text: string): boolean {
   return text === '\u{1F600}'
 }
 
-function emojiProbeWidth(faces: FontFace[], parsed: ParsedFont): number | null {
+// Letter spacing is added after the one glyph, as for the U+300C probe's glyphs (Chrome spaces
+// every glyph, fallback ones too); Pretext measures the probe at '0px' or its 1e-6 shaping spacing,
+// which rounds to nothing, so this matters only to a caller measuring U+1F600 letter-spaced itself.
+function emojiProbeWidth(faces: FontFace[], parsed: ParsedFont, spacing: number): number | null {
   for (let i = 0; i < faces.length; i++) if (covers(faces[i]!, 0x1f600)) return null
-  return Math.fround(parsed.sizePx)
+  return Math.fround(Math.fround(parsed.sizePx) + spacing)
 }
 
 // Canvas keeps letterSpacing as the CSS length it was given and ignores what doesn't parse.
@@ -462,7 +465,7 @@ function createContext(): HeadlessContext {
         if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
       }
       if (isEmojiProbe(content)) {
-        const width = emojiProbeWidth(faces, parsed)
+        const width = emojiProbeWidth(faces, parsed, spacing)
         if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
       }
       return measure(content, {

@@ -314,3 +314,23 @@ test('an uncovered emoji, alone or in a longer segment, still throws', () => {
   assert.throws(() => prepareWithSegments('Weiter 🎉', inter16), HeadlessCoverageError)
   assert.throws(() => width('a😀'), HeadlessCoverageError)
 })
+
+// Final review M8: Chrome adds letter spacing after every glyph, the probes' stand-in glyphs too,
+// so the U+1F600 probe takes it as the U+300C probes do.
+test('the emoji and Han probes both add letter spacing per glyph', () => {
+  const ctx = context(inter16)
+  const emoji = width('\u{1F600}', ctx)
+  const han = width('「「', ctx)
+  ctx.letterSpacing = '2px'
+  assert.equal(width('\u{1F600}', ctx), emoji + 2)
+  assert.equal(width('「「', ctx), han + 4)
+})
+
+// Final review M1: small-caps changes Canvas widths (synthesised or the font's smcp glyphs), which
+// the stand-in does not model, so a small-caps font throws rather than measuring as normal caps.
+test('a small-caps font throws a clear error instead of being ignored', () => {
+  const ctx = context(inter16)
+  assert.throws(() => { ctx.font = 'small-caps 16px Inter' }, /small-caps/)
+  assert.throws(() => prepareWithSegments('Speichern', 'small-caps 16px Inter'), /small-caps/)
+  assert.equal(ctx.font, inter16)
+})

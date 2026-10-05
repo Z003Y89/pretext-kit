@@ -31,10 +31,10 @@ test('maps every stretch keyword to a percentage', () => {
   for (let i = 0; i < keys.length; i++) assert.equal(parseFont(`${keys[i]} 10px A`).stretch, expected[keys[i]!])
 })
 
-test('accepts numeric weights, oblique, small-caps and normal placeholders', () => {
+test('accepts numeric weights, oblique and normal placeholders', () => {
   assert.equal(parseFont('1 10px A').weight, 1)
   assert.equal(parseFont('1000 10px A').weight, 1000)
-  assert.equal(parseFont('oblique small-caps normal 10px A').style, 'oblique')
+  assert.equal(parseFont('oblique normal normal 10px A').style, 'oblique')
   assert.equal(parseFont('normal normal normal 10px A').weight, 400)
 })
 
@@ -91,4 +91,10 @@ test('parses Pretext probe strings', () => {
   assert.deepEqual(parseFont('16px monospace').families, ['monospace'])
   assert.deepEqual(parseFont('16px "Fam", serif').families, ['Fam', 'serif'])
   assert.deepEqual(parseFont('16px "Fam", monospace').families, ['Fam', 'monospace'])
+})
+
+// Final review M1: Canvas widths change under small-caps, which the stand-in does not model.
+test('small-caps throws, naming why', () => {
+  assert.throws(() => parseFont('small-caps 10px A'), /small-caps/)
+  assert.throws(() => parseFont('oblique small-caps normal 10px A'), /small-caps/)
 })

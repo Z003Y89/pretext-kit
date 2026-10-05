@@ -23,8 +23,16 @@ const SIZE = /^(\d+(?:\.\d+)?(?:e[+-]?\d+)?|\.\d+(?:e[+-]?\d+)?)(px|pt)(?=\/|$)/
 const ANGLE = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?(?:deg|grad|rad|turn)$/i
 const WS = /\s/
 
+// A font Canvas would reject: the context ignores it, as Canvas does.
 function fail(font: string, why: string): never {
   throw new RangeError(`parseFont: ${why} in "${font}"`)
+}
+
+// A font Canvas accepts but the stand-in can't measure as Chrome does: an Error, not a RangeError,
+// so the context's font setter lets it through instead of ignoring the font, which would measure
+// the text silently in the previous font.
+function unsupported(font: string, why: string): never {
+  throw new Error(`pretext-kit/headless: ${why} in "${font}"`)
 }
 
 // Family names may be quoted and contain commas or spaces, so the list is
@@ -106,8 +114,11 @@ export function parseFont(font: string): ParsedFont {
       weight = Number(token)
       if (weight < 1 || weight > 1000) fail(font, `font-weight ${token} out of range 1-1000`)
     } else if (STRETCH.has(lower)) stretch = STRETCH.get(lower)!
-    // 'normal' and small-caps do not affect measurement, so they are accepted and dropped.
-    else if (lower !== 'small-caps') fail(font, `missing font size (unexpected "${token}")`)
+    // Canvas widths change with small-caps (the font's smcp glyphs or synthesised small capitals),
+    // which the stand-in doesn't model, so it is refused rather than measured as normal caps.
+    else if (lower === 'small-caps') unsupported(font, 'small-caps is not supported (Canvas widths change with it, and the headless stand-in does not model it)')
+    // 'normal' does not affect measurement, so it is accepted and dropped.
+    else if (lower !== 'normal') fail(font, `missing font size (unexpected "${token}")`)
     pos = end
   }
 }

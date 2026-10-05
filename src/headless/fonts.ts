@@ -1,6 +1,5 @@
 import { inflateSync } from 'node:zlib'
 import { Blob, Face } from 'harfbuzzjs'
-import * as wawoff2 from 'wawoff2'
 import { sharedState } from './shared.ts'
 
 export type FontStyle = 'normal' | 'italic'
@@ -94,11 +93,25 @@ function woffToSfnt(data: Uint8Array): Uint8Array {
   return out
 }
 
+// wawoff2 is an optional peer, needed only for WOFF2, so it is loaded only when one is registered:
+// without it installed, the entry still loads and every other format registers.
+async function decompressWoff2(data: Uint8Array): Promise<Uint8Array> {
+  let wawoff2: typeof import('wawoff2')
+  try {
+    wawoff2 = await import('wawoff2')
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code
+    if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') throw error
+    throw new Error('registerFont: WOFF2 fonts need the optional peer wawoff2 (npm i -D wawoff2); TTF, OTF, TTC and WOFF do not', { cause: error })
+  }
+  return new Uint8Array(await wawoff2.decompress(data))
+}
+
 async function toSfnt(data: Uint8Array): Promise<Uint8Array> {
   if (data.length >= 4) {
     const signature = tagAt(data, 0)
     // Raw WOFF2 handed to HarfBuzz fails silently, so it must be decompressed here.
-    if (signature === 'wOF2') return new Uint8Array(await wawoff2.decompress(data))
+    if (signature === 'wOF2') return decompressWoff2(data)
     if (signature === 'wOFF') return woffToSfnt(data)
     if (signature === 'ttcf' || signature === 'OTTO' || signature === 'true' || signature === 'typ1') return data
     if (data[0] === 0 && data[1] === 1 && data[2] === 0 && data[3] === 0) return data
