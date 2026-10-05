@@ -295,8 +295,10 @@ test('bad ranges throw', () => assert.throws(() => prepareSizes(T, font, { min: 
   - the clamped height / 24 equals `lineCount`;
   - each returned line, painted in a `white-space: pre` span with the last one followed by `…`, has `getBoundingClientRect().width ≤ W + 1/64`.
 - [ ] **Step 2: Add the truncateMiddle case** for labels at widths 80-400 with `keepEnd = { from: text.lastIndexOf('/') }`. Paint the result in `white-space: pre`. `pass` iff its width ≤ W + 1/64, and, when it isn't the whole label and the file name fits in W minus the ellipsis, it ends with the file name.
-- [ ] **Step 3: Run** `npm run verify`. Expected: zero `kit-mismatch` across all five helpers and three browsers. `RESULTS.md` lists `pretext-gap` counts by corpus (expected mostly Arabic and CJK, per Pretext's ENGINE_FOLLOWUPS.md).
-- [ ] **Step 4: Commit** `test: browser sweep for clamp and truncateMiddle` with the updated `RESULTS.md`.
+- [ ] **Step 3: German soft hyphens.** Add devDependency `hyphen` (check and record its pattern licence in the report). Add a `german` corpus of about 12 texts dense with compounds („Tagesabschlussbericht“, „Nebenrollen-Takes“, „Synchronsprecherinnen“), hyphenated once with `hyphen/de`'s `hyphenateSync` so they hold U+00AD. Paint them with `hyphens: manual` (never `auto`: each browser's own dictionary differs). Every helper sweeps it like the other corpora.
+- [ ] **Step 4: Zoom.** `run.ts` runs the whole sweep at Playwright `deviceScaleFactor` 1, 1.25 and 2 (browser/Electron zoom changes the device pixel ratio, not CSS px). `RESULTS.md` gets one table per browser × factor.
+- [ ] **Step 5: Run** `npm run verify`. Expected: zero `kit-mismatch` across all five helpers, three browsers and three factors. `RESULTS.md` lists `pretext-gap` counts by corpus (expected mostly Arabic and CJK, per Pretext's ENGINE_FOLLOWUPS.md).
+- [ ] **Step 6: Commit** `test: browser sweep for clamp and truncateMiddle` with the updated `RESULTS.md`.
 
 ### Task 8: Bench, demo page, README
 
@@ -308,6 +310,12 @@ test('bad ranges throw', () => assert.throws(() => prepareSizes(T, font, { min: 
 
 - [ ] **Step 1: Bench.** 1,000 chat messages from the corpora at `16px Helvetica Neue…`. Report the median of 20 runs, in µs per message, for: `prepareWithSegments` (first sight), `shrinkwrap`, `balance`, `clamp(…, 3)`, and `fitFontSize` (cold and warm `PreparedSizes`), each at a resize from 400 → 399 px. `npm run verify -- --bench` runs it in all three browsers and appends a "Cost" table to `RESULTS.md` with builds and date. There are no thresholds (spec: reported, not targeted).
 - [ ] **Step 2: Demo** `demo/index.html`: a width slider over sections for bubbles (shrinkwrap vs CSS `fit-content`), headline (balance vs CSS `text-wrap: balance`), card (clamp vs `-webkit-line-clamp`), file list (truncateMiddle vs `text-overflow: ellipsis`), badge (fitFontSize) and a 10,000-row virtual list (stack/findIndexAt/anchorDelta). Follow Pretext's demo rule: the model owns every measured value, the painter writes them inline, and the demo never corrects what the kit reports. Bundle with esbuild like `verify/`. Check it by hand at three widths in the built-in browser.
-- [ ] **Step 3: README.** Install (note the Pretext `main` dependency until its next release); one short example per helper; "What's exact" pointing at `verify/RESULTS.md` numbers; "Not in v1" from the spec. Copy no Pretext caveats: link to its README.
+- [ ] **Step 3: README.** Install (note the Pretext `main` dependency until its next release); one short example per helper; "What's exact" pointing at `verify/RESULTS.md` numbers; "Not in v1" from the spec. Copy no Pretext caveats: link to its README. Also these sections, short:
+  - **When to measure with the DOM instead**: a handful of labels on screen. The browser already knows exactly, with icons and padding. The kit pays off for many texts, every resize frame, or before the text exists (virtual lists).
+  - **Fonts**: bundle the app's font with `@font-face` and await `document.fonts.load(font)` before preparing. Call `clearCache()` and prepare again after a late font. Never `system-ui`/`-apple-system` on macOS (link Pretext's caveat).
+  - **Hyphenation**: German example with `hyphen/de` → soft hyphens → the same string measured and painted with `hyphens: manual`, citing the german corpus numbers.
+  - **Zoom and scale**: browser/Electron zoom needs no correction (cite the deviceScaleFactor runs). A text-size setting is a different font px: prepare per size (`prepareSizes` covers it). Fonts aren't supported through `font-feature-settings`/`font-variant-numeric` (e.g. tabular figures): Canvas can't express them.
+  - **Mixed rows**: an icon + badge + text row with `prepareRichInline([{ width: 16 }, { text: '207/0011', font, break: 'never', extraWidth: 12 }, { text: 'Dr. Lind', font }])` and `shrinkwrapRich`.
+  - **Versions**: pin the Pretext commit; the kit calls six Pretext functions (list them).
 - [ ] **Step 4: Run** `npm test && npm run check && npm run build`. Expected: all pass, `dist/index.js` and `.d.ts` emitted.
 - [ ] **Step 5: Commit** `docs: README, demo and bench`.
