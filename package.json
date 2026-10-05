@@ -18,7 +18,8 @@
     "examples": "node examples/build.ts",
     "examples:serve": "node examples/build.ts && node examples/serve.ts",
     "examples:data": "node examples/build-accuracy-data.ts",
-    "examples:check": "node examples/check.ts"
+    "examples:check": "node examples/check.ts",
+    "examples:screenshots": "node examples/check.ts --screenshots"
   },
   "peerDependencies": {
     "@chenglou/pretext": ">=0.0.10"

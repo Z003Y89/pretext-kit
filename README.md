@@ -19,11 +19,12 @@ What it adds that CSS can't do:
 Coming, not shipped yet: **pretext-kit/headless**, the same answers in Node and CI with no browser
 ([below](#headless-coming)).
 
-![A billing screen in German, side by side: pretext-kit puts the toolbar in one row with one label collapsed to its icon; best-effort CSS wraps the toolbar onto a second row](examples/screenshots/responsive-ui.png)
+![A billing screen in German at 588px, side by side: pretext-kit keeps the toolbar on one row, tightens its padding and collapses only the settings button to its icon; best-effort CSS wraps the toolbar onto a second row](examples/screenshots/responsive-ui.png)
 
 *The [examples](#examples): one screen laid out by the kit (left) and by best-effort CSS (right). Good CSS doesn't
-overflow either; the kit decides things CSS can't, such as one shared size for the toolbar and which labels
-collapse to icons.*
+overflow either; the kit decides things CSS can't. Here the toolbar stays on one row: tighter padding first, then
+icon-only buttons in the app's priority order (settings first; the daily closing report, the screen's subject,
+keeps its label).*
 
 ## Install
 
@@ -280,7 +281,8 @@ two-span middle cut, `clamp()` sizes), with live sizes and timings, in light and
 CSS handles equally well (titles, bodies, row heights):
 
 - **Responsive UI**: a billing screen from 320 to 1440px: a toolbar and button pair in one shared size
-  (`fitFontSizeRich`, content widths, then icon-only for the widest labels, then two lines broken at spaces),
+  (`fitFontSizeRich`, content widths, then tighter padding, then icon-only buttons in the app's priority order, then
+  two lines broken at spaces),
   badges that fit (`fitFontSize`, `shrinkwrap`), file names cut in the middle with no split point
   (`truncateMiddle`), and a 2,000-row list with exact heights and a scroll anchor (`stack`, `findIndexAt`,
   `anchorDelta`) beside CSS `content-visibility: auto`.
@@ -294,7 +296,7 @@ CSS handles equally well (titles, bodies, row heights):
 
 Fonts come from `fontFromStyle(getComputedStyle(el))`; the local server sends Inter 1.5 s late so `watchFonts`
 visibly lays the page out again. `npm run examples:check` loads every page in headless Chromium at 360, 768 and
-1280px and fails on a console error or on a kit-side box that overflows for any reason other than a pretext-gap
+1280px (`npm run examples:screenshots` also rewrites `examples/screenshots/`) and fails on a console error or on a kit-side box that overflows for any reason other than a pretext-gap
 (a paragraph the browser wraps differently from Pretext's own layout of it). In its last run neither side
 overflowed anywhere; best-effort CSS wrapped the toolbar onto a second row in 8 of 21 settings at 1280px and in
 every setting at 360px.

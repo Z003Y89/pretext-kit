@@ -19,7 +19,7 @@ type Data = {
 }
 
 const SHORT: Record<Outcome, string> = { pass: 'pass', 'pretext-gap': 'gap', platform: 'platform', unreliable: 'unreliable', 'kit-mismatch': 'mismatch' }
-const CLASS: Record<Outcome, string> = { pass: 'c-pass', 'pretext-gap': 'c-gap', platform: 'c-platform', unreliable: 'c-gap', 'kit-mismatch': 'c-mismatch' }
+const CLASS: Record<Outcome, string> = { pass: 'c-pass', 'pretext-gap': 'c-gap', platform: 'c-platform', unreliable: 'c-unreliable', 'kit-mismatch': 'c-mismatch' }
 const DESCRIBE: Record<string, string> = {
   fontFromStyle: 'one case per font stack and pinned size; the width column is the font size',
   shrinkwrap: 'widths 120–600px',

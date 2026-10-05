@@ -124,9 +124,10 @@ export const STRINGS: Record<Lang, ScreenText> = {
   },
 }
 
-// Hyphenation policy, the same on both sides: labels, badges, buttons and bodies carry no soft
-// hyphens. Titles get them only in a word wider than the card, where the alternative is an arbitrary
-// overflow-wrap break; the kit knows which words those are because it measures them. The hyphenated
+// Hyphenation policy: on both sides, labels, badges, buttons and bodies are not hyphenated. Kit titles
+// get soft hyphens only in a word wider than the card, where the alternative is an arbitrary
+// overflow-wrap break; the kit knows which words those are because it measures them. CSS titles use
+// hyphens: auto, which depends on the browser having a dictionary for the language. The hyphenated
 // titles come from the build (examples/build.ts, `hyphen` TeX patterns: en-us, de-1996, fr), one
 // string per card, the same words as the plain title with U+00AD inside some of them.
 declare const __HYPHENATED_TITLES__: Record<Lang, string[]>

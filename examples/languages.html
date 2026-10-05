@@ -47,6 +47,10 @@
         same break opportunities; the verify sweep runs German and French hyphenated this way through every helper
         (<code>verify/RESULTS.md</code>).</li>
       <li>Titles, bodies and card heights: <b>CSS handles these equally well</b> for display.</li>
+      <li>A CSS weakness this page shows: in German at a 340–360px screen (on Responsive UI), Chromium's <code>text-wrap: balance</code>
+        with <code>overflow-wrap</code> splits „Quartalsabonnements“ as „Quartalsabonn|ements“, with no hyphen,
+        because <code>hyphens: auto</code> has no German dictionary there. The kit hyphenates that word only when it
+        is wider than the card, and never balances a title narrower than its widest word.</li>
       <li>File names, case numbers and names are never hyphenated.</li>
     </ul>
   </section>

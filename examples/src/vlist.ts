@@ -19,14 +19,17 @@ const VIEW = 360
 const OVERSCAN = 4
 const ESTIMATE = 60
 
-// Deterministic messages of varied length, from the screen's own sentences in all three languages.
+// Deterministic messages of varied length, made of whole sentences (and whole titles) from the
+// screen's own copy in all three languages, so no message reads as cut off.
 function messages(): string[] {
-  const pool = LANGS.flatMap(l => STRINGS[l].cards.flatMap(c => [c.body, c.title]))
+  const pool = LANGS.flatMap(l => STRINGS[l].cards.flatMap(c => [c.title, ...c.body.split(/(?<=[.;])\s+/)]))
   const out: string[] = []
   for (let i = 0; i < COUNT; i++) {
-    const words = pool[(i * 7) % pool.length]!.split(' ')
-    const n = 3 + ((i * 37) % Math.max(1, words.length - 2))
-    out.push(`#${i + 1} ` + words.slice(0, n).join(' '))
+    const start = (i * 7) % pool.length
+    const n = 1 + ((i * 37) % 3)
+    const parts: string[] = []
+    for (let k = 0; k < n; k++) parts.push(pool[(start + k) % pool.length]!)
+    out.push(`#${i + 1} ` + parts.join(' '))
   }
   return out
 }

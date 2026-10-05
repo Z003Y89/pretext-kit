@@ -77,6 +77,9 @@ export function fontAt(r: RoleFont, px: number): string {
 export const SCREEN_PAD = 16
 const TOOLBAR_GAP = 8
 const BUTTON_PAD_X = 10
+const BUTTON_TIGHT_PAD_X = 6
+// Toolbar buttons are [new invoice, daily closing report, export, settings].
+const TOOLBAR_COLLAPSE_ORDER = [3, 2, 0, 1]
 const BUTTON_PAD_Y = 8
 const CARD_GAP = 12
 const CARD_PAD = 14
@@ -92,7 +95,7 @@ const FILE_ICON_GAP = 6
 const FOOTER_GAP = 8
 const FOOTER_PAD_X = 16
 const FOOTER_PAD_Y = 10
-const FOOTER_MAX = 260
+const FOOTER_TIGHT_PAD_X = 10
 const BODY_LINES = 3
 const ANY = [1, 2, Number.POSITIVE_INFINITY]
 
@@ -121,7 +124,7 @@ export type RowButton = { width: number, contentWidth: number, fit: Fit | null }
 // icons: the widest labels collapsed to icons; two-lines: equal widths, labels on up to two lines
 // broken at spaces; all-icons: every button icon-only; stacked: buttons one under another.
 export type RowMode = 'natural' | 'shared' | 'icons' | 'two-lines' | 'all-icons' | 'stacked'
-export type Row = { mode: RowMode, height: number, icon: number, buttons: RowButton[] }
+export type Row = { mode: RowMode, height: number, icon: number, padX: number, buttons: RowButton[] }
 export type CardLayout = {
   meta: Fit & { width: number }
   badge: Fit & { width: number, contentWidth: number }
@@ -232,16 +235,19 @@ export function createModel(): Model {
   }
 
   // A row of buttons (toolbar, footer), decided in this order:
-  //   1. natural: each label at full size, buttons as wide as their content, spare room shared out;
-  //   2. shared: one smaller size for every label, down to the floor, still one line, still content widths;
-  //   3. icons (toolbar): the widest labels become icon-only, at most half of them;
+  //   1. natural: each label at full size, buttons as wide as their content, aligned to the start (the
+  //      row is not stretched);
+  //   2. shared: one smaller size for every label, down to the floor, still one line, still content
+  //      widths; then the same with tighter horizontal padding;
+  //   3. icons (toolbar): buttons become icon-only one at a time in the app's collapse order (the least
+  //      important first; widest label first only when the app gives no order), at most half of them;
   //   4. two-lines: equal widths, every label on up to two lines, broken at spaces only;
   //   5. all-icons (toolbar) or stacked (footer).
   // Steps 1 and 2 are one fitFontSizeRich call over the whole row as one line (each label an item that
   // never breaks, padding and gaps as extra width), so the shared size is the kit's answer.
   function layoutRow(o: {
-    key: string, labels: string[], role: RoleFont, max: number, inner: number, gap: number, padX: number, padY: number,
-    icons: boolean, capWidth: number,
+    key: string, labels: string[], role: RoleFont, max: number, inner: number, gap: number, padX: number, tightPadX: number,
+    padY: number, icons: boolean, collapseOrder?: number[],
   }): Row {
     const { labels: ls, role, max, inner, gap, padX, padY, icons } = o
     const n = ls.length
@@ -254,10 +260,13 @@ export function createModel(): Model {
     const ownWidth = (i: number, px: number) => shrinkwrapRich(richOne(`${o.key}|own|${i}|${px}|${role.style.fontFamily}\n${ls[i]}`, own(i, px)), Number.POSITIVE_INFINITY).width
 
     // Steps 1-3: one line, content widths, some labels possibly collapsed to icons.
-    const order = ls.map((_, i) => i).sort((a, b) => ownWidth(b, max) - ownWidth(a, max))
+    const order = o.collapseOrder ?? ls.map((_, i) => i).sort((a, b) => ownWidth(b, max) - ownWidth(a, max))
     const maxCollapsed = icons ? Math.floor(n / 2) : 0
-    for (let k = 0; k <= maxCollapsed; k++) {
+    const attempts: { k: number, pad: number }[] = [{ k: 0, pad: padX }, { k: 0, pad: o.tightPadX }]
+    for (let k = 1; k <= maxCollapsed; k++) attempts.push({ k, pad: o.tightPadX })
+    for (const { k, pad } of attempts) {
       const collapsed = new Set(order.slice(0, k))
+      const padX = pad
       const items = (px: number): Array<RichInlineItem | RichInlineBox> => ls.flatMap((s, i) => {
         const after = i < n - 1 ? gap : 0
         if (collapsed.has(i)) return [{ width: 2 * padX + iconAt(px) + after }]
@@ -268,19 +277,16 @@ export function createModel(): Model {
       })
       let u = max
       while (u >= floor) {
-        const f = fitFontSizeRich(sizedRich(`${o.key}|row|${[...collapsed].join(',')}|${role.style.fontFamily}\n${ls.join('\n')}`, items, floor, u), { width: inner, maxLines: 1 }, lh)
+        const f = fitFontSizeRich(sizedRich(`${o.key}|row|${pad}|${[...collapsed].join(',')}|${role.style.fontFamily}\n${ls.join('\n')}`, items, floor, u), { width: inner, maxLines: 1 }, lh)
         if (f === null) break
         // Each button is its own text's width, whole pixels, so check the rounded sum still fits.
         const widths = ls.map((_, i) => collapsed.has(i) ? 2 * padX + iconAt(f.px) : ownWidth(i, f.px) + 2 * padX)
         const used = widths.reduce((a, b) => a + b, 0) + gap * (n - 1)
         if (used <= inner) {
-          const share = Math.floor((inner - used) / n)
-          const buttons = widths.map((w, i) => {
-            const width = Math.min(w + share, Math.max(w, o.capWidth))
-            return { width, contentWidth: width - 2 * padX, fit: collapsed.has(i) ? null : { px: f.px, lineHeight: lh(f.px), lines: 1 } }
-          })
-          const mode: RowMode = k > 0 ? 'icons' : f.px === max ? 'natural' : 'shared'
-          return { mode, icon: iconAt(f.px), height: Math.max(lh(f.px), iconAt(f.px)) + 2 * padY, buttons }
+          const buttons = widths.map((width, i) =>
+            ({ width, contentWidth: width - 2 * padX, fit: collapsed.has(i) ? null : { px: f.px, lineHeight: lh(f.px), lines: 1 } }))
+          const mode: RowMode = k > 0 ? 'icons' : f.px === max && pad === o.padX ? 'natural' : 'shared'
+          return { mode, icon: iconAt(f.px), padX, height: Math.max(lh(f.px), iconAt(f.px)) + 2 * padY, buttons }
         }
         u = f.px - 1
       }
@@ -308,7 +314,7 @@ export function createModel(): Model {
     if (two !== null) {
       const tallest = Math.max(...two.map(f => f.lines * f.lineHeight))
       return {
-        mode: 'two-lines', icon: iconAt(two[0]!.px), height: tallest + 2 * padY,
+        mode: 'two-lines', icon: iconAt(two[0]!.px), padX, height: tallest + 2 * padY,
         buttons: two.map(f => ({ width: equal, contentWidth: content, fit: f })),
       }
     }
@@ -316,14 +322,14 @@ export function createModel(): Model {
     // Step 5.
     if (icons) {
       return {
-        mode: 'all-icons', icon: iconAt(floor), height: iconAt(floor) + 2 * padY,
+        mode: 'all-icons', icon: iconAt(floor), padX, height: iconAt(floor) + 2 * padY,
         buttons: ls.map(() => ({ width: equal, contentWidth: content, fit: null })),
       }
     }
     const full = inner - 2 * padX
     const stacked = must(fitTogether((i, u) => fitPlain(sized(ls[i]!, role, floor, u), role, full, ANY), n, max), o.key)
     return {
-      mode: 'stacked', icon: 0, height: 0,
+      mode: 'stacked', icon: 0, padX, height: 0,
       buttons: stacked.map(f => ({ width: inner, contentWidth: full, fit: f })),
     }
   }
@@ -338,7 +344,10 @@ export function createModel(): Model {
 
     const toolbar = layoutRow({
       key: 'toolbar', labels: [...t.toolbar], role: fonts.label, max: at(fonts.label.size), inner, gap: TOOLBAR_GAP,
-      padX: BUTTON_PAD_X, padY: BUTTON_PAD_Y, icons: true, capWidth: Number.POSITIVE_INFINITY,
+      padX: BUTTON_PAD_X, tightPadX: BUTTON_TIGHT_PAD_X, padY: BUTTON_PAD_Y, icons: true,
+      // The app's collapse order, least important first: settings, export, new; the report (this
+      // screen's subject) last, so it keeps its label longest.
+      collapseOrder: TOOLBAR_COLLAPSE_ORDER,
     })
 
     // Cards: the model's columns, equal widths.
@@ -435,7 +444,7 @@ export function createModel(): Model {
 
     const footer = layoutRow({
       key: 'footer', labels: [t.secondary, t.primary], role: fonts.button, max: at(fonts.button.size), inner, gap: FOOTER_GAP,
-      padX: FOOTER_PAD_X, padY: FOOTER_PAD_Y, icons: false, capWidth: FOOTER_MAX,
+      padX: FOOTER_PAD_X, tightPadX: FOOTER_TIGHT_PAD_X, padY: FOOTER_PAD_Y, icons: false,
     })
 
     return {
@@ -615,6 +624,7 @@ export function paintKit(d: ScreenDom, L: ScreenLayout, body: string[][], fonts:
     const fit = r.fit
     b.button.style.width = px(r.width)
     b.button.style.height = px(L.toolbar.height)
+    b.button.style.paddingLeft = b.button.style.paddingRight = px(L.toolbar.padX)
     b.content.style.width = px(r.contentWidth)
     if (fit === null) {
       // Icon-only: the label stays as the button's accessible name and tooltip.
@@ -699,6 +709,7 @@ export function paintKit(d: ScreenDom, L: ScreenLayout, body: string[][], fonts:
     const r = L.footer.buttons[i]!
     const f = r.fit!
     b.button.style.width = px(r.width)
+    b.button.style.paddingLeft = b.button.style.paddingRight = px(L.footer.padX)
     b.label.style.width = px(r.contentWidth)
     b.label.style.fontSize = px(f.px)
     b.label.style.lineHeight = px(f.lineHeight)

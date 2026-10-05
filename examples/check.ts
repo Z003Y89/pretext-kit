@@ -1,6 +1,7 @@
 // npm run examples:check (after npm run examples): loads every page in headless Chromium at 360,
 // 768 and 1280px, fails on any console error or page error and on any kit-side box whose content
-// doesn't fit it at the slider settings below, and writes the README's screenshots.
+// doesn't fit it at the slider settings below. With --screenshots (npm run examples:screenshots) it
+// also rewrites the README's screenshots in examples/screenshots/; without it, it leaves them alone.
 
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -14,6 +15,7 @@ const PORT = 4174
 const base = `http://localhost:${PORT}/`
 const VIEWPORTS = [360, 768, 1280]
 const shots = join(here, 'screenshots')
+const SHOTS = process.argv.includes('--screenshots')
 mkdirSync(shots, { recursive: true })
 
 const server = spawn(process.execPath, [join(here, 'serve.ts')], { env: { ...process.env, PORT: String(PORT) }, stdio: 'pipe' })
@@ -106,12 +108,21 @@ for (const vw of VIEWPORTS) {
       const initial = await overflow(page)
       for (const k of initial.kit) failures.push(`${where} default: kit overflow: ${k}`)
       for (const g of initial.gaps) gapLog.push(`${where} default: ${g}`)
-      if (vw === 1280 || (vw === 360 && p === 'responsive-ui')) {
-        // A state where the two sides differ: German, and side by side where the page allows.
-        if (p === 'responsive-ui') {
-          const half = await page.evaluate(() => Math.floor((document.getElementById('stage')!.clientWidth - 24) / 2))
-          await both(lang('de'), slider('width', vw === 360 ? 320 : half))(page)
-        }
+      if (p === 'responsive-ui' && (vw === 1280 || vw === 360)) {
+        // The README's hero state: German, side by side where the page allows. Log what the kit's toolbar did.
+        const half = await page.evaluate(() => Math.floor((document.getElementById('stage')!.clientWidth - 24) / 2))
+        const w = vw === 360 ? 320 : half
+        await both(lang('de'), slider('width', w))(page)
+        await frame(page)
+        const tb = await page.evaluate(() => {
+          const bar = document.querySelector<HTMLElement>('.screen.kit .toolbar')!
+          const buttons = [...bar.querySelectorAll<HTMLElement>('.tb')]
+          return `${bar.dataset.mode}: ` + buttons.map(b => b.getAttribute('aria-label') !== null ? `[${b.getAttribute('aria-label')} as icon]` : (b.textContent ?? '').trim()).join(' | ')
+            + ` (${buttons.map(b => b.style.width).join(', ')}, padding ${buttons[0]!.style.paddingLeft})`
+        })
+        log.push(`${where} de toolbar at a ${w}px screen: ${tb}`)
+      }
+      if (SHOTS && (vw === 1280 || (vw === 360 && p === 'responsive-ui'))) {
         if (p === 'text-size') await slider('scale', 1.3)(page)
         await frame(page)
         await page.evaluate(p => (document.querySelector(p === 'languages' ? '.lang-block:nth-child(2)' : '#stage') as HTMLElement).scrollIntoView(), p)
@@ -149,7 +160,7 @@ for (const vw of VIEWPORTS) {
       const cost = await page.evaluate(() => [...document.querySelectorAll('#readout div')]
         .find(d => d.querySelector('dt')?.textContent?.startsWith('Kit time'))?.querySelector('dd')?.textContent ?? '')
       log.push(`${where}: ${screen.settings.length} settings (${screens} screen layouts): kit boxes overflowing 0, best-effort CSS boxes overflowing ${cssTotal}; CSS toolbars wrapped onto 2+ rows ${wrappedTotal}/${screens}, CSS badges cut ${cutTotal}; after a drag: ${cost}`)
-    } else if (vw === 1280 && p === 'accuracy') {
+    } else if (SHOTS && vw === 1280 && p === 'accuracy') {
       await page.click('#factor-filter button[value="1"]')
       await page.click('table.grid button.c-platform >> nth=0')
       await page.screenshot({ path: join(shots, `${p}.png`), fullPage: false })
