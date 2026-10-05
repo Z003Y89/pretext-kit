@@ -16,7 +16,7 @@
     "unreliable": 0
   },
   "chromium@1/clamp": {
-    "pretext-gap": 801,
+    "pretext-gap": 577,
     "unreliable": 0
   },
   "chromium@1/truncateMiddle": {
@@ -28,23 +28,23 @@
     "unreliable": 0
   },
   "chromium@1.25/shrinkwrap": {
-    "pretext-gap": 5041,
+    "pretext-gap": 1272,
     "unreliable": 0
   },
   "chromium@1.25/balance": {
-    "pretext-gap": 4670,
+    "pretext-gap": 1173,
     "unreliable": 0
   },
   "chromium@1.25/fitFontSize": {
-    "pretext-gap": 304,
+    "pretext-gap": 71,
     "unreliable": 0
   },
   "chromium@1.25/clamp": {
-    "pretext-gap": 801,
+    "pretext-gap": 148,
     "unreliable": 0
   },
   "chromium@1.25/truncateMiddle": {
-    "pretext-gap": 3,
+    "pretext-gap": 1,
     "unreliable": 0
   },
   "chromium@2/fontFromStyle": {
@@ -52,23 +52,23 @@
     "unreliable": 0
   },
   "chromium@2/shrinkwrap": {
-    "pretext-gap": 5041,
+    "pretext-gap": 1272,
     "unreliable": 0
   },
   "chromium@2/balance": {
-    "pretext-gap": 4670,
+    "pretext-gap": 1173,
     "unreliable": 0
   },
   "chromium@2/fitFontSize": {
-    "pretext-gap": 304,
+    "pretext-gap": 71,
     "unreliable": 0
   },
   "chromium@2/clamp": {
-    "pretext-gap": 801,
+    "pretext-gap": 148,
     "unreliable": 0
   },
   "chromium@2/truncateMiddle": {
-    "pretext-gap": 3,
+    "pretext-gap": 1,
     "unreliable": 0
   },
   "webkit@1/fontFromStyle": {
@@ -88,7 +88,7 @@
     "unreliable": 0
   },
   "webkit@1/clamp": {
-    "pretext-gap": 124,
+    "pretext-gap": 83,
     "unreliable": 0
   },
   "webkit@1/truncateMiddle": {
@@ -100,7 +100,7 @@
     "unreliable": 0
   },
   "webkit@1.25/shrinkwrap": {
-    "pretext-gap": 1015,
+    "pretext-gap": 260,
     "unreliable": 0
   },
   "webkit@1.25/balance": {
@@ -112,7 +112,7 @@
     "unreliable": 0
   },
   "webkit@1.25/clamp": {
-    "pretext-gap": 124,
+    "pretext-gap": 25,
     "unreliable": 0
   },
   "webkit@1.25/truncateMiddle": {
@@ -124,7 +124,7 @@
     "unreliable": 0
   },
   "webkit@2/shrinkwrap": {
-    "pretext-gap": 1015,
+    "pretext-gap": 260,
     "unreliable": 0
   },
   "webkit@2/balance": {
@@ -136,7 +136,7 @@
     "unreliable": 0
   },
   "webkit@2/clamp": {
-    "pretext-gap": 124,
+    "pretext-gap": 25,
     "unreliable": 0
   },
   "webkit@2/truncateMiddle": {
@@ -160,7 +160,7 @@
     "unreliable": 0
   },
   "firefox@1/clamp": {
-    "pretext-gap": 273,
+    "pretext-gap": 89,
     "unreliable": 0
   },
   "firefox@1/truncateMiddle": {
@@ -172,19 +172,19 @@
     "unreliable": 0
   },
   "firefox@1.25/shrinkwrap": {
-    "pretext-gap": 1313,
+    "pretext-gap": 330,
     "unreliable": 0
   },
   "firefox@1.25/balance": {
-    "pretext-gap": 1013,
+    "pretext-gap": 255,
     "unreliable": 0
   },
   "firefox@1.25/fitFontSize": {
-    "pretext-gap": 51,
+    "pretext-gap": 12,
     "unreliable": 0
   },
   "firefox@1.25/clamp": {
-    "pretext-gap": 273,
+    "pretext-gap": 22,
     "unreliable": 0
   },
   "firefox@1.25/truncateMiddle": {
@@ -196,19 +196,19 @@
     "unreliable": 0
   },
   "firefox@2/shrinkwrap": {
-    "pretext-gap": 1313,
+    "pretext-gap": 330,
     "unreliable": 0
   },
   "firefox@2/balance": {
-    "pretext-gap": 1013,
+    "pretext-gap": 255,
     "unreliable": 0
   },
   "firefox@2/fitFontSize": {
-    "pretext-gap": 51,
+    "pretext-gap": 12,
     "unreliable": 0
   },
   "firefox@2/clamp": {
-    "pretext-gap": 273,
+    "pretext-gap": 22,
     "unreliable": 0
   },
   "firefox@2/truncateMiddle": {

@@ -33,3 +33,27 @@ test('the start holds no hyphen where it passes a soft hyphen', () =>
 // which kerns across the ellipsis, came out up to a quarter pixel wider than the width.
 test('the result is measured whole, and the start gives up what kerning adds', () =>
   assert.equal(truncateMiddle(prepareLabel('yyyyyyyy zzzzzzzz', '20px Kern'), 100), 'yyyy…zzzz'))
+// Review round 1: the test above passes without measuring the name as its own text; this one does
+// not, since the kerned name only fits when measured whole.
+test('a kerned name that fits only measured whole is kept', () =>
+  assert.equal(truncateMiddle(prepareLabel('src/a/tstststs.ts', '20px Kern'), 115, { from: 5 }), 's…/tstststs.ts'))
+// Review round 1: the start must be the longest that fits before its end, measured as the one text
+// the result paints as. Summed apart, the kerned 'ts' pairs left graphemes of room unused.
+test('the start is the longest that fits before the end', () => {
+  const label = 'tstststststs/tstsxx/ts.ts'
+  const L = prepareLabel(label, '20px Kern')
+  const fits = (s: string, w: number) => measureNaturalWidth(prepareWithSegments(s, '20px Kern')) <= w + 1 / 64
+  for (let w = 40; w <= 220; w++) for (const keepEnd of [undefined, { from: label.lastIndexOf('/') }]) {
+    const out = truncateMiddle(L, w, keepEnd)
+    if (out === label) continue
+    const [head, end] = out.split('…') as [string, string]
+    assert.ok(label.startsWith(head) && label.endsWith(end), `${w}: ${out}`)
+    assert.ok(head.length === 1 || fits(out, w), `${w}: ${out} overruns`)
+    const next = label.slice(head.length, head.length + 1)
+    if (head.length + 1 <= label.length - end.length) assert.ok(!fits(head + next + '…' + end, w), `${w}: ${out} stops short`)
+  }
+})
+// Review round 1: a start holding soft hyphens measured as syllables apart, wider than it paints
+// joined (here 'ts' kerns across them), so the start stopped a grapheme short.
+test('a start is measured without its soft hyphens', () =>
+  assert.equal(truncateMiddle(prepareLabel('at­sat­sat­s zz yy', '20px Kern'), 100), 'atsat…zz yy'))

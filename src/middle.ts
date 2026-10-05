@@ -1,6 +1,7 @@
-import { layoutNextLine, layoutNextLineRange, layoutWithLines, measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
+import { layoutNextLine, layoutNextLineRange, layoutWithLines, prepareWithSegments } from '@chenglou/pretext'
 import type { LayoutCursor, PreparedTextWithSegments } from '@chenglou/pretext'
-import { fillLine, measureTail } from './clamp.ts'
+import { measureTail } from './clamp.ts'
+import { graphemeEnds, longestPrefix, measureText, trimCut } from './cut.ts'
 import { FIT_TOLERANCE } from './fit.ts'
 
 export type PreparedLabel = {
@@ -11,11 +12,11 @@ export type PreparedLabel = {
   offsets: number[]
   ellipsisWidth: number
   spaceWidth: number
-  hyphenWidth: number
 }
 
 const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
 const ELLIPSIS = '…'
+const SOFT_HYPHENS = /\u00AD/g
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
 // Code-unit offset of a cursor in the source text. Pretext's cursors count graphemes
@@ -64,25 +65,21 @@ export function prepareLabel(text: string, font: string): PreparedLabel {
     offsets,
     ellipsisWidth: tail.width,
     spaceWidth: tail.spaceWidth,
-    hyphenWidth: tail.hyphenWidth,
   }
 }
 
-// The start that fills the room `end` leaves, around an ellipsis, checked against the whole
-// result as Pretext measures it painted: the pieces were measured apart, and the joined text
-// kerns and shapes across its seams, so where it comes out wider the start gives up the excess
-// and is cut again. `fits` is false only when the start is down to the one grapheme it keeps.
-function withStart(label: PreparedLabel, end: string, endWidth: number, width: number): { text: string, fits: boolean } {
-  let room = width - label.ellipsisWidth - endWidth
-  for (;;) {
-    const head = fillLine(label.prepared, START, room, label)
-    const text = head.text + ELLIPSIS + end
-    const painted = measureNaturalWidth(prepareWithSegments(text, label.font))
-    if (painted <= width + FIT_TOLERANCE) return { text, fits: true }
-    if (graphemeCount(head.text) <= 1) return { text, fits: false }
-    // Below the start's own width, so each round cuts at least one grapheme.
-    room = head.width - (painted - width)
-  }
+// The longest start of the label, before the end at `endFrom`, that fits around an ellipsis
+// with `end`, measured as the one text the result paints as: the start keeps one grapheme
+// whatever the room, so `fits` is false only when even that overruns. Soft hyphens paint
+// nothing inside the line, so the start drops them before it is measured: kept, they would
+// split its words into syllables measured apart.
+function withStart(label: PreparedLabel, end: string, endFrom: number, width: number): { text: string, fits: boolean } {
+  const ends = graphemeEnds(label.text).filter(e => e <= endFrom)
+  if (ends.length === 0) ends.push(graphemeEnds(label.text)[0] ?? 0)
+  const visible = (prefix: string): string => prefix.replace(SOFT_HYPHENS, '')
+  const head = visible(trimCut(longestPrefix(label, label.text, ends, width, prefix => visible(prefix) + ELLIPSIS + end)))
+  const text = head + ELLIPSIS + end
+  return { text, fits: measureText(label, text) <= width + FIT_TOLERANCE }
 }
 
 function graphemeCount(text: string): number {
@@ -112,21 +109,21 @@ export function truncateMiddle(label: PreparedLabel, width: number, keepEnd?: { 
     const name = layoutNextLine(prepared, starts[nameStart]!, Number.POSITIVE_INFINITY)
     // The name is painted as text of its own after the ellipsis, so it is measured that way:
     // the line from inside the label's segment sums its graphemes one by one, and fonts kern.
-    const nameWidth = name === null ? 0 : measureNaturalWidth(prepareWithSegments(label.text.slice(offsets[nameStart]), label.font))
+    const nameWidth = name === null ? 0 : measureText(label, label.text.slice(offsets[nameStart]))
     if (name !== null && nameWidth <= room) {
       // The start keeps one grapheme whatever the room, so with the name filling the room the
       // result would overrun the width; the half-room end below always leaves the start room.
-      const kept = withStart(label, name.text, nameWidth, width)
+      const kept = withStart(label, name.text, offsets[nameStart]!, width)
       if (kept.fits) return kept.text
     }
   }
   let end = ''
-  let endWidth = 0
+  let endFrom = label.text.length
   for (let i = starts.length - 1; i > 0; i--) {
     const rest = layoutNextLine(prepared, starts[i]!, Number.POSITIVE_INFINITY)
     if (rest === null || rest.width > room / 2) break
     end = rest.text
-    endWidth = rest.width
+    endFrom = offsets[i]!
   }
-  return withStart(label, end, endWidth, width).text
+  return withStart(label, end, endFrom, width).text
 }

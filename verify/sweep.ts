@@ -177,6 +177,12 @@ function modelShrinkwrap(p: PreparedTextWithSegments, width: number): number {
   return Math.min(width, w)
 }
 
+// Balance answers at least the widest piece no width breaks (a grapheme, a line at width 0), so the
+// box contains it; one pixel narrower is then no claim of minimality, as the kit's contract says.
+function holdsWiderPiece(p: PreparedTextWithSegments, width: number): boolean {
+  return measureLineStats(p, 0).maxLineWidth > width - 1 + FIT
+}
+
 function widthCase(
   helper: 'shrinkwrap' | 'balance',
   stack: FontStack,
@@ -199,7 +205,7 @@ function widthCase(
   if (helper === 'shrinkwrap') {
     const want = modelShrinkwrap(p, width)
     if (fit.width !== want) return { outcome: 'kit-mismatch', detail: `${said}, Pretext's widest line gives ${want}` }
-  } else if (fit.width > 1) {
+  } else if (fit.width > 1 && !holdsWiderPiece(p, fit.width)) {
     const narrower = layout(p, fit.width - 1, LINE_HEIGHT).lineCount
     if (narrower <= fit.lineCount) {
       return { outcome: 'kit-mismatch', detail: `${said}, but Pretext lays out ${narrower} lines at ${fit.width - 1}px` }
@@ -234,7 +240,7 @@ function widthCase(
       detail: `widest line: DOM ${widest}px (wants ${expected}), Pretext ${modelWidest}px (gave ${fit.width})`,
     }
   }
-  if (fit.width > 1) {
+  if (fit.width > 1 && !holdsWiderPiece(p, fit.width)) {
     // Balance's claim is minimality: one pixel narrower must cost a line in the browser too.
     const narrower = paint(stack, text, FONT_SIZE, LINE_HEIGHT, fit.width - 1)
     if (narrower.lines <= fit.lineCount) {
@@ -244,7 +250,7 @@ function widthCase(
   return { outcome: 'pass', lines: atFit.lines }
 }
 
-type SizeCheck = { fits: boolean, gap?: string, painted: Painted }
+type SizeCheck = { fits: boolean, gap?: string, painted: Painted, widest?: number }
 
 // Judges one size the way the box would: the painted height and any horizontal overflow decide
 // the fit. Pretext's count at that size must match the painting, or the kit's answer was built
@@ -253,9 +259,20 @@ function checkSize(stack: FontStack, text: string, px: number, width: number): S
   const lh = px * FIT_LINE_HEIGHT_RATIO
   const f = fontAt(stack, px, lh)
   const painted = paint(stack, text, px, lh, width)
-  const fits = painted.height <= FIT_HEIGHT && painted.scrollWidth <= width
+  let fits = painted.height <= FIT_HEIGHT && painted.scrollWidth <= width
+  // Where Pretext lays out a line it reports past the width (and the kit admits it, as no piece
+  // overflows), scrollWidth, a whole pixel, cannot show a sliver of overrun: the painted lines
+  // themselves must fit, measured to the fraction.
+  let widest: number | undefined
+  if (measureLineStats(prepared(text, f), width).maxLineWidth > width + FIT) {
+    widest = widestPaintedLine(lh)
+    fits = fits && widest <= width + FIT
+  }
   const gap = gapAt(painted.lines, layout(prepared(text, f), width, lh).lineCount, `at ${px}px`)
-  return gap === undefined ? { fits, painted } : { fits, painted, gap }
+  const check: SizeCheck = { fits, painted }
+  if (widest !== undefined) check.widest = widest
+  if (gap !== undefined) check.gap = gap
+  return check
 }
 
 // Reports the painted per-line height beside the CSS one, since an engine that snaps line boxes
@@ -263,7 +280,8 @@ function checkSize(stack: FontStack, text: string, px: number, width: number): S
 function describe(px: number, c: SizeCheck, width: number): string {
   const lh = px * FIT_LINE_HEIGHT_RATIO
   const perLine = c.painted.lines > 0 ? c.painted.height / c.painted.lines : 0
-  const overflow = c.painted.scrollWidth > width ? `, scrollWidth ${c.painted.scrollWidth}` : ''
+  const overflow = (c.painted.scrollWidth > width ? `, scrollWidth ${c.painted.scrollWidth}` : '')
+    + (c.widest !== undefined ? `, widest painted line ${c.widest}` : '')
   return `${px}px paints ${c.painted.lines} lines × ${perLine} (CSS line-height ${lh}) = ${c.painted.height}${overflow}`
 }
 
@@ -400,6 +418,20 @@ function firstGrapheme(text: string): string {
 function naturalWidth(text: string, f: StyleFont): number {
   return measureNaturalWidth(prepared(text, f))
 }
+// The same for texts that occur once (cuts with their tail), kept out of the prepared cache.
+function joinedWidth(text: string, f: StyleFont): number {
+  return measureNaturalWidth(prepareWithSegments(text, f.font, { letterSpacing: f.letterSpacing }))
+}
+
+// The text a cut could have kept one grapheme more of: the next grapheme of `rest`, with the
+// white space before it, since a cut that ends at a space would add the space and a grapheme.
+// Undefined when nothing visible follows.
+function oneMore(rest: string): string | undefined {
+  const m = /^\s*/.exec(rest)!
+  const after = rest.slice(m[0].length)
+  if (after === '') return undefined
+  return m[0] + firstGrapheme(after)
+}
 
 // What a painted line measures: the text in a white-space: pre span, so it neither wraps nor
 // collapses, read from its box. Widths repeat across widths and maxLines, so they are cached.
@@ -427,21 +459,6 @@ function paintClamp(stack: FontStack, text: string, width: number, maxLines: num
   return { ...countLines(height, LINE_HEIGHT), height, truncated: scrollHeight > clientHeight, scrollHeight, clientHeight }
 }
 
-// The hyphen Pretext paints where a line ends at a soft hyphen: the width of such a line less
-// the run before it, read with a probe of the harness's own rather than the kit's.
-const hyphenCache = new Map<string, number>()
-function hyphenOf(f: StyleFont): number {
-  let h = hyphenCache.get(f.font)
-  if (h === undefined) {
-    const run = naturalWidth('xxxxxx', f)
-    const line = layoutNextLine(prepared('xxxxxx\u00ADxxxxxx', f), START, 1.5 * run)
-    if (line === null || !line.text.endsWith('-')) throw new Error(`no soft-hyphen break in ${f.font}`)
-    h = line.width - run
-    hyphenCache.set(f.font, h)
-  }
-  return h
-}
-
 const tailCache = new Map<string, Tail>()
 function tailOf(f: StyleFont): Tail {
   let t = tailCache.get(f.font)
@@ -457,9 +474,8 @@ function judgeClampModel(p: PreparedTextWithSegments, f: StyleFont, width: numbe
   // The tail is the kit's measurement too, so it is checked against Pretext's widths first.
   const ellipsis = naturalWidth(ELLIPSIS, f)
   const nbsp = naturalWidth('\u00A0', f)
-  const hyphen = hyphenOf(f)
-  if (tail.width !== ellipsis || tail.spaceWidth !== nbsp || Math.abs(tail.hyphenWidth - hyphen) > 1e-9) {
-    return `measureTail gave ${JSON.stringify(tail)}, Pretext measures '…' ${ellipsis}, a no-break space ${nbsp} and a soft hyphen's hyphen ${hyphen}`
+  if (tail.text !== ELLIPSIS || tail.font !== f.font || tail.width !== ellipsis || tail.spaceWidth !== nbsp) {
+    return `measureTail gave ${JSON.stringify(tail)}, Pretext measures '…' ${ellipsis} and a no-break space ${nbsp}`
   }
   const total = layout(p, width, LINE_HEIGHT).lineCount
   const said = `returned ${c.lineCount} lines, truncated ${c.truncated}`
@@ -482,17 +498,32 @@ function judgeClampModel(p: PreparedTextWithSegments, f: StyleFont, width: numbe
       continue
     }
     if (graphemeCount(got.text) < 1) return `the last line is empty, Pretext's is ${JSON.stringify(full.text)}`
-    if (full.width + tail.width <= width + FIT) {
+    // The cut and its tail are judged as the one text they paint as, never by the kit's own width.
+    const wholeWithTail = joinedWidth(full.text.trimEnd() + ELLIPSIS, f)
+    if (wholeWithTail <= width + FIT) {
       if (got.text.trimEnd() !== full.text.trimEnd()) {
-        return `the tail fits after Pretext's last line ${JSON.stringify(full.text)} (${full.width} + ${tail.width}), but the kit cut it to ${JSON.stringify(got.text)}`
+        return `Pretext's last line with its tail ${JSON.stringify(full.text.trimEnd() + ELLIPSIS)} is ${wholeWithTail} wide and fits, but the kit cut it to ${JSON.stringify(got.text)}`
       }
-    } else if (!full.text.startsWith(got.text)) {
+      continue
+    }
+    if (!full.text.startsWith(got.text)) {
       return `the last line ${JSON.stringify(got.text)} is no prefix of Pretext's ${JSON.stringify(full.text)}`
     }
+    const cutWithTail = joinedWidth(got.text + ELLIPSIS, f)
     // A single kept grapheme may overrun: there is nothing left to cut.
-    const lone = graphemeCount(got.text) === 1 && naturalWidth(got.text, f) + tail.width > width + FIT
-    if (!lone && got.width + tail.width > width + FIT) {
-      return `the last line ${JSON.stringify(got.text)} is ${got.width} wide, and with the ${tail.width} tail overruns ${width}`
+    const lone = graphemeCount(got.text) === 1
+    if (!lone && cutWithTail > width + FIT) {
+      return `the last line with its tail ${JSON.stringify(got.text + ELLIPSIS)} is ${cutWithTail} wide and overruns ${width}`
+    }
+    // And it is the longest such cut: one more grapheme (a discretionary hyphen is none) would not fit.
+    const endsAtSoftHyphen = full.end.graphemeIndex === 0 && p.kinds[full.end.segmentIndex - 1] === 'soft-hyphen'
+    const rest = full.text.slice(got.text.length)
+    const more = endsAtSoftHyphen && rest === '-' ? undefined : oneMore(endsAtSoftHyphen ? rest.replace(/-$/, '') : rest)
+    if (more !== undefined) {
+      const longer = joinedWidth(got.text + more + ELLIPSIS, f)
+      if (longer <= width + FIT) {
+        return `the cut ${JSON.stringify(got.text)} stops short: ${JSON.stringify(got.text + more + ELLIPSIS)} is ${longer} wide and fits ${width}`
+      }
     }
   }
   return undefined
@@ -524,11 +555,12 @@ function clampCase(stack: FontStack, text: string, width: number, maxLines: numb
     const shown = isCut ? line.text + ELLIPSIS : line.text.trimEnd()
     const dom = paintedWidth(stack, shown)
     if (dom <= width + FIT) continue
-    if (isCut && graphemeCount(line.text) === 1 && naturalWidth(line.text, f) + tail.width > width + FIT) continue
+    const model = joinedWidth(shown, f)
+    if (isCut && graphemeCount(line.text) === 1 && model > width + FIT) continue
     return {
       outcome: 'pretext-gap',
       lines: box.lines,
-      detail: `line ${i + 1} ${JSON.stringify(shown)} paints ${dom}px, Pretext ${line.width + (isCut ? tail.width : 0)}px, box ${width}px`,
+      detail: `line ${i + 1} ${JSON.stringify(shown)} paints ${dom}px, Pretext ${model}px, box ${width}px`,
     }
   }
   return { outcome: 'pass', lines: box.lines }
@@ -572,6 +604,13 @@ function truncateMiddleCase(stack: FontStack, text: string, width: number): Case
   }
   const outWidth = naturalWidth(out, f)
   if (outWidth > width + FIT) return { outcome: 'kit-mismatch', detail: `${said}, ${outWidth} wide` }
+  // The start is the longest that fits before this end: one grapheme more would not.
+  const more = oneMore(plain.slice(head.length))
+  if (more !== undefined && head.length + more.length <= plain.length - tail.length) {
+    const longer = head + more + ELLIPSIS + tail
+    const longerWidth = joinedWidth(longer, f)
+    if (longerWidth <= width + FIT) return { outcome: 'kit-mismatch', detail: `${said}, but ${JSON.stringify(longer)} is ${longerWidth} wide and fits` }
+  }
   // The shortest result that keeps the name: one grapheme, the ellipsis and the name, measured
   // as the one text it would be, as the result's own width is.
   const name = from >= 0 ? text.slice(from) : ''

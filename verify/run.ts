@@ -1,5 +1,6 @@
 import { build } from 'esbuild'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { gzipSync } from 'node:zlib'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium, firefox, webkit } from 'playwright'
@@ -39,8 +40,10 @@ for (const s of stepArg ?? []) {
 const FACTORS = [1, 1.25, 2]
 const factorArg = args.find(a => a.startsWith('--factors='))?.slice(10).split(',').map(Number)
 const factors = factorArg ?? FACTORS
-// --zoom-step=<n> sweeps every factor but 1 at width step n, for when the full run is too slow.
-const zoomStep = Number(args.find(a => a.startsWith('--zoom-step='))?.slice(12) ?? 1)
+// Factors other than 1 sweep at width step 4 (--zoom-step=<n> to change it): the full step-1 run
+// at every factor (28 min) gave identical counts at 1, 1.25 and 2 in every browser, so the
+// zoomed runs are a sampled check that zoom still changes nothing, not a second full sweep.
+const zoomStep = Number(args.find(a => a.startsWith('--zoom-step='))?.slice(12) ?? 4)
 const stepsAt = (factor: number): Record<string, number> =>
   factor === 1 || zoomStep === 1 ? steps : Object.fromEntries(Object.entries(steps).map(([k, v]) => [k, v * zoomStep]))
 // `npm run verify --update-baseline` hands the flag to npm, which passes it on as an environment
@@ -112,36 +115,35 @@ function table(rows: [string, CaseResult[]][]): string[] {
 }
 
 type Located = { browser: string, factor: number, c: CaseResult }
-// Runs of adjacent widths usually share one finding, so they are listed as a range, and a finding
-// made at several factors is listed once with all of them: every case still appears.
-function ranged(cases: Located[]): string[] {
-  const merged = new Map<string, { browser: string, factors: number[], c: CaseResult }>()
+// Findings grouped by what they are: helper, corpus, text and the detail's pattern (numbers and
+// quoted text stand in as N and "…"), with how many cases each browser@factor had, the fonts and
+// widths they span and one example. The cases themselves are in verify/results/latest.json.gz.
+function grouped(cases: Located[]): string[] {
+  type Group = { head: string, pattern: string, where: Map<string, number>, fonts: Set<string>, min: number, max: number, example: string }
+  const groups = new Map<string, Group>()
   for (const { browser, factor, c } of cases) {
-    const key = JSON.stringify([browser, c.helper, c.maxLines, c.corpus, c.font, c.width, c.cause, c.detail])
-    const m = merged.get(key)
-    if (m === undefined) merged.set(key, { browser, factors: [factor], c })
-    else m.factors.push(factor)
-  }
-  const out: string[] = []
-  let open: { head: string, detail: string, step: number, from: number, to: number } | undefined
-  const flush = (): void => {
-    if (open === undefined) return
-    const at = open.from === open.to ? `${open.from}px` : `${open.from}-${open.to}px`
-    out.push(`- ${open.head} @ ${at}: ${open.detail}`)
-  }
-  for (const { browser, factors, c } of merged.values()) {
-    const maxLines = c.maxLines === undefined ? '' : ` maxLines ${c.maxLines}`
-    const head = `${browser}@${factors.join(',')} ${c.helper}${maxLines} ${c.corpus} / ${c.font}`
     const detail = (c.cause === undefined ? '' : `[${c.cause}] `) + (c.detail ?? '')
-    if (open !== undefined && open.head === head && open.detail === detail && open.to + open.step === c.width) {
-      open.to = c.width
-      continue
+    const colon = detail.indexOf(': ')
+    const label = c.cause === undefined && colon >= 0 ? detail.slice(0, colon) : ''
+    const rest = c.cause === undefined && colon >= 0 ? detail.slice(colon + 2) : detail
+    const pattern = rest.replace(/"(?:[^"\\]|\\.)*"/g, '"…"').replace(/-?\d+(\.\d+)?(e-?\d+)?/g, 'N')
+    const head = `${c.helper} ${c.corpus}${label === '' ? '' : ` "${label}"`}`
+    const key = `${head}|${pattern}`
+    let g = groups.get(key)
+    if (g === undefined) {
+      g = { head, pattern, where: new Map(), fonts: new Set(), min: c.width, max: c.width, example: `${browser}@${factor} ${c.font} @ ${c.width}px${c.maxLines === undefined ? '' : ` maxLines ${c.maxLines}`}: ${rest}` }
+      groups.set(key, g)
     }
-    flush()
-    open = { head, detail, step: stepsAt(factors[0]!)[c.helper] ?? 1, from: c.width, to: c.width }
+    const at = `${browser}@${factor}`
+    g.where.set(at, (g.where.get(at) ?? 0) + 1)
+    g.fonts.add(c.font)
+    g.min = Math.min(g.min, c.width)
+    g.max = Math.max(g.max, c.width)
   }
-  flush()
-  return out
+  return [...groups.values()].map(g => {
+    const where = [...g.where].map(([k, n]) => `${k} ${n}`).join(', ')
+    return `- ${g.head}: ${g.pattern} (${where}; ${[...g.fonts].join(', ')}; ${g.min}-${g.max}px). E.g. ${g.example}`
+  })
 }
 
 function casesOf(outcome: string): Located[] {
@@ -200,17 +202,23 @@ if (full) {
     'Each kit answer is judged against Pretext\'s own numbers first, and any failure there is a kit-mismatch whatever',
     'the browser paints: shrinkwrap and balance must fit the box with Pretext\'s line count at the box width and at their',
     'own width, shrinkwrap must equal Pretext\'s widest line rounded up (one pixel less exactly when Pretext lays out the',
-    'same lines there), balance one pixel narrower must cost Pretext a line, and fitFontSize must fit by Pretext at its',
-    'size and not at the next. Only then is the painting compared, where a disagreement is a pretext-gap: line counts at',
+    'same lines there), balance one pixel narrower must cost Pretext a line (unless a piece no width breaks, a',
+    'grapheme, is wider than that, which balance then contains), and fitFontSize must fit by Pretext at its size and',
+    'not at the next. fitFontSize\'s step-1 "fits" predicate mirrors the kit\'s own (no line overflows: every line within',
+    'the width, or no unbreakable piece wider than it, since Pretext keeps some lines it reports wider than they',
+    'paint), so step 1 checks the search, not the criterion; the painting is what tests the criterion: the painted',
+    'height and scrollWidth, and, where Pretext reports a line past the width, the widest painted line to the fraction.',
+    'Only then is the painting compared, where a disagreement is a pretext-gap: line counts at',
     'each width probed, shrinkwrap\'s width against the ceiling of the widest painted line (measured per line from the',
     'text\'s non-white-space fragments; one pixel less passes only if the browser paints the identical layout there,',
     'since engines let a line overshoot by up to 1/64 px), and balance one pixel narrower painting more lines.',
     '',
     'clamp runs at maxLines 1-5 with the tail `measureTail(\'…\', font)`. By Pretext: the tail must match Pretext\'s',
-    'widths of `…`, a no-break space and a soft hyphen\'s hyphen; the line count must be min(Pretext\'s, maxLines) and',
-    'truncated exactly when Pretext lays out more; clampStats must agree; every line but a cut one must be Pretext\'s line',
-    'at the same cursor; a cut last line must keep a grapheme, be the whole line when the tail fits after it, else a',
-    'prefix of it, and leave the tail room (width + tail <= W + 1/64, unless it is one grapheme that cannot). Then the',
+    'widths of `…` and a no-break space; the line count must be min(Pretext\'s, maxLines) and truncated exactly when',
+    'Pretext lays out more; clampStats must agree; every line but a cut one must be Pretext\'s line at the same cursor;',
+    'a cut last line must keep a grapheme, be the whole line when that line and `…` measured as one text fit, else a',
+    'prefix of it whose text with `…`, measured as one text, fits W + 1/64 (unless it is one grapheme) while one more',
+    'grapheme (with any white space before it; a soft hyphen\'s hyphen is none) would not. Then the',
     'painting, in a `display: -webkit-box; -webkit-line-clamp: N` box: truncation (scrollHeight > clientHeight) and',
     'clamped height must match, and every line painted in a `white-space: pre` span (the cut one followed by `…`) must',
     'be no wider than W + 1/64.',
@@ -218,7 +226,8 @@ if (full) {
     `truncateMiddle runs on path labels, and on the German and French corpora, at widths ${LABEL_WIDTH_MIN}-${LABEL_WIDTH_MAX}px, with`,
     'keepEnd from the last `/` where there is one. By Pretext: the whole label exactly when its natural width fits;',
     'otherwise a start of the label, `…` and an end of it (compared without soft hyphens, which Pretext\'s line text',
-    'leaves out), measuring no more than W + 1/64 as one text; and the end must hold the file name when the name,',
+    'leaves out), measuring no more than W + 1/64 as one text, where one more grapheme of the start would not fit;',
+    'and the end must hold the file name when the name,',
     '`…` and the first grapheme, measured as one text, fit. Then the painting: the result in a `white-space: pre`',
     'span no wider than W + 1/64, and the name kept wherever the painted name, `…` and first grapheme fit.',
     '',
@@ -229,6 +238,13 @@ if (full) {
     `\`npm run verify\` fails on any kit-mismatch, on a pinned font family that is absent, on a devicePixelRatio`,
     'other than the factor asked for, and when a browser×factor×helper\'s pretext-gap or unreliable count exceeds',
     '`verify/baseline.json` by more than max(5, 5%).',
+    '',
+    'Zoom is Playwright\'s deviceScaleFactor emulation on macOS: it shows that a finer device grid changes nothing',
+    'here, not that Windows (DirectWrite) or Linux (FreeType hinting) measure alike, nor exactly what a user\'s page',
+    'zoom does (which also changes CSS px per device pixel through the layout viewport).',
+    '',
+    'Every non-pass case is in `verify/results/latest.json.gz` (gzipped JSON: browser, factor and the case); below,',
+    'findings are grouped by text and pattern.',
     '',
     `Playwright is pinned to ${playwrightVersion}: on macOS 14 Playwright ships a frozen WebKit build`,
     '(webkit_mac14_arm64_special-2251), and Playwright 1.62 and later send it a protocol setting it rejects',
@@ -267,10 +283,15 @@ if (full) {
     const cases = casesOf(outcome)
     md.push(`## ${title}`, '')
     if (cases.length === 0) md.push('None.')
-    else md.push(`${cases.length} cases; consecutive widths with the same finding share a line, and \`@1,1.25,2\` lists every factor it was found at.`, '', ...ranged(cases))
+    else md.push(`${cases.length} cases in ${new Set(cases.map(x => x.c.detail)).size} distinct findings, grouped by text and pattern, with the cases per browser@factor.`, '', ...grouped(cases))
     md.push('')
   }
   writeFileSync(join(here, 'RESULTS.md'), md.join('\n'))
+  mkdirSync(join(here, 'results'), { recursive: true })
+  const listing = runs.flatMap(r => r.results.filter(c => c.outcome !== 'pass').map(c => ({ browser: r.browser, factor: r.factor, ...c })))
+  // mtime 0 in the gzip header, so an unchanged listing writes an unchanged file.
+  writeFileSync(join(here, 'results/latest.json.gz'), gzipSync(JSON.stringify(listing), { level: 9 }))
+  console.log('wrote verify/results/latest.json.gz')
   console.log('wrote verify/RESULTS.md')
 }
 

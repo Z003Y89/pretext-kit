@@ -62,8 +62,9 @@ function probe(sizes: PreparedSizes, px: number, box: FitBox, lineHeight: (px: n
   const s = measureLineStats(handleAt(sizes, px), box.width)
   // Written as negated <= so a NaN (from a caller's lineHeight, height or maxLines) fails closed instead of passing.
   // A line Pretext laid out past the width either overflows, holding a piece wider than the width that no break
-  // can split, or fits: Pretext keeps a line ending at a soft hyphen whose syllables measure narrower joined than
-  // apart, and reports its width apart. Only the first fails to fit.
+  // can split, or is one Pretext fitted there and reports wider than it paints (one ending at a soft hyphen whose
+  // syllables measure narrower joined than apart, or any other line Pretext accepts past its reported width).
+  // Only the first fails to fit: Pretext's layout, not its reported width, decides the rest.
   if (!(s.maxLineWidth <= box.width + FIT_TOLERANCE) && !(widestUnit(sizes, px) <= box.width + FIT_TOLERANCE)) return -1
   if (box.maxLines !== undefined && !(s.lineCount <= box.maxLines)) return -1
   if (box.height !== undefined && !(s.lineCount * lineHeight(px) <= box.height)) return -1

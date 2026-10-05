@@ -3,8 +3,8 @@
 Run on 2026-10-05 by `npm run verify`, headed, `<html lang="en">`.
 Widths 120-600px (truncateMiddle 80-400px), at Playwright deviceScaleFactor 1, 1.25, 2.
 Width step per helper at factor 1: shrinkwrap 1, balance 1, fitFontSize 1, clamp 1, truncateMiddle 1.
-Width step per helper at factor 1.25: shrinkwrap 1, balance 1, fitFontSize 1, clamp 1, truncateMiddle 1.
-Width step per helper at factor 2: shrinkwrap 1, balance 1, fitFontSize 1, clamp 1, truncateMiddle 1.
+Width step per helper at factor 1.25: shrinkwrap 4, balance 4, fitFontSize 4, clamp 4, truncateMiddle 4.
+Width step per helper at factor 2: shrinkwrap 4, balance 4, fitFontSize 4, clamp 4, truncateMiddle 4.
 fontFromStyle cases are one per font stack and pinned size (16px/24px, then 8-48px at 1.5 line height); their
 "width" column is the font size.
 
@@ -17,17 +17,23 @@ case, to be a browser painting something its CSS does not say; only the cause be
 Each kit answer is judged against Pretext's own numbers first, and any failure there is a kit-mismatch whatever
 the browser paints: shrinkwrap and balance must fit the box with Pretext's line count at the box width and at their
 own width, shrinkwrap must equal Pretext's widest line rounded up (one pixel less exactly when Pretext lays out the
-same lines there), balance one pixel narrower must cost Pretext a line, and fitFontSize must fit by Pretext at its
-size and not at the next. Only then is the painting compared, where a disagreement is a pretext-gap: line counts at
+same lines there), balance one pixel narrower must cost Pretext a line (unless a piece no width breaks, a
+grapheme, is wider than that, which balance then contains), and fitFontSize must fit by Pretext at its size and
+not at the next. fitFontSize's step-1 "fits" predicate mirrors the kit's own (no line overflows: every line within
+the width, or no unbreakable piece wider than it, since Pretext keeps some lines it reports wider than they
+paint), so step 1 checks the search, not the criterion; the painting is what tests the criterion: the painted
+height and scrollWidth, and, where Pretext reports a line past the width, the widest painted line to the fraction.
+Only then is the painting compared, where a disagreement is a pretext-gap: line counts at
 each width probed, shrinkwrap's width against the ceiling of the widest painted line (measured per line from the
 text's non-white-space fragments; one pixel less passes only if the browser paints the identical layout there,
 since engines let a line overshoot by up to 1/64 px), and balance one pixel narrower painting more lines.
 
 clamp runs at maxLines 1-5 with the tail `measureTail('…', font)`. By Pretext: the tail must match Pretext's
-widths of `…`, a no-break space and a soft hyphen's hyphen; the line count must be min(Pretext's, maxLines) and
-truncated exactly when Pretext lays out more; clampStats must agree; every line but a cut one must be Pretext's line
-at the same cursor; a cut last line must keep a grapheme, be the whole line when the tail fits after it, else a
-prefix of it, and leave the tail room (width + tail <= W + 1/64, unless it is one grapheme that cannot). Then the
+widths of `…` and a no-break space; the line count must be min(Pretext's, maxLines) and truncated exactly when
+Pretext lays out more; clampStats must agree; every line but a cut one must be Pretext's line at the same cursor;
+a cut last line must keep a grapheme, be the whole line when that line and `…` measured as one text fit, else a
+prefix of it whose text with `…`, measured as one text, fits W + 1/64 (unless it is one grapheme) while one more
+grapheme (with any white space before it; a soft hyphen's hyphen is none) would not. Then the
 painting, in a `display: -webkit-box; -webkit-line-clamp: N` box: truncation (scrollHeight > clientHeight) and
 clamped height must match, and every line painted in a `white-space: pre` span (the cut one followed by `…`) must
 be no wider than W + 1/64.
@@ -35,7 +41,8 @@ be no wider than W + 1/64.
 truncateMiddle runs on path labels, and on the German and French corpora, at widths 80-400px, with
 keepEnd from the last `/` where there is one. By Pretext: the whole label exactly when its natural width fits;
 otherwise a start of the label, `…` and an end of it (compared without soft hyphens, which Pretext's line text
-leaves out), measuring no more than W + 1/64 as one text; and the end must hold the file name when the name,
+leaves out), measuring no more than W + 1/64 as one text, where one more grapheme of the start would not fit;
+and the end must hold the file name when the name,
 `…` and the first grapheme, measured as one text, fit. Then the painting: the result in a `white-space: pre`
 span no wider than W + 1/64, and the name kept wherever the painted name, `…` and first grapheme fit.
 
@@ -46,6 +53,13 @@ with `hyphens: manual`. Every helper sweeps them.
 `npm run verify` fails on any kit-mismatch, on a pinned font family that is absent, on a devicePixelRatio
 other than the factor asked for, and when a browser×factor×helper's pretext-gap or unreliable count exceeds
 `verify/baseline.json` by more than max(5, 5%).
+
+Zoom is Playwright's deviceScaleFactor emulation on macOS: it shows that a finer device grid changes nothing
+here, not that Windows (DirectWrite) or Linux (FreeType hinting) measure alike, nor exactly what a user's page
+zoom does (which also changes CSS px per device pixel through the layout viewport).
+
+Every non-pass case is in `verify/results/latest.json.gz` (gzipped JSON: browser, factor and the case); below,
+findings are grouped by text and pattern.
 
 Playwright is pinned to 1.61.0: on macOS 14 Playwright ships a frozen WebKit build
 (webkit_mac14_arm64_special-2251), and Playwright 1.62 and later send it a protocol setting it rejects
@@ -62,87 +76,87 @@ For exact fits in Safari 26, use whole-px line heights.
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 2.0 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 1.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (19s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
-| balance (16s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
-| fitFontSize (27s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| clamp (52s) | 808080 | 807279 | 801 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
+| shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
+| balance (13s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
+| fitFontSize (21s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
+| clamp (54s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
+| truncateMiddle (5s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | latin | 184704 | 184668 | 36 | 0 | 0 | 0 |
-| cjk | 184704 | 182195 | 2509 | 0 | 0 | 0 |
-| arabic | 184704 | 183089 | 1615 | 0 | 0 | 0 |
+| cjk | 184704 | 182243 | 2461 | 0 | 0 | 0 |
+| arabic | 184704 | 183243 | 1461 | 0 | 0 | 0 |
 | emoji-chat | 184704 | 184128 | 576 | 0 | 0 | 0 |
 | urls | 184704 | 180866 | 3838 | 0 | 0 | 0 |
-| german | 200112 | 199429 | 683 | 0 | 0 | 0 |
-| french | 200112 | 198552 | 1560 | 0 | 0 | 0 |
+| german | 200112 | 199428 | 684 | 0 | 0 | 0 |
+| french | 200112 | 198575 | 1537 | 0 | 0 | 0 |
 | labels | 25680 | 25678 | 2 | 0 | 0 | 0 |
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 1.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 0.6 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
-| balance (12s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
-| fitFontSize (21s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| clamp (49s) | 808080 | 807279 | 801 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
+| shrinkwrap (4s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
+| balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
+| fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
+| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 184668 | 36 | 0 | 0 | 0 |
-| cjk | 184704 | 182195 | 2509 | 0 | 0 | 0 |
-| arabic | 184704 | 183089 | 1615 | 0 | 0 | 0 |
-| emoji-chat | 184704 | 184128 | 576 | 0 | 0 | 0 |
-| urls | 184704 | 180866 | 3838 | 0 | 0 | 0 |
-| german | 200112 | 199429 | 683 | 0 | 0 | 0 |
-| french | 200112 | 198552 | 1560 | 0 | 0 | 0 |
-| labels | 25680 | 25678 | 2 | 0 | 0 | 0 |
+| latin | 46464 | 46450 | 14 | 0 | 0 | 0 |
+| cjk | 46464 | 45856 | 608 | 0 | 0 | 0 |
+| arabic | 46464 | 46090 | 374 | 0 | 0 | 0 |
+| emoji-chat | 46464 | 46325 | 139 | 0 | 0 | 0 |
+| urls | 46464 | 45501 | 963 | 0 | 0 | 0 |
+| german | 50352 | 50166 | 186 | 0 | 0 | 0 |
+| french | 50352 | 49971 | 381 | 0 | 0 | 0 |
+| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 1.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 0.6 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
-| balance (12s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
-| fitFontSize (21s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| clamp (50s) | 808080 | 807279 | 801 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
+| shrinkwrap (4s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
+| balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
+| fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
+| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 184668 | 36 | 0 | 0 | 0 |
-| cjk | 184704 | 182195 | 2509 | 0 | 0 | 0 |
-| arabic | 184704 | 183089 | 1615 | 0 | 0 | 0 |
-| emoji-chat | 184704 | 184128 | 576 | 0 | 0 | 0 |
-| urls | 184704 | 180866 | 3838 | 0 | 0 | 0 |
-| german | 200112 | 199429 | 683 | 0 | 0 | 0 |
-| french | 200112 | 198552 | 1560 | 0 | 0 | 0 |
-| labels | 25680 | 25678 | 2 | 0 | 0 | 0 |
+| latin | 46464 | 46450 | 14 | 0 | 0 | 0 |
+| cjk | 46464 | 45856 | 608 | 0 | 0 | 0 |
+| arabic | 46464 | 46090 | 374 | 0 | 0 | 0 |
+| emoji-chat | 46464 | 46325 | 139 | 0 | 0 | 0 |
+| urls | 46464 | 45501 | 963 | 0 | 0 | 0 |
+| german | 50352 | 50166 | 186 | 0 | 0 | 0 |
+| french | 50352 | 49971 | 381 | 0 | 0 | 0 |
+| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1
 
@@ -153,164 +167,164 @@ By helper:
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (78s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (40s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (45s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| clamp (86s) | 808080 | 807956 | 124 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
-
-By corpus (sweep helpers):
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 182337 | 0 | 2367 | 0 | 0 |
-| cjk | 184704 | 183915 | 0 | 789 | 0 | 0 |
-| arabic | 184704 | 183852 | 0 | 852 | 0 | 0 |
-| emoji-chat | 184704 | 184582 | 13 | 109 | 0 | 0 |
-| urls | 184704 | 182178 | 96 | 2430 | 0 | 0 |
-| german | 200112 | 198354 | 470 | 1288 | 0 | 0 |
-| french | 200112 | 198828 | 560 | 724 | 0 | 0 |
-| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
-
-## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1.25
-
-Measured devicePixelRatio 1.25; 4.4 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
-
-By helper:
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (82s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (42s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (47s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| clamp (89s) | 808080 | 807956 | 124 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
-
-By corpus (sweep helpers):
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 182337 | 0 | 2367 | 0 | 0 |
-| cjk | 184704 | 183915 | 0 | 789 | 0 | 0 |
-| arabic | 184704 | 183852 | 0 | 852 | 0 | 0 |
-| emoji-chat | 184704 | 184582 | 13 | 109 | 0 | 0 |
-| urls | 184704 | 182178 | 96 | 2430 | 0 | 0 |
-| german | 200112 | 198354 | 470 | 1288 | 0 | 0 |
-| french | 200112 | 198828 | 560 | 724 | 0 | 0 |
-| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
-
-## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 2
-
-Measured devicePixelRatio 2; 4.4 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
-
-By helper:
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (84s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (43s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (49s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| clamp (86s) | 808080 | 807956 | 124 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
-
-By corpus (sweep helpers):
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 182337 | 0 | 2367 | 0 | 0 |
-| cjk | 184704 | 183915 | 0 | 789 | 0 | 0 |
-| arabic | 184704 | 183852 | 0 | 852 | 0 | 0 |
-| emoji-chat | 184704 | 184582 | 13 | 109 | 0 | 0 |
-| urls | 184704 | 182178 | 96 | 2430 | 0 | 0 |
-| german | 200112 | 198354 | 470 | 1288 | 0 | 0 |
-| french | 200112 | 198828 | 560 | 724 | 0 | 0 |
-| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
-
-## firefox 151.0 (firefox-1532) at deviceScaleFactor 1
-
-Measured devicePixelRatio 1; 2.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
-
-By helper:
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (22s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
-| fitFontSize (27s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| clamp (71s) | 808080 | 807807 | 273 | 0 | 0 | 0 |
-| truncateMiddle (4s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
-
-By corpus (sweep helpers):
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| cjk | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| arabic | 184704 | 184552 | 152 | 0 | 0 | 0 |
-| emoji-chat | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| urls | 184704 | 184367 | 337 | 0 | 0 | 0 |
-| german | 200112 | 199175 | 937 | 0 | 0 | 0 |
-| french | 200112 | 198888 | 1224 | 0 | 0 | 0 |
-| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
-
-## firefox 151.0 (firefox-1532) at deviceScaleFactor 1.25
-
-Measured devicePixelRatio 1.25; 2.4 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
-
-By helper:
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (22s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
-| fitFontSize (27s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| clamp (71s) | 808080 | 807807 | 273 | 0 | 0 | 0 |
-| truncateMiddle (4s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
-
-By corpus (sweep helpers):
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| latin | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| cjk | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| arabic | 184704 | 184552 | 152 | 0 | 0 | 0 |
-| emoji-chat | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| urls | 184704 | 184367 | 337 | 0 | 0 | 0 |
-| german | 200112 | 199175 | 937 | 0 | 0 | 0 |
-| french | 200112 | 198888 | 1224 | 0 | 0 | 0 |
-| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
-
-## firefox 151.0 (firefox-1532) at deviceScaleFactor 2
-
-Measured devicePixelRatio 2; 2.6 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
-
-By helper:
-
-| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
-|---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (21s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
-| fitFontSize (29s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| clamp (76s) | 808080 | 807807 | 273 | 0 | 0 | 0 |
+| shrinkwrap (74s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
+| balance (38s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
+| fitFontSize (44s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
+| clamp (88s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
 | truncateMiddle (5s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
+| latin | 184704 | 182337 | 0 | 2367 | 0 | 0 |
+| cjk | 184704 | 183915 | 0 | 789 | 0 | 0 |
+| arabic | 184704 | 183852 | 0 | 852 | 0 | 0 |
+| emoji-chat | 184704 | 184584 | 11 | 109 | 0 | 0 |
+| urls | 184704 | 182193 | 81 | 2430 | 0 | 0 |
+| german | 200112 | 198354 | 470 | 1288 | 0 | 0 |
+| french | 200112 | 198852 | 536 | 724 | 0 | 0 |
+| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
+
+## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1.25
+
+Measured devicePixelRatio 1.25; 1.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
+By helper:
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (20s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (13s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| clamp (25s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+
+By corpus (sweep helpers):
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| latin | 46464 | 45866 | 0 | 598 | 0 | 0 |
+| cjk | 46464 | 46253 | 0 | 211 | 0 | 0 |
+| arabic | 46464 | 46242 | 0 | 222 | 0 | 0 |
+| emoji-chat | 46464 | 46424 | 8 | 32 | 0 | 0 |
+| urls | 46464 | 45838 | 18 | 608 | 0 | 0 |
+| german | 50352 | 49908 | 121 | 323 | 0 | 0 |
+| french | 50352 | 50022 | 138 | 192 | 0 | 0 |
+| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+
+## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 2
+
+Measured devicePixelRatio 2; 1.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
+By helper:
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (21s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| clamp (26s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+
+By corpus (sweep helpers):
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| latin | 46464 | 45866 | 0 | 598 | 0 | 0 |
+| cjk | 46464 | 46253 | 0 | 211 | 0 | 0 |
+| arabic | 46464 | 46242 | 0 | 222 | 0 | 0 |
+| emoji-chat | 46464 | 46424 | 8 | 32 | 0 | 0 |
+| urls | 46464 | 45838 | 18 | 608 | 0 | 0 |
+| german | 50352 | 49908 | 121 | 323 | 0 | 0 |
+| french | 50352 | 50022 | 138 | 192 | 0 | 0 |
+| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+
+## firefox 151.0 (firefox-1532) at deviceScaleFactor 1
+
+Measured devicePixelRatio 1; 2.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
+By helper:
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
+| balance (23s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
+| fitFontSize (27s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
+| clamp (88s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
+| truncateMiddle (8s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+
+By corpus (sweep helpers):
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
 | latin | 184704 | 184704 | 0 | 0 | 0 | 0 |
 | cjk | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| arabic | 184704 | 184552 | 152 | 0 | 0 | 0 |
+| arabic | 184704 | 184704 | 0 | 0 | 0 | 0 |
 | emoji-chat | 184704 | 184704 | 0 | 0 | 0 | 0 |
-| urls | 184704 | 184367 | 337 | 0 | 0 | 0 |
+| urls | 184704 | 184378 | 326 | 0 | 0 | 0 |
 | german | 200112 | 199175 | 937 | 0 | 0 | 0 |
-| french | 200112 | 198888 | 1224 | 0 | 0 | 0 |
+| french | 200112 | 198909 | 1203 | 0 | 0 | 0 |
 | labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
+
+## firefox 151.0 (firefox-1532) at deviceScaleFactor 1.25
+
+Measured devicePixelRatio 1.25; 0.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
+By helper:
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (6s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
+| balance (7s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| fitFontSize (8s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| clamp (24s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+
+By corpus (sweep helpers):
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| latin | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| cjk | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| arabic | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| emoji-chat | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| urls | 46464 | 46383 | 81 | 0 | 0 | 0 |
+| german | 50352 | 50112 | 240 | 0 | 0 | 0 |
+| french | 50352 | 50054 | 298 | 0 | 0 | 0 |
+| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+
+## firefox 151.0 (firefox-1532) at deviceScaleFactor 2
+
+Measured devicePixelRatio 2; 0.9 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+
+By helper:
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
+| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| fitFontSize (10s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| clamp (25s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+
+By corpus (sweep helpers):
+
+| | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
+|---|---:|---:|---:|---:|---:|---:|
+| latin | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| cjk | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| arabic | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| emoji-chat | 46464 | 46464 | 0 | 0 | 0 | 0 |
+| urls | 46464 | 46383 | 81 | 0 | 0 | 0 |
+| german | 50352 | 50112 | 240 | 0 | 0 | 0 |
+| french | 50352 | 50054 | 298 | 0 | 0 | 0 |
+| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
 
 ## kit-mismatch cases
 
@@ -322,3242 +336,294 @@ None.
 
 ## platform cases
 
-25677 cases; consecutive widths with the same finding share a line, and `@1,1.25,2` lists every factor it was found at.
+12931 cases in 85 distinct findings, grouped by text and pattern, with the cases per browser@factor.
 
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 120-136px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 162-205px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 141-172px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 120-137px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 120-145px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 173-202px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 120-143px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 170-201px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 132-164px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Gatsby advice: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 153-203px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 137-162px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 192-223px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 142-180px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 213-250px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 192-230px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 272-307px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 159-211px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Helvetica Neue @ 250-298px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 120-134px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 160-205px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 140-169px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 120-136px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 120-145px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 172-201px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 120-139px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 166-197px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 131-162px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 120-129px: [webkit-26-line-height-floor] Gatsby advice: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 154-201px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 136-159px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 189-220px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 140-179px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 212-249px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 190-228px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 270-303px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 159-209px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Arial @ 248-294px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 120-135px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 160-205px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 138-170px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 120-137px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 120-145px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 173-201px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 120-140px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 167-202px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 133-162px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 120-129px: [webkit-26-line-height-floor] Gatsby advice: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 153-202px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 132-156px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 186-223px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 140-175px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 208-245px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 189-226px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 268-302px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 161-213px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Georgia @ 253-290px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 120-121px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 144-186px: [webkit-26-line-height-floor] Latin update: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 125-155px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 120-127px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 120-134px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 159-183px: [webkit-26-line-height-floor] Latin caching: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 120-127px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 152-184px: [webkit-26-line-height-floor] Latin punctuation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 120-144px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 139-185px: [webkit-26-line-height-floor] Gatsby advice: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 120-143px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 170-203px: [webkit-26-line-height-floor] Gatsby criticizing: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 128-157px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 186-221px: [webkit-26-line-height-floor] Gatsby reserve: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 173-206px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 245-278px: [webkit-26-line-height-floor] Gatsby levity: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 147-195px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize latin / Times New Roman @ 231-263px: [webkit-26-line-height-floor] Gatsby decencies: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 130-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 120px: [webkit-26-line-height-floor] Kumo no ito: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Helvetica Neue @ 143-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 130-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 120px: [webkit-26-line-height-floor] Kumo no ito: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Arial @ 143-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 129-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Georgia @ 142-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 120-129px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 130-155px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 130-155px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 132-153px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 182-220px: [webkit-26-line-height-floor] Guxiang winter: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 120-129px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 120-129px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 143-168px: [webkit-26-line-height-floor] Rashomon gate: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 120px: [webkit-26-line-height-floor] Kumo no ito: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize cjk / Times New Roman @ 143-168px: [webkit-26-line-height-floor] Kumo no ito: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 126-148px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 136-160px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 120-123px: [webkit-26-line-height-floor] Numbers+RTL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 148-180px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 214-268px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 135-160px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 120-141px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 120-123px: [webkit-26-line-height-floor] Ghufran waves: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 139-169px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 120-133px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 120-148px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 134-152px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 120px: [webkit-26-line-height-floor] Numbers+RTL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 144-176px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 209-257px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 129-149px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 120-138px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 129-157px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Arial @ 120-124px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 126-145px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 135-157px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 120-125px: [webkit-26-line-height-floor] Numbers+RTL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 144-181px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 214-262px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 133-158px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 120-139px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 120-122px: [webkit-26-line-height-floor] Ghufran waves: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 137-166px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Georgia @ 120-133px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 120-132px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 123-141px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 131-162px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 193-238px: [webkit-26-line-height-floor] Long mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 127-148px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 120-137px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 128-154px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize arabic / Times New Roman @ 120-123px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Emoji mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Status emoji: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Helvetica Neue @ 120-132px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Helvetica Neue @ 120-126px: [webkit-26-line-height-floor] Flags: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Arial @ 120-127px: [webkit-26-line-height-floor] Emoji mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Arial @ 120-126px: [webkit-26-line-height-floor] Status emoji: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Arial @ 120-130px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Arial @ 120-125px: [webkit-26-line-height-floor] Flags: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Georgia @ 120-127px: [webkit-26-line-height-floor] Emoji mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Georgia @ 120-129px: [webkit-26-line-height-floor] Status emoji: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Georgia @ 120-128px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Georgia @ 120-127px: [webkit-26-line-height-floor] Flags: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize emoji-chat / Times New Roman @ 120-121px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 120-127px: [webkit-26-line-height-floor] Backup URL: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 152-178px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 167-168px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 200-222px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 127-163px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 120-121px: [webkit-26-line-height-floor] Windows path: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 144-189px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 133-194px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 124-182px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 216-283px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 132-157px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 187-230px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 141-171px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 120-129px: [webkit-26-line-height-floor] Email list: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 154-217px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 141-210px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 249-272px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Helvetica Neue @ 130-153px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 120-125px: [webkit-26-line-height-floor] Backup URL: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 149-177px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 163-167px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 199-218px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 125-158px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 141-184px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 131-189px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 122-181px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 215-280px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 133-159px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 189-232px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 140-172px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 120-126px: [webkit-26-line-height-floor] Email list: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 150-216px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 145-215px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 255-279px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Arial @ 131-154px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 120-131px: [webkit-26-line-height-floor] Backup URL: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 156-179px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 168-171px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 203-221px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 129-162px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 120-124px: [webkit-26-line-height-floor] Windows path: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 148-195px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 130-191px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 122-178px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 212-281px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 133-159px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 189-233px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 139-176px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 120-132px: [webkit-26-line-height-floor] Email list: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 157-217px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 147-216px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 257-288px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Georgia @ 135-157px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 137-160px: [webkit-26-line-height-floor] Backup URL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 147-155px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 185-195px: [webkit-26-line-height-floor] Query string: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 120-144px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 130-172px: [webkit-26-line-height-floor] Windows path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 120-170px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 120-163px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 193-250px: [webkit-26-line-height-floor] Hash: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 130-153px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 182-228px: [webkit-26-line-height-floor] Data URI: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 125-157px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 141-198px: [webkit-26-line-height-floor] Email list: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 141-207px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 246-268px: [webkit-26-line-height-floor] Snake case: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize urls / Times New Roman @ 121-141px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 127-156px: [webkit-26-line-height-floor] Tagesabschluss: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 127-159px: [webkit-26-line-height-floor] Nebenrollen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 139-171px: [webkit-26-line-height-floor] Datenschutz: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 134-164px: [webkit-26-line-height-floor] Umfrage: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 131-164px: [webkit-26-line-height-floor] Versicherung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 136-168px: [webkit-26-line-height-floor] Kapitän: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 120-127px: [webkit-26-line-height-floor] Fehlermeldung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 139-168px: [webkit-26-line-height-floor] Baustellen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 137-175px: [webkit-26-line-height-floor] Förderung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 131-163px: [webkit-26-line-height-floor] Produktion: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 120-122px: [webkit-26-line-height-floor] One word: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Helvetica Neue @ 136-175px: [webkit-26-line-height-floor] Portal: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 125-155px: [webkit-26-line-height-floor] Tagesabschluss: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 126-158px: [webkit-26-line-height-floor] Nebenrollen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 139-170px: [webkit-26-line-height-floor] Datenschutz: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 132-163px: [webkit-26-line-height-floor] Umfrage: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 130-162px: [webkit-26-line-height-floor] Versicherung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 134-165px: [webkit-26-line-height-floor] Kapitän: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 120-125px: [webkit-26-line-height-floor] Fehlermeldung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 137-166px: [webkit-26-line-height-floor] Baustellen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 136-173px: [webkit-26-line-height-floor] Förderung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 131-161px: [webkit-26-line-height-floor] Produktion: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 120-121px: [webkit-26-line-height-floor] One word: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Arial @ 133-174px: [webkit-26-line-height-floor] Portal: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 126-153px: [webkit-26-line-height-floor] Tagesabschluss: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 128-159px: [webkit-26-line-height-floor] Nebenrollen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 120px: [webkit-26-line-height-floor] Datenschutz: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 143-173px: [webkit-26-line-height-floor] Datenschutz: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 134-160px: [webkit-26-line-height-floor] Umfrage: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 130-163px: [webkit-26-line-height-floor] Versicherung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 137-170px: [webkit-26-line-height-floor] Kapitän: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 120-127px: [webkit-26-line-height-floor] Fehlermeldung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 138-166px: [webkit-26-line-height-floor] Baustellen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 137-175px: [webkit-26-line-height-floor] Förderung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 136-162px: [webkit-26-line-height-floor] Produktion: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 120px: [webkit-26-line-height-floor] One word: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Georgia @ 139-174px: [webkit-26-line-height-floor] Portal: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 120-138px: [webkit-26-line-height-floor] Tagesabschluss: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 120-144px: [webkit-26-line-height-floor] Nebenrollen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 131-159px: [webkit-26-line-height-floor] Datenschutz: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 121-145px: [webkit-26-line-height-floor] Umfrage: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 120-145px: [webkit-26-line-height-floor] Versicherung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 125-153px: [webkit-26-line-height-floor] Kapitän: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 124-151px: [webkit-26-line-height-floor] Baustellen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 125-157px: [webkit-26-line-height-floor] Förderung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 123-147px: [webkit-26-line-height-floor] Produktion: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize german / Times New Roman @ 125-157px: [webkit-26-line-height-floor] Portal: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 120-137px: [webkit-26-line-height-floor] Synchroniser: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 122-148px: [webkit-26-line-height-floor] Rappels: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 120-122px: [webkit-26-line-height-floor] Responsabilité: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 145-187px: [webkit-26-line-height-floor] Responsabilité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 127-156px: [webkit-26-line-height-floor] Syndicats: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 120-146px: [webkit-26-line-height-floor] Anticonstitutionnalité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 120-134px: [webkit-26-line-height-floor] Conditions: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 120-128px: [webkit-26-line-height-floor] Mot de passe: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 120-135px: [webkit-26-line-height-floor] Récit: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize french / Helvetica Neue @ 160-185px: [webkit-26-line-height-floor] Récit: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 120-136px: [webkit-26-line-height-floor] Synchroniser: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 121-146px: [webkit-26-line-height-floor] Rappels: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 120-121px: [webkit-26-line-height-floor] Responsabilité: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 144-186px: [webkit-26-line-height-floor] Responsabilité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 125-151px: [webkit-26-line-height-floor] Syndicats: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 120-145px: [webkit-26-line-height-floor] Anticonstitutionnalité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 120-130px: [webkit-26-line-height-floor] Conditions: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 120-127px: [webkit-26-line-height-floor] Mot de passe: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 120-133px: [webkit-26-line-height-floor] Récit: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize french / Arial @ 159-184px: [webkit-26-line-height-floor] Récit: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 120-137px: [webkit-26-line-height-floor] Synchroniser: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 120-141px: [webkit-26-line-height-floor] Rappels: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 120-121px: [webkit-26-line-height-floor] Responsabilité: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 144-186px: [webkit-26-line-height-floor] Responsabilité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 125-157px: [webkit-26-line-height-floor] Syndicats: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 120-141px: [webkit-26-line-height-floor] Anticonstitutionnalité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 120-131px: [webkit-26-line-height-floor] Conditions: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 120-129px: [webkit-26-line-height-floor] Mot de passe: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 120-131px: [webkit-26-line-height-floor] Récit: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize french / Georgia @ 156-184px: [webkit-26-line-height-floor] Récit: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Times New Roman @ 120-127px: [webkit-26-line-height-floor] Synchroniser: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Times New Roman @ 120-128px: [webkit-26-line-height-floor] Rappels: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Times New Roman @ 128-164px: [webkit-26-line-height-floor] Responsabilité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Times New Roman @ 120-139px: [webkit-26-line-height-floor] Syndicats: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Times New Roman @ 120-128px: [webkit-26-line-height-floor] Anticonstitutionnalité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
-- webkit@1,1.25,2 fitFontSize french / Times New Roman @ 120px: [webkit-26-line-height-floor] Récit: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
-- webkit@1,1.25,2 fitFontSize french / Times New Roman @ 143-165px: [webkit-26-line-height-floor] Récit: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Latin update: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 229, webkit@1.25 60, webkit@2 60; Helvetica Neue, Arial, Georgia, Times New Roman; 120-205px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Latin update: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Latin compatibility: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 126, webkit@1.25 31, webkit@2 31; Helvetica Neue, Arial, Georgia, Times New Roman; 125-172px). E.g. webkit@1 Helvetica Neue @ 141px: [webkit-26-line-height-floor] Latin compatibility: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Latin short: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 61, webkit@1.25 17, webkit@2 17; Helvetica Neue, Arial, Georgia, Times New Roman; 120-137px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Latin short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Latin caching: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 207, webkit@1.25 53, webkit@2 53; Helvetica Neue, Arial, Georgia, Times New Roman; 120-202px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Latin caching: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Latin punctuation: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 206, webkit@1.25 53, webkit@2 53; Helvetica Neue, Arial, Georgia, Times New Roman; 120-202px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Latin punctuation: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Latin hyphenation: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 120, webkit@1.25 31, webkit@2 31; Helvetica Neue, Arial, Georgia, Times New Roman; 120-164px). E.g. webkit@1 Helvetica Neue @ 132px: [webkit-26-line-height-floor] Latin hyphenation: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Gatsby advice: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 226, webkit@1.25 57, webkit@2 57; Helvetica Neue, Arial, Georgia, Times New Roman; 120-203px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Gatsby advice: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Gatsby criticizing: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 235, webkit@1.25 58, webkit@2 58; Helvetica Neue, Arial, Georgia, Times New Roman; 120-223px). E.g. webkit@1 Helvetica Neue @ 137px: [webkit-26-line-height-floor] Gatsby criticizing: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Gatsby reserve: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 295, webkit@1.25 75, webkit@2 75; Helvetica Neue, Arial, Georgia, Times New Roman; 128-250px). E.g. webkit@1 Helvetica Neue @ 142px: [webkit-26-line-height-floor] Gatsby reserve: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Gatsby levity: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 289, webkit@1.25 71, webkit@2 71; Helvetica Neue, Arial, Georgia, Times New Roman; 173-307px). E.g. webkit@1 Helvetica Neue @ 192px: [webkit-26-line-height-floor] Gatsby levity: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize latin: [webkitN-line-height-floor] Gatsby decencies: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 373, webkit@1.25 92, webkit@2 92; Helvetica Neue, Arial, Georgia, Times New Roman; 147-298px). E.g. webkit@1 Helvetica Neue @ 159px: [webkit-26-line-height-floor] Gatsby decencies: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Chinese: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 40, webkit@1.25 12, webkit@2 12; Helvetica Neue, Arial, Georgia, Times New Roman; 120-129px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Chinese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Japanese: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 104, webkit@1.25 24, webkit@2 24; Helvetica Neue, Arial, Georgia, Times New Roman; 130-155px). E.g. webkit@1 Helvetica Neue @ 130px: [webkit-26-line-height-floor] Japanese: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Japanese short: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 105, webkit@1.25 24, webkit@2 24; Helvetica Neue, Arial, Georgia, Times New Roman; 129-155px). E.g. webkit@1 Helvetica Neue @ 130px: [webkit-26-line-height-floor] Japanese short: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Guxiang winter: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 244, webkit@1.25 64, webkit@2 64; Helvetica Neue, Arial, Georgia, Times New Roman; 132-220px). E.g. webkit@1 Helvetica Neue @ 132px: [webkit-26-line-height-floor] Guxiang winter: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Guxiang memory: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 40, webkit@1.25 12, webkit@2 12; Helvetica Neue, Arial, Georgia, Times New Roman; 120-129px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Guxiang memory: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Zhufu year end: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 40, webkit@1.25 12, webkit@2 12; Helvetica Neue, Arial, Georgia, Times New Roman; 120-129px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Zhufu year end: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Rashomon gate: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 108, webkit@1.25 32, webkit@2 32; Helvetica Neue, Arial, Georgia, Times New Roman; 120-168px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Rashomon gate: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize cjk: [webkitN-line-height-floor] Kumo no ito: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 108, webkit@1.25 31, webkit@2 31; Helvetica Neue, Arial, Georgia, Times New Roman; 120-168px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Kumo no ito: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Mixed en+ar: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 85, webkit@1.25 23, webkit@2 23; Helvetica Neue, Arial, Georgia, Times New Roman; 120-148px). E.g. webkit@1 Helvetica Neue @ 126px: [webkit-26-line-height-floor] Mixed en+ar: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Mixed report: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 86, webkit@1.25 23, webkit@2 23; Helvetica Neue, Arial, Georgia, Times New Roman; 123-160px). E.g. webkit@1 Helvetica Neue @ 136px: [webkit-26-line-height-floor] Mixed report: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Numbers+RTL: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 11, webkit@1.25 4, webkit@2 4; Helvetica Neue, Arial, Georgia; 120-125px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Numbers+RTL: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Long mixed: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 335, webkit@1.25 85, webkit@2 85; Helvetica Neue, Arial, Georgia, Times New Roman; 131-268px). E.g. webkit@1 Helvetica Neue @ 148px: [webkit-26-line-height-floor] Long mixed: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Bukhala book: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 95, webkit@1.25 24, webkit@2 24; Helvetica Neue, Arial, Georgia, Times New Roman; 127-160px). E.g. webkit@1 Helvetica Neue @ 135px: [webkit-26-line-height-floor] Bukhala book: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Bukhala names: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 79, webkit@1.25 21, webkit@2 21; Helvetica Neue, Arial, Georgia, Times New Roman; 120-141px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Bukhala names: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Ghufran waves: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 7, webkit@1.25 2, webkit@2 2; Helvetica Neue, Georgia; 120-123px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Ghufran waves: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Ghufran tree: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 117, webkit@1.25 29, webkit@2 29; Helvetica Neue, Arial, Georgia, Times New Roman; 128-169px). E.g. webkit@1 Helvetica Neue @ 139px: [webkit-26-line-height-floor] Ghufran tree: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize arabic: [webkitN-line-height-floor] Support thread: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 37, webkit@1.25 11, webkit@2 11; Helvetica Neue, Arial, Georgia, Times New Roman; 120-133px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Support thread: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize emoji-chat: [webkitN-line-height-floor] Emoji mixed: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 26, webkit@1.25 7, webkit@2 7; Helvetica Neue, Arial, Georgia; 120-129px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Emoji mixed: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize emoji-chat: [webkitN-line-height-floor] Status emoji: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 27, webkit@1.25 8, webkit@2 8; Helvetica Neue, Arial, Georgia; 120-129px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Status emoji: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize emoji-chat: [webkitN-line-height-floor] Ship it: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 35, webkit@1.25 11, webkit@2 11; Helvetica Neue, Arial, Georgia, Times New Roman; 120-132px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Ship it: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize emoji-chat: [webkitN-line-height-floor] Flags: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 21, webkit@1.25 6, webkit@2 6; Helvetica Neue, Arial, Georgia; 120-127px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Flags: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Backup URL: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 130, webkit@1.25 33, webkit@2 33; Helvetica Neue, Arial, Georgia, Times New Roman; 120-179px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Backup URL: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Query string: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 93, webkit@1.25 23, webkit@2 23; Helvetica Neue, Arial, Georgia, Times New Roman; 147-222px). E.g. webkit@1 Helvetica Neue @ 167px: [webkit-26-line-height-floor] Query string: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Unix path: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 130, webkit@1.25 32, webkit@2 32; Helvetica Neue, Arial, Georgia, Times New Roman; 120-163px). E.g. webkit@1 Helvetica Neue @ 127px: [webkit-26-line-height-floor] Unix path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Windows path: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 188, webkit@1.25 49, webkit@2 49; Helvetica Neue, Arial, Georgia, Times New Roman; 120-195px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Windows path: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize urls: [webkitN-line-height-floor] macOS path: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 234, webkit@1.25 58, webkit@2 58; Helvetica Neue, Arial, Georgia, Times New Roman; 120-194px). E.g. webkit@1 Helvetica Neue @ 133px: [webkit-26-line-height-floor] macOS path: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Hash: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 482, webkit@1.25 121, webkit@2 121; Helvetica Neue, Arial, Georgia, Times New Roman; 120-283px). E.g. webkit@1 Helvetica Neue @ 124px: [webkit-26-line-height-floor] Hash: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Data URI: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 284, webkit@1.25 70, webkit@2 70; Helvetica Neue, Arial, Georgia, Times New Roman; 130-233px). E.g. webkit@1 Helvetica Neue @ 132px: [webkit-26-line-height-floor] Data URI: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize urls: [webkitN-line-height-floor] npm scope: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 135, webkit@1.25 34, webkit@2 34; Helvetica Neue, Arial, Georgia, Times New Roman; 125-176px). E.g. webkit@1 Helvetica Neue @ 141px: [webkit-26-line-height-floor] npm scope: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Email list: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 280, webkit@1.25 71, webkit@2 71; Helvetica Neue, Arial, Georgia, Times New Roman; 120-217px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Email list: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Snake case: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 382, webkit@1.25 94, webkit@2 94; Helvetica Neue, Arial, Georgia, Times New Roman; 141-288px). E.g. webkit@1 Helvetica Neue @ 141px: [webkit-26-line-height-floor] Snake case: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize urls: [webkitN-line-height-floor] Path with spaces: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 92, webkit@1.25 23, webkit@2 23; Helvetica Neue, Arial, Georgia, Times New Roman; 121-157px). E.g. webkit@1 Helvetica Neue @ 130px: [webkit-26-line-height-floor] Path with spaces: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Tagesabschluss: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 108, webkit@1.25 27, webkit@2 27; Helvetica Neue, Arial, Georgia, Times New Roman; 120-156px). E.g. webkit@1 Helvetica Neue @ 127px: [webkit-26-line-height-floor] Tagesabschluss: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Nebenrollen: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 123, webkit@1.25 31, webkit@2 31; Helvetica Neue, Arial, Georgia, Times New Roman; 120-159px). E.g. webkit@1 Helvetica Neue @ 127px: [webkit-26-line-height-floor] Nebenrollen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Datenschutz: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 126, webkit@1.25 32, webkit@2 32; Helvetica Neue, Arial, Georgia, Times New Roman; 120-173px). E.g. webkit@1 Helvetica Neue @ 139px: [webkit-26-line-height-floor] Datenschutz: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Umfrage: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 115, webkit@1.25 29, webkit@2 29; Helvetica Neue, Arial, Georgia, Times New Roman; 121-164px). E.g. webkit@1 Helvetica Neue @ 134px: [webkit-26-line-height-floor] Umfrage: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Versicherung: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 127, webkit@1.25 32, webkit@2 32; Helvetica Neue, Arial, Georgia, Times New Roman; 120-164px). E.g. webkit@1 Helvetica Neue @ 131px: [webkit-26-line-height-floor] Versicherung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Kapitän: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 128, webkit@1.25 32, webkit@2 32; Helvetica Neue, Arial, Georgia, Times New Roman; 125-170px). E.g. webkit@1 Helvetica Neue @ 136px: [webkit-26-line-height-floor] Kapitän: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Fehlermeldung: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 22, webkit@1.25 6, webkit@2 6; Helvetica Neue, Arial, Georgia; 120-127px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Fehlermeldung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Baustellen: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 117, webkit@1.25 29, webkit@2 29; Helvetica Neue, Arial, Georgia, Times New Roman; 124-168px). E.g. webkit@1 Helvetica Neue @ 139px: [webkit-26-line-height-floor] Baustellen: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Förderung: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 149, webkit@1.25 36, webkit@2 36; Helvetica Neue, Arial, Georgia, Times New Roman; 125-175px). E.g. webkit@1 Helvetica Neue @ 137px: [webkit-26-line-height-floor] Förderung: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Produktion: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 116, webkit@1.25 29, webkit@2 29; Helvetica Neue, Arial, Georgia, Times New Roman; 123-163px). E.g. webkit@1 Helvetica Neue @ 131px: [webkit-26-line-height-floor] Produktion: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] One word: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 6, webkit@1.25 3, webkit@2 3; Helvetica Neue, Arial, Georgia; 120-122px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] One word: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize german: [webkitN-line-height-floor] Portal: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 151, webkit@1.25 37, webkit@2 37; Helvetica Neue, Arial, Georgia, Times New Roman; 125-175px). E.g. webkit@1 Helvetica Neue @ 136px: [webkit-26-line-height-floor] Portal: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize french: [webkitN-line-height-floor] Synchroniser: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 61, webkit@1.25 17, webkit@2 17; Helvetica Neue, Arial, Georgia, Times New Roman; 120-137px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Synchroniser: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize french: [webkitN-line-height-floor] Rappels: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 84, webkit@1.25 22, webkit@2 22; Helvetica Neue, Arial, Georgia, Times New Roman; 120-148px). E.g. webkit@1 Helvetica Neue @ 122px: [webkit-26-line-height-floor] Rappels: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize french: [webkitN-line-height-floor] Responsabilité: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 173, webkit@1.25 45, webkit@2 45; Helvetica Neue, Arial, Georgia, Times New Roman; 120-187px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Responsabilité: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
+- fitFontSize french: [webkitN-line-height-floor] Syndicats: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 110, webkit@1.25 27, webkit@2 27; Helvetica Neue, Arial, Georgia, Times New Roman; 120-157px). E.g. webkit@1 Helvetica Neue @ 127px: [webkit-26-line-height-floor] Syndicats: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize french: [webkitN-line-height-floor] Anticonstitutionnalité: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 84, webkit@1.25 23, webkit@2 23; Helvetica Neue, Arial, Georgia, Times New Roman; 120-146px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Anticonstitutionnalité: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize french: [webkitN-line-height-floor] Conditions: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 38, webkit@1.25 10, webkit@2 10; Helvetica Neue, Arial, Georgia; 120-134px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Conditions: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize french: [webkitN-line-height-floor] Mot de passe: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 27, webkit@1.25 8, webkit@2 8; Helvetica Neue, Arial, Georgia; 120-129px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Mot de passe: returned 12px, but 13px paints 5 lines × 19 (CSS line-height 19.5) = 95 and fits
+- fitFontSize french: [webkitN-line-height-floor] Récit: returned Npx, but Npx paints N lines × N (CSS line-height N) = N and fits (webkit@1 147, webkit@1.25 40, webkit@2 40; Helvetica Neue, Arial, Georgia, Times New Roman; 120-185px). E.g. webkit@1 Helvetica Neue @ 120px: [webkit-26-line-height-floor] Récit: returned 10px, but 11px paints 6 lines × 16 (CSS line-height 16.5) = 96 and fits
 
 ## pretext-gap cases
 
-43824 cases; consecutive widths with the same finding share a line, and `@1,1.25,2` lists every factor it was found at.
+21297 cases in 1782 distinct findings, grouped by text and pattern, with the cases per browser@factor.
 
-- chromium@1,1.25,2 shrinkwrap latin / Helvetica Neue @ 375px: Gatsby decencies: widest line: DOM 375.0078125px (wants 375), Pretext 367.6477355957031px (gave 368)
-- chromium@1,1.25,2 shrinkwrap latin / Arial @ 317px: Latin compatibility: widest line: DOM 317.0078125px (wants 317), Pretext 283.6875px (gave 284)
-- chromium@1,1.25,2 shrinkwrap latin / Arial @ 394px: Latin punctuation: widest line: DOM 394.0078125px (wants 394), Pretext 369.8359375px (gave 370)
-- chromium@1,1.25,2 shrinkwrap latin / Georgia @ 142px: Gatsby reserve: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 shrinkwrap latin / Georgia @ 592px: Gatsby reserve: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 127px: Japanese: widest line: DOM 126.7265625px (wants 127), Pretext 125.91999816894531px (gave 126)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 141px: Japanese: widest line: DOM 140.640625px (wants 141), Pretext 128px (gave 128)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 142px: Japanese: widest line: DOM 140.640625px (wants 141), Pretext 141.9199981689453px (gave 142)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 143px: Japanese: widest line: DOM 142.40625px (wants 143), Pretext 141.9199981689453px (gave 142)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 157px: Japanese: widest line: DOM 156.640625px (wants 157), Pretext 144px (gave 144)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 158px: Japanese: widest line: DOM 156.640625px (wants 157), Pretext 157.9199981689453px (gave 158)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 159px: Japanese: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 173px: Japanese: widest line: DOM 172.9609375px (wants 173), Pretext 160px (gave 160)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 174px: Japanese: widest line: DOM 172.9609375px (wants 173), Pretext 173.9199981689453px (gave 174)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 175px: Japanese: widest line: DOM 174.7265625px (wants 175), Pretext 173.9199981689453px (gave 174)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 189px: Japanese: widest line: DOM 188.9609375px (wants 189), Pretext 176px (gave 176)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 190px: Japanese: widest line: DOM 188.9609375px (wants 189), Pretext 189.9199981689453px (gave 190)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 191px: Japanese: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 192-204px: Japanese: widest line: DOM 190.5625px (wants 191), Pretext 192px (gave 192)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 205px: Japanese: widest line: DOM 204.640625px (wants 205), Pretext 192px (gave 192)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 206px: Japanese: widest line: DOM 204.640625px (wants 205), Pretext 205.9199981689453px (gave 206)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 207px: Japanese: widest line: DOM 206.5625px (wants 207), Pretext 205.9199981689453px (gave 206)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 208-220px: Japanese: widest line: DOM 206.5625px (wants 207), Pretext 208px (gave 208)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 221px: Japanese: widest line: DOM 220.640625px (wants 221), Pretext 208px (gave 208)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 222px: Japanese: widest line: DOM 220.640625px (wants 221), Pretext 221.9199981689453px (gave 222)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 223px: Japanese: widest line: DOM 222.5625px (wants 223), Pretext 221.9199981689453px (gave 222)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 224-236px: Japanese: widest line: DOM 222.5625px (wants 223), Pretext 224px (gave 224)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 237px: Japanese: widest line: DOM 236.640625px (wants 237), Pretext 224px (gave 224)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 238px: Japanese: widest line: DOM 236.640625px (wants 237), Pretext 237.9199981689453px (gave 238)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 239px: Japanese: widest line: DOM 238.40625px (wants 239), Pretext 237.9199981689453px (gave 238)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 252-253px: Japanese: widest line: DOM 251.6875px (wants 252), Pretext 240px (gave 240)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 254px: Japanese: widest line: DOM 251.6875px (wants 252), Pretext 253.9199981689453px (gave 254)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 255px: Japanese: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 256-267px: Japanese: widest line: DOM 254.40625px (wants 255), Pretext 256px (gave 256)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 268-269px: Japanese: widest line: DOM 267.6875px (wants 268), Pretext 256px (gave 256)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 270px: Japanese: widest line: DOM 267.6875px (wants 268), Pretext 269.9199981689453px (gave 270)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 271px: Japanese: widest line: DOM 270.40625px (wants 271), Pretext 269.9199981689453px (gave 270)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 272-283px: Japanese: widest line: DOM 270.40625px (wants 271), Pretext 272px (gave 272)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 284-285px: Japanese: widest line: DOM 283.6875px (wants 284), Pretext 272px (gave 272)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 286px: Japanese: widest line: DOM 283.6875px (wants 284), Pretext 285.9199981689453px (gave 286)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 287px: Japanese: widest line: DOM 286.40625px (wants 287), Pretext 285.9199981689453px (gave 286)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 288-299px: Japanese: widest line: DOM 286.40625px (wants 287), Pretext 288px (gave 288)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 300-301px: Japanese: widest line: DOM 299.203125px (wants 300), Pretext 288px (gave 288)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 302px: Japanese: widest line: DOM 299.203125px (wants 300), Pretext 301.9199981689453px (gave 302)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 303px: Japanese: widest line: DOM 302.40625px (wants 303), Pretext 301.9199981689453px (gave 302)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 304-316px: Japanese: widest line: DOM 302.40625px (wants 303), Pretext 304px (gave 304)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 317px: Japanese: widest line: DOM 316.484375px (wants 317), Pretext 304px (gave 304)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 320-332px: Japanese: widest line: DOM 317.125px (wants 318), Pretext 320px (gave 320)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 333px: Japanese: widest line: DOM 332.484375px (wants 333), Pretext 320px (gave 320)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 336-348px: Japanese: widest line: DOM 333.125px (wants 334), Pretext 336px (gave 336)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 349px: Japanese: widest line: DOM 348.484375px (wants 349), Pretext 336px (gave 336)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 352-364px: Japanese: widest line: DOM 349.125px (wants 350), Pretext 352px (gave 352)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 365px: Japanese: widest line: DOM 364.484375px (wants 365), Pretext 352px (gave 352)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 366-379px: Japanese: widest line: DOM 364.484375px (wants 365), Pretext 365.9199981689453px (gave 366)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 380px: Japanese: widest line: DOM 379.046875px (wants 380), Pretext 365.9199981689453px (gave 366)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 381px: Japanese: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 382-395px: Japanese: widest line: DOM 380.484375px (wants 381), Pretext 381.9199981689453px (gave 382)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 396-397px: Japanese: widest line: DOM 395.046875px (wants 396), Pretext 381.9199981689453px (gave 382)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 398-411px: Japanese: widest line: DOM 395.046875px (wants 396), Pretext 397.9199981689453px (gave 398)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 412-413px: Japanese: widest line: DOM 411.046875px (wants 412), Pretext 397.9199981689453px (gave 398)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 414-427px: Japanese: widest line: DOM 411.046875px (wants 412), Pretext 413.9199981689453px (gave 414)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 428-429px: Japanese: widest line: DOM 427.046875px (wants 428), Pretext 413.9199981689453px (gave 414)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 430-443px: Japanese: widest line: DOM 427.046875px (wants 428), Pretext 429.9199981689453px (gave 430)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 444-445px: Japanese: widest line: DOM 443.046875px (wants 444), Pretext 429.9199981689453px (gave 430)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 446-459px: Japanese: widest line: DOM 443.046875px (wants 444), Pretext 445.9199981689453px (gave 446)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 460-461px: Japanese: widest line: DOM 459.046875px (wants 460), Pretext 445.9199981689453px (gave 446)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 462-475px: Japanese: widest line: DOM 459.046875px (wants 460), Pretext 461.9199981689453px (gave 462)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 476-477px: Japanese: widest line: DOM 475.046875px (wants 476), Pretext 461.9199981689453px (gave 462)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 478-490px: Japanese: widest line: DOM 475.046875px (wants 476), Pretext 477.9199981689453px (gave 478)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 491-493px: Japanese: widest line: DOM 490.0859375px (wants 491), Pretext 477.9199981689453px (gave 478)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 494-506px: Japanese: widest line: DOM 490.0859375px (wants 491), Pretext 493.9199981689453px (gave 494)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 507-509px: Japanese: widest line: DOM 506.0859375px (wants 507), Pretext 493.9199981689453px (gave 494)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 510-522px: Japanese: widest line: DOM 506.0859375px (wants 507), Pretext 509.9199981689453px (gave 510)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 523-525px: Japanese: widest line: DOM 522.0859375px (wants 523), Pretext 509.9199981689453px (gave 510)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 526-538px: Japanese: widest line: DOM 522.0859375px (wants 523), Pretext 525.9199981689453px (gave 526)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 539-541px: Japanese: widest line: DOM 538.0859375px (wants 539), Pretext 525.9199981689453px (gave 526)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 542-554px: Japanese: widest line: DOM 538.0859375px (wants 539), Pretext 541.9199981689453px (gave 542)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 555-557px: Japanese: widest line: DOM 554.0859375px (wants 555), Pretext 541.9199981689453px (gave 542)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 558-569px: Japanese: widest line: DOM 554.0859375px (wants 555), Pretext 557.9199981689453px (gave 558)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 570-573px: Japanese: widest line: DOM 569.6015625px (wants 570), Pretext 557.9199981689453px (gave 558)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 574-585px: Japanese: widest line: DOM 569.6015625px (wants 570), Pretext 573.9199981689453px (gave 574)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 586-589px: Japanese: widest line: DOM 585.6015625px (wants 586), Pretext 573.9199981689453px (gave 574)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 590-600px: Japanese: widest line: DOM 585.6015625px (wants 586), Pretext 589.9199981689453px (gave 590)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 143px: Japanese short: widest line: DOM 142.2421875px (wants 143), Pretext 141.9199981689453px (gave 142)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 175px: Japanese short: widest line: DOM 174.2421875px (wants 175), Pretext 173.9199981689453px (gave 174)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 191px: Japanese short: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 207px: Japanese short: widest line: DOM 206.2421875px (wants 207), Pretext 205.9199981689453px (gave 206)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 223px: Japanese short: widest line: DOM 222.2421875px (wants 223), Pretext 221.9199981689453px (gave 222)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 237px: Japanese short: widest line: DOM 236.9609375px (wants 237), Pretext 224px (gave 224)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 238-239px: Japanese short: widest line: DOM 236.9609375px (wants 237), Pretext 237.9199981689453px (gave 238)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 253px: Japanese short: widest line: DOM 252.9609375px (wants 253), Pretext 240px (gave 240)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 255px: Japanese short: widest line: DOM 254.2421875px (wants 255), Pretext 253.9199981689453px (gave 254)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 256-269px: Japanese short: widest line: DOM 254.2421875px (wants 255), Pretext 256px (gave 256)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 271px: Japanese short: widest line: DOM 270.2421875px (wants 271), Pretext 269.9199981689453px (gave 270)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 272-285px: Japanese short: widest line: DOM 270.2421875px (wants 271), Pretext 272px (gave 272)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 287px: Japanese short: widest line: DOM 286.2421875px (wants 287), Pretext 285.9199981689453px (gave 286)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 288-301px: Japanese short: widest line: DOM 286.2421875px (wants 287), Pretext 288px (gave 288)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 303px: Japanese short: widest line: DOM 302.2421875px (wants 303), Pretext 301.9199981689453px (gave 302)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 304-317px: Japanese short: widest line: DOM 302.2421875px (wants 303), Pretext 304px (gave 304)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 319px: Japanese short: widest line: DOM 318.2421875px (wants 319), Pretext 317.9199981689453px (gave 318)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 320-333px: Japanese short: widest line: DOM 318.2421875px (wants 319), Pretext 320px (gave 320)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 335px: Japanese short: widest line: DOM 334.2421875px (wants 335), Pretext 333.9199981689453px (gave 334)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 336-349px: Japanese short: widest line: DOM 334.2421875px (wants 335), Pretext 336px (gave 336)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 351px: Japanese short: widest line: DOM 350.2421875px (wants 351), Pretext 349.9199981689453px (gave 350)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 352-365px: Japanese short: widest line: DOM 350.2421875px (wants 351), Pretext 352px (gave 352)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 381px: Japanese short: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 461px: Japanese short: widest line: DOM 460.484375px (wants 461), Pretext 445.9199981689453px (gave 446)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 462-476px: Japanese short: widest line: DOM 460.484375px (wants 461), Pretext 461.9199981689453px (gave 462)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 477px: Japanese short: widest line: DOM 476.484375px (wants 477), Pretext 461.9199981689453px (gave 462)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 478-491px: Japanese short: widest line: DOM 476.484375px (wants 477), Pretext 477.9199981689453px (gave 478)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 492-493px: Japanese short: widest line: DOM 491.6875px (wants 492), Pretext 477.9199981689453px (gave 478)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 494-507px: Japanese short: widest line: DOM 491.6875px (wants 492), Pretext 493.9199981689453px (gave 494)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 508-509px: Japanese short: widest line: DOM 507.6875px (wants 508), Pretext 493.9199981689453px (gave 494)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 510-523px: Japanese short: widest line: DOM 507.6875px (wants 508), Pretext 509.9199981689453px (gave 510)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 524-525px: Japanese short: widest line: DOM 523.6875px (wants 524), Pretext 509.9199981689453px (gave 510)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 526-539px: Japanese short: widest line: DOM 523.6875px (wants 524), Pretext 525.9199981689453px (gave 526)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 540-541px: Japanese short: widest line: DOM 539.6875px (wants 540), Pretext 525.9199981689453px (gave 526)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 542-555px: Japanese short: widest line: DOM 539.6875px (wants 540), Pretext 541.9199981689453px (gave 542)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 556-557px: Japanese short: widest line: DOM 555.6875px (wants 556), Pretext 541.9199981689453px (gave 542)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 558-571px: Japanese short: widest line: DOM 555.6875px (wants 556), Pretext 557.9199981689453px (gave 558)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 572-573px: Japanese short: widest line: DOM 571.6875px (wants 572), Pretext 557.9199981689453px (gave 558)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 574-587px: Japanese short: widest line: DOM 571.6875px (wants 572), Pretext 573.9199981689453px (gave 574)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 588-589px: Japanese short: widest line: DOM 587.6875px (wants 588), Pretext 573.9199981689453px (gave 574)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 590-600px: Japanese short: widest line: DOM 587.6875px (wants 588), Pretext 589.9199981689453px (gave 590)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 127px: Kumo no ito: baseline: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 143px: Kumo no ito: baseline: DOM 6 lines, Pretext 7
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 159px: Kumo no ito: widest line: DOM 158.8828125px (wants 159), Pretext 157.9199981689453px (gave 158)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 175px: Kumo no ito: widest line: DOM 174.8828125px (wants 175), Pretext 173.9199981689453px (gave 174)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 176-189px: Kumo no ito: widest line: DOM 174.8828125px (wants 175), Pretext 176px (gave 176)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 191px: Kumo no ito: widest line: DOM 190.8828125px (wants 191), Pretext 189.9199981689453px (gave 190)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 207px: Kumo no ito: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 208-221px: Kumo no ito: widest line: DOM 206.8828125px (wants 207), Pretext 208px (gave 208)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 223px: Kumo no ito: widest line: DOM 222.8828125px (wants 223), Pretext 221.9199981689453px (gave 222)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 224-237px: Kumo no ito: widest line: DOM 222.8828125px (wants 223), Pretext 224px (gave 224)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 239px: Kumo no ito: widest line: DOM 238.8828125px (wants 239), Pretext 237.9199981689453px (gave 238)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 240-253px: Kumo no ito: widest line: DOM 238.8828125px (wants 239), Pretext 240px (gave 240)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 255px: Kumo no ito: widest line: DOM 254.8828125px (wants 255), Pretext 253.9199981689453px (gave 254)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 256-269px: Kumo no ito: widest line: DOM 254.8828125px (wants 255), Pretext 256px (gave 256)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 271px: Kumo no ito: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 272-285px: Kumo no ito: widest line: DOM 270.8828125px (wants 271), Pretext 272px (gave 272)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 287px: Kumo no ito: widest line: DOM 286.0859375px (wants 287), Pretext 285.9199981689453px (gave 286)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 288-301px: Kumo no ito: widest line: DOM 286.0859375px (wants 287), Pretext 287.52000427246094px (gave 288)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 303px: Kumo no ito: widest line: DOM 302.0859375px (wants 303), Pretext 301.9199981689453px (gave 302)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 304-317px: Kumo no ito: widest line: DOM 302.0859375px (wants 303), Pretext 303.52000427246094px (gave 304)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 319px: Kumo no ito: widest line: DOM 318.0859375px (wants 319), Pretext 317.9199981689453px (gave 318)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 320-332px: Kumo no ito: widest line: DOM 318.0859375px (wants 319), Pretext 319.52000427246094px (gave 320)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 333px: Kumo no ito: widest line: DOM 332.9609375px (wants 333), Pretext 319.52000427246094px (gave 320)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 336-348px: Kumo no ito: widest line: DOM 333.921875px (wants 334), Pretext 335.52000427246094px (gave 336)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 349px: Kumo no ito: widest line: DOM 348.9609375px (wants 349), Pretext 335.52000427246094px (gave 336)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 352-364px: Kumo no ito: widest line: DOM 349.921875px (wants 350), Pretext 351.52000427246094px (gave 352)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 365px: Kumo no ito: widest line: DOM 364.9609375px (wants 365), Pretext 351.52000427246094px (gave 352)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 368-380px: Kumo no ito: widest line: DOM 365.921875px (wants 366), Pretext 367.52000427246094px (gave 368)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 381px: Kumo no ito: widest line: DOM 380.9609375px (wants 381), Pretext 367.52000427246094px (gave 368)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 384-397px: Kumo no ito: widest line: DOM 381.921875px (wants 382), Pretext 383.52000427246094px (gave 384)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 414-415px: Kumo no ito: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 416-428px: Kumo no ito: widest line: DOM 413.6015625px (wants 414), Pretext 415.52000427246094px (gave 416)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 429px: Kumo no ito: widest line: DOM 428.8046875px (wants 429), Pretext 415.52000427246094px (gave 416)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 430-444px: Kumo no ito: widest line: DOM 428.8046875px (wants 429), Pretext 429.44000244140625px (gave 430)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 445px: Kumo no ito: widest line: DOM 444.8046875px (wants 445), Pretext 429.44000244140625px (gave 430)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 446-460px: Kumo no ito: widest line: DOM 444.8046875px (wants 445), Pretext 445.44000244140625px (gave 446)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 461px: Kumo no ito: widest line: DOM 460.8046875px (wants 461), Pretext 445.44000244140625px (gave 446)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 462-476px: Kumo no ito: widest line: DOM 460.8046875px (wants 461), Pretext 461.44000244140625px (gave 462)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 477px: Kumo no ito: widest line: DOM 476.8046875px (wants 477), Pretext 461.44000244140625px (gave 462)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 478-491px: Kumo no ito: widest line: DOM 476.8046875px (wants 477), Pretext 477.44000244140625px (gave 478)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 492-493px: Kumo no ito: widest line: DOM 492px (wants 492), Pretext 477.44000244140625px (gave 478)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 494-507px: Kumo no ito: widest line: DOM 492px (wants 492), Pretext 493.44000244140625px (gave 494)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 508-509px: Kumo no ito: widest line: DOM 508px (wants 508), Pretext 493.44000244140625px (gave 494)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 510-523px: Kumo no ito: widest line: DOM 508px (wants 508), Pretext 509.44000244140625px (gave 510)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 524-525px: Kumo no ito: widest line: DOM 524px (wants 524), Pretext 509.44000244140625px (gave 510)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 526-539px: Kumo no ito: widest line: DOM 524px (wants 524), Pretext 525.4400024414062px (gave 526)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 540-541px: Kumo no ito: widest line: DOM 540px (wants 540), Pretext 525.4400024414062px (gave 526)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 542-555px: Kumo no ito: widest line: DOM 540px (wants 540), Pretext 541.4400024414062px (gave 542)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 556-557px: Kumo no ito: widest line: DOM 556px (wants 556), Pretext 541.4400024414062px (gave 542)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 558-571px: Kumo no ito: widest line: DOM 556px (wants 556), Pretext 557.4400024414062px (gave 558)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 572-573px: Kumo no ito: widest line: DOM 572px (wants 572), Pretext 557.4400024414062px (gave 558)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 574-587px: Kumo no ito: widest line: DOM 572px (wants 572), Pretext 573.4400024414062px (gave 574)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 588-589px: Kumo no ito: widest line: DOM 588px (wants 588), Pretext 573.4400024414062px (gave 574)
-- chromium@1,1.25,2 shrinkwrap cjk / Georgia @ 590-600px: Kumo no ito: widest line: DOM 588px (wants 588), Pretext 589.4400024414062px (gave 590)
-- chromium@1,1.25,2 shrinkwrap arabic / Helvetica Neue @ 131px: Ghufran tree: widest line: DOM 131.0078125px (wants 131), Pretext 128.79415893554688px (gave 129)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 251px: Numbers+RTL: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 493px: Long mixed: widest line: DOM 492.796875px (wants 493), Pretext 467.625px (gave 468)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 494-526px: Long mixed: widest line: DOM 492.796875px (wants 493), Pretext 493.0859375px (gave 494)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 157px: Ghufran tree: widest line: DOM 157.0078125px (wants 157), Pretext 152.7265625px (gave 153)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 490px: Ghufran tree: widest line: DOM 490.0078125px (wants 490), Pretext 455.421875px (gave 456)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 135px: Support thread: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 136px: Support thread: widest line: DOM 134.296875px (wants 135), Pretext 135.1796875px (gave 136)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 223px: Support thread: widest line: DOM 222.3515625px (wants 223), Pretext 198.9296875px (gave 199)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 224-241px: Support thread: widest line: DOM 222.3515625px (wants 223), Pretext 223.234375px (gave 224)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 249px: Support thread: widest line: DOM 248.390625px (wants 249), Pretext 241.5234375px (gave 242)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 250-258px: Support thread: widest line: DOM 248.390625px (wants 249), Pretext 249.2734375px (gave 250)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 276px: Support thread: widest line: DOM 275.71875px (wants 276), Pretext 258.9609375px (gave 259)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 277-305px: Support thread: widest line: DOM 275.71875px (wants 276), Pretext 276.6015625px (gave 277)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 319px: Support thread: widest line: DOM 318.2578125px (wants 319), Pretext 305.9921875px (gave 306)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 320-349px: Support thread: widest line: DOM 318.2578125px (wants 319), Pretext 319.140625px (gave 320)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 350px: Support thread: widest line: DOM 349.2265625px (wants 350), Pretext 319.140625px (gave 320)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 351-386px: Support thread: widest line: DOM 349.2265625px (wants 350), Pretext 350.109375px (gave 351)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 387px: Support thread: widest line: DOM 386.515625px (wants 387), Pretext 350.109375px (gave 351)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 388-431px: Support thread: widest line: DOM 386.515625px (wants 387), Pretext 387.3984375px (gave 388)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 432px: Support thread: widest line: DOM 431.7109375px (wants 432), Pretext 387.3984375px (gave 388)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 433-468px: Support thread: widest line: DOM 431.7109375px (wants 432), Pretext 432.59375px (gave 433)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 469px: Support thread: widest line: DOM 468.3203125px (wants 469), Pretext 432.59375px (gave 433)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 470-511px: Support thread: widest line: DOM 468.3203125px (wants 469), Pretext 469.203125px (gave 470)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 512px: Support thread: widest line: DOM 511.796875px (wants 512), Pretext 469.203125px (gave 470)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 513-541px: Support thread: widest line: DOM 511.796875px (wants 512), Pretext 512.6796875px (gave 513)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 542px: Support thread: widest line: DOM 541.53125px (wants 542), Pretext 512.6796875px (gave 513)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 543-589px: Support thread: widest line: DOM 541.53125px (wants 542), Pretext 542.4140625px (gave 543)
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 590px: Support thread: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 shrinkwrap arabic / Arial @ 591-600px: Support thread: widest line: DOM 589.890625px (wants 590), Pretext 590.7734375px (gave 591)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 151px: Long mixed: widest line: DOM 150.9921875px (wants 151), Pretext 147.625px (gave 148)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 152-155px: Long mixed: widest line: DOM 150.9921875px (wants 151), Pretext 151.28125px (gave 152)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 221px: Long mixed: widest line: DOM 220.7421875px (wants 221), Pretext 216.78125px (gave 217)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 222px: Long mixed: widest line: DOM 220.7421875px (wants 221), Pretext 221.03125px (gave 222)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 259px: Long mixed: widest line: DOM 258.9765625px (wants 259), Pretext 252.6328125px (gave 253)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 260-265px: Long mixed: widest line: DOM 258.9765625px (wants 259), Pretext 259.265625px (gave 260)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 294px: Long mixed: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 295-300px: Long mixed: widest line: DOM 293.8359375px (wants 294), Pretext 294.125px (gave 295)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 188px: Ghufran tree: widest line: DOM 188.0078125px (wants 188), Pretext 181.90625px (gave 182)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 124px: Support thread: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 125-127px: Support thread: widest line: DOM 123.5234375px (wants 124), Pretext 124.40625px (gave 125)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 168px: Support thread: widest line: DOM 167.5px (wants 168), Pretext 156.46875px (gave 157)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 169-184px: Support thread: widest line: DOM 167.5px (wants 168), Pretext 168.3828125px (gave 169)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 202px: Support thread: widest line: DOM 201.71875px (wants 202), Pretext 195.7578125px (gave 196)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 229px: Support thread: widest line: DOM 228.1640625px (wants 229), Pretext 202.6015625px (gave 203)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 230-254px: Support thread: widest line: DOM 228.1640625px (wants 229), Pretext 229.046875px (gave 230)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 284px: Support thread: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 285-296px: Support thread: widest line: DOM 283.9921875px (wants 284), Pretext 284.875px (gave 285)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 297px: Support thread: widest line: DOM 296.6953125px (wants 297), Pretext 284.875px (gave 285)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 298-327px: Support thread: widest line: DOM 296.6953125px (wants 297), Pretext 297.578125px (gave 298)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 328px: Support thread: widest line: DOM 327.21875px (wants 328), Pretext 297.578125px (gave 298)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 329-364px: Support thread: widest line: DOM 327.21875px (wants 328), Pretext 328.1015625px (gave 329)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 408px: Support thread: widest line: DOM 407.9140625px (wants 408), Pretext 364.9453125px (gave 365)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 409-444px: Support thread: widest line: DOM 407.9140625px (wants 408), Pretext 408.796875px (gave 409)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 487px: Support thread: widest line: DOM 486.2109375px (wants 487), Pretext 444.9609375px (gave 445)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 488-515px: Support thread: widest line: DOM 486.2109375px (wants 487), Pretext 487.09375px (gave 488)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 516px: Support thread: widest line: DOM 515.5px (wants 516), Pretext 487.09375px (gave 488)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 517-563px: Support thread: widest line: DOM 515.5px (wants 516), Pretext 516.3828125px (gave 517)
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 564px: Support thread: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 shrinkwrap arabic / Times New Roman @ 565-600px: Support thread: widest line: DOM 563.8203125px (wants 564), Pretext 564.703125px (gave 565)
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Arial @ 450px: Emoji mixed: widest line: DOM 450.0078125px (wants 450), Pretext 432.21875px (gave 433)
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Arial @ 198px: Flags: widest line: DOM 198.0078125px (wants 198), Pretext 177.5625px (gave 178)
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Arial @ 535px: Flags: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Arial @ 365px: Keycaps: widest line: DOM 364.8828125px (wants 365), Pretext 338.203125px (gave 339)
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Arial @ 366-385px: Keycaps: widest line: DOM 364.8828125px (wants 365), Pretext 365.765625px (gave 366)
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Arial @ 257px: ZWJ family: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Times New Roman @ 345px: Keycaps: widest line: DOM 344.7265625px (wants 345), Pretext 318.0546875px (gave 319)
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Times New Roman @ 346-364px: Keycaps: widest line: DOM 344.7265625px (wants 345), Pretext 345.1640625px (gave 346)
-- chromium@1,1.25,2 shrinkwrap emoji-chat / Times New Roman @ 206px: Weather report: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 186px: Backup URL: widest line: DOM 185.828125px (wants 186), Pretext 176.92784118652344px (gave 177)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 228px: Backup URL: widest line: DOM 227.90625px (wants 228), Pretext 219.29579162597656px (gave 220)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 229-236px: Backup URL: widest line: DOM 227.90625px (wants 228), Pretext 228.19178771972656px (gave 229)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 126px: Bare URL: widest line: DOM 125.9375px (wants 126), Pretext 118.84788513183594px (gave 119)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 128-129px: Bare URL: widest line: DOM 126.8515625px (wants 127), Pretext 127.13587951660156px (gave 128)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 130px: Bare URL: widest line: DOM 129.78125px (wants 130), Pretext 127.13587951660156px (gave 128)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 131px: Bare URL: widest line: DOM 129.78125px (wants 130), Pretext 130.06382751464844px (gave 131)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 135px: Bare URL: widest line: DOM 134.8359375px (wants 135), Pretext 132.49588012695312px (gave 133)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 136-137px: Bare URL: widest line: DOM 134.8359375px (wants 135), Pretext 135.11984252929688px (gave 136)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 155px: Bare URL: widest line: DOM 154.9765625px (wants 155), Pretext 149.9358367919922px (gave 150)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 160px: Bare URL: widest line: DOM 159.734375px (wants 160), Pretext 155.31185913085938px (gave 156)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 161-163px: Bare URL: widest line: DOM 159.734375px (wants 160), Pretext 160.0158233642578px (gave 161)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 190px: Bare URL: widest line: DOM 189.9375px (wants 190), Pretext 186.95977783203125px (gave 187)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 191-194px: Bare URL: widest line: DOM 189.9375px (wants 190), Pretext 190.5117645263672px (gave 191)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 254px: Bare URL: widest line: DOM 253.984375px (wants 254), Pretext 245.9837646484375px (gave 246)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 255-259px: Bare URL: widest line: DOM 253.984375px (wants 254), Pretext 254.27175903320312px (gave 255)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 274px: Bare URL: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 275-277px: Bare URL: widest line: DOM 273.84375px (wants 274), Pretext 274.1277313232422px (gave 275)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 355px: Bare URL: widest line: DOM 354.7421875px (wants 355), Pretext 349.6956481933594px (gave 350)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 356-363px: Bare URL: widest line: DOM 354.7421875px (wants 355), Pretext 355.0236358642578px (gave 356)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 372px: Bare URL: widest line: DOM 371.921875px (wants 372), Pretext 368.94361877441406px (gave 369)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 373-375px: Bare URL: widest line: DOM 371.921875px (wants 372), Pretext 372.49560546875px (gave 373)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 376px: Bare URL: widest line: DOM 375.4765625px (wants 376), Pretext 372.49560546875px (gave 373)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 377-384px: Bare URL: widest line: DOM 375.4765625px (wants 376), Pretext 376.04759216308594px (gave 377)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 393px: Bare URL: widest line: DOM 392.9609375px (wants 393), Pretext 384.94358825683594px (gave 385)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 394-399px: Bare URL: widest line: DOM 392.9609375px (wants 393), Pretext 393.53558349609375px (gave 394)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 125px: Query string: baseline: DOM 10 lines, Pretext 11
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 130px: Query string: widest line: DOM 128.7265625px (wants 129), Pretext 129.00787353515625px (gave 130)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 131px: Query string: widest line: DOM 130.640625px (wants 131), Pretext 129.00787353515625px (gave 130)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 137px: Query string: widest line: DOM 136.7265625px (wants 137), Pretext 135.8719024658203px (gave 136)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 138px: Query string: widest line: DOM 136.7265625px (wants 137), Pretext 137.00787353515625px (gave 138)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 141px: Query string: widest line: DOM 140.1328125px (wants 141), Pretext 138.73587036132812px (gave 139)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 145-147px: Query string: widest line: DOM 143.6875px (wants 144), Pretext 144.55987548828125px (gave 145)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 154px: Query string: widest line: DOM 152.4375px (wants 153), Pretext 153.15187072753906px (gave 154)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 158-159px: Query string: widest line: DOM 156.7265625px (wants 157), Pretext 157.59986877441406px (gave 158)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 166px: Query string: widest line: DOM 165.90625px (wants 166), Pretext 163.51988220214844px (gave 164)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 172px: Query string: widest line: DOM 172px (wants 172), Pretext 170.31985473632812px (gave 171)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 173-174px: Query string: widest line: DOM 172px (wants 172), Pretext 172.28787231445312px (gave 173)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 180-181px: Query string: widest line: DOM 179.96875px (wants 180), Pretext 177.61585998535156px (gave 178)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 186px: Query string: widest line: DOM 185.296875px (wants 186), Pretext 183.4878387451172px (gave 184)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 187-188px: Query string: widest line: DOM 185.296875px (wants 186), Pretext 186.6238250732422px (gave 187)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 195-196px: Query string: widest line: DOM 193.859375px (wants 194), Pretext 194.6238250732422px (gave 195)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 211px: Query string: widest line: DOM 210.484375px (wants 211), Pretext 208.78379821777344px (gave 209)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 212-213px: Query string: widest line: DOM 210.484375px (wants 211), Pretext 211.8078155517578px (gave 212)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 216-217px: Query string: widest line: DOM 215.8125px (wants 216), Pretext 213.6318359375px (gave 214)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 226-228px: Query string: widest line: DOM 224.7890625px (wants 225), Pretext 225.72779846191406px (gave 226)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 234px: Query string: widest line: DOM 233.015625px (wants 234), Pretext 230.99179077148438px (gave 231)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 235-237px: Query string: widest line: DOM 233.015625px (wants 234), Pretext 234.62379455566406px (gave 235)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 244px: Query string: widest line: DOM 243.84375px (wants 244), Pretext 241.90379333496094px (gave 242)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 245px: Query string: widest line: DOM 243.84375px (wants 244), Pretext 244.12782287597656px (gave 245)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 246px: Query string: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 247-248px: Query string: widest line: DOM 245.828125px (wants 246), Pretext 246.1117706298828px (gave 247)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 249px: Query string: widest line: DOM 248.8828125px (wants 249), Pretext 246.1117706298828px (gave 247)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 250-253px: Query string: widest line: DOM 248.8828125px (wants 249), Pretext 249.16781616210938px (gave 250)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 254px: Query string: widest line: DOM 253.921875px (wants 254), Pretext 249.16781616210938px (gave 250)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 256-258px: Query string: widest line: DOM 254.7265625px (wants 255), Pretext 255.0077667236328px (gave 256)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 259px: Query string: widest line: DOM 258.9453125px (wants 259), Pretext 255.0077667236328px (gave 256)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 260-263px: Query string: widest line: DOM 258.9453125px (wants 259), Pretext 259.23179626464844px (gave 260)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 272px: Query string: widest line: DOM 271.90625px (wants 272), Pretext 269.61578369140625px (gave 270)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 273px: Query string: widest line: DOM 271.90625px (wants 272), Pretext 272.19175720214844px (gave 273)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 282px: Query string: widest line: DOM 281.984375px (wants 282), Pretext 279.71177673339844px (gave 280)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 283-290px: Query string: widest line: DOM 281.984375px (wants 282), Pretext 282.27174377441406px (gave 283)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 291px: Query string: widest line: DOM 290.9921875px (wants 291), Pretext 282.27174377441406px (gave 283)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 319-327px: Query string: widest line: DOM 317.84375px (wants 318), Pretext 318.1277160644531px (gave 319)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 375-381px: Query string: widest line: DOM 374px (wants 374), Pretext 374.2876739501953px (gave 375)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 382px: Query string: widest line: DOM 382px (wants 382), Pretext 374.2876739501953px (gave 375)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 383-389px: Query string: widest line: DOM 382px (wants 382), Pretext 382.2876739501953px (gave 383)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 390px: Query string: widest line: DOM 390px (wants 390), Pretext 382.2876739501953px (gave 383)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 391-399px: Query string: widest line: DOM 390px (wants 390), Pretext 390.2876739501953px (gave 391)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 422px: Query string: widest line: DOM 421.71875px (wants 422), Pretext 413.6956481933594px (gave 414)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 423-430px: Query string: widest line: DOM 421.71875px (wants 422), Pretext 422.2876434326172px (gave 423)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 440px: Query string: widest line: DOM 439.90625px (wants 440), Pretext 430.879638671875px (gave 431)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 441-448px: Query string: widest line: DOM 439.90625px (wants 440), Pretext 440.47962951660156px (gave 441)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 449px: Query string: widest line: DOM 448.8046875px (wants 449), Pretext 440.47962951660156px (gave 441)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 450-457px: Query string: widest line: DOM 448.8046875px (wants 449), Pretext 449.37562561035156px (gave 450)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 470px: Query string: widest line: DOM 469.5234375px (wants 470), Pretext 457.9676208496094px (gave 458)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 471-477px: Query string: widest line: DOM 469.5234375px (wants 470), Pretext 470.0956115722656px (gave 471)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 478px: Query string: widest line: DOM 477.5234375px (wants 478), Pretext 470.0956115722656px (gave 471)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 479-481px: Query string: widest line: DOM 477.5234375px (wants 478), Pretext 478.0956115722656px (gave 479)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 490px: Query string: widest line: DOM 489.6640625px (wants 490), Pretext 481.64759826660156px (gave 482)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 491-494px: Query string: widest line: DOM 489.6640625px (wants 490), Pretext 490.2395935058594px (gave 491)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 495px: Query string: widest line: DOM 494.7109375px (wants 495), Pretext 490.2395935058594px (gave 491)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 496-499px: Query string: widest line: DOM 494.7109375px (wants 495), Pretext 495.2795867919922px (gave 496)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 500px: Query string: widest line: DOM 499.75px (wants 500), Pretext 495.2795867919922px (gave 496)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 501-508px: Query string: widest line: DOM 499.75px (wants 500), Pretext 500.319580078125px (gave 501)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 514px: Query string: widest line: DOM 513.6640625px (wants 514), Pretext 508.9115753173828px (gave 509)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 515-523px: Query string: widest line: DOM 513.6640625px (wants 514), Pretext 514.2395629882812px (gave 515)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 524px: Query string: widest line: DOM 523.75px (wants 524), Pretext 514.2395629882812px (gave 515)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 525-532px: Query string: widest line: DOM 523.75px (wants 524), Pretext 524.3195495605469px (gave 525)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 533px: Query string: widest line: DOM 532.640625px (wants 533), Pretext 524.3195495605469px (gave 525)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 534-537px: Query string: widest line: DOM 532.640625px (wants 533), Pretext 533.2155456542969px (gave 534)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 538px: Query string: widest line: DOM 537.6875px (wants 538), Pretext 533.2155456542969px (gave 534)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 539-551px: Query string: widest line: DOM 537.6875px (wants 538), Pretext 538.2555389404297px (gave 539)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 573px: Query string: widest line: DOM 572.9765625px (wants 573), Pretext 559.9035339355469px (gave 560)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 574-581px: Query string: widest line: DOM 572.9765625px (wants 573), Pretext 573.5515289306641px (gave 574)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 582px: Query string: widest line: DOM 581.5703125px (wants 582), Pretext 573.5515289306641px (gave 574)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 583-591px: Query string: widest line: DOM 581.5703125px (wants 582), Pretext 582.1435241699219px (gave 583)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 595px: Query string: widest line: DOM 594.609375px (wants 595), Pretext 591.6315155029297px (gave 592)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 596-600px: Query string: widest line: DOM 594.609375px (wants 595), Pretext 595.1835021972656px (gave 596)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 355px: Unix path: widest line: DOM 355.0078125px (wants 355), Pretext 346.1116638183594px (gave 347)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 151px: Windows path: widest line: DOM 150.7890625px (wants 151), Pretext 149.63185119628906px (gave 150)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 152px: Windows path: widest line: DOM 150.7890625px (wants 151), Pretext 151.0718536376953px (gave 152)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 156px: Windows path: widest line: DOM 155.828125px (wants 156), Pretext 152.5918426513672px (gave 153)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 157-158px: Windows path: widest line: DOM 155.828125px (wants 156), Pretext 156.11184692382812px (gave 157)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 166px: Windows path: widest line: DOM 165.9375px (wants 166), Pretext 164.14382934570312px (gave 165)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 167-169px: Windows path: widest line: DOM 165.9375px (wants 166), Pretext 166.2238311767578px (gave 167)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 171px: Windows path: widest line: DOM 169.796875px (wants 170), Pretext 170.079833984375px (gave 171)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 223px: Windows path: widest line: DOM 222.7890625px (wants 223), Pretext 218.67178344726562px (gave 219)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 255px: Windows path: widest line: DOM 254.7890625px (wants 255), Pretext 246.5277557373047px (gave 247)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 301-303px: Windows path: widest line: DOM 299.828125px (wants 300), Pretext 300.11170959472656px (gave 301)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 344px: Windows path: widest line: DOM 344px (wants 344), Pretext 339.55165100097656px (gave 340)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 373px: Windows path: widest line: DOM 372.7421875px (wants 373), Pretext 369.47161865234375px (gave 370)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 374-381px: Windows path: widest line: DOM 372.7421875px (wants 373), Pretext 373.0236053466797px (gave 374)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 426px: Windows path: widest line: DOM 425.765625px (wants 426), Pretext 420.7195739746094px (gave 421)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 427-429px: Windows path: widest line: DOM 425.765625px (wants 426), Pretext 426.0475616455078px (gave 427)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 430px: Windows path: widest line: DOM 429.90625px (wants 430), Pretext 426.0475616455078px (gave 427)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 431-441px: Windows path: widest line: DOM 429.90625px (wants 430), Pretext 430.1915588378906px (gave 431)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 484px: Windows path: widest line: DOM 483.828125px (wants 484), Pretext 475.51951599121094px (gave 476)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 485-492px: Windows path: widest line: DOM 483.828125px (wants 484), Pretext 484.11151123046875px (gave 485)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 493px: Windows path: widest line: DOM 492.7265625px (wants 493), Pretext 484.11151123046875px (gave 485)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 494-501px: Windows path: widest line: DOM 492.7265625px (wants 493), Pretext 493.00750732421875px (gave 494)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 511px: Windows path: widest line: DOM 510.7890625px (wants 511), Pretext 506.927490234375px (gave 507)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 512-520px: Windows path: widest line: DOM 510.7890625px (wants 511), Pretext 511.0714874267578px (gave 512)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 526px: Windows path: widest line: DOM 525.890625px (wants 526), Pretext 520.8474731445312px (gave 521)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 527-533px: Windows path: widest line: DOM 525.890625px (wants 526), Pretext 526.1754608154297px (gave 527)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 534px: Windows path: widest line: DOM 533.890625px (wants 534), Pretext 526.1754608154297px (gave 527)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 535-542px: Windows path: widest line: DOM 533.890625px (wants 534), Pretext 534.1754608154297px (gave 535)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 565px: Windows path: widest line: DOM 565.0078125px (wants 565), Pretext 556.3994293212891px (gave 557)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 121-122px: Data URI: widest line: DOM 118.5625px (wants 119), Pretext 120.5599365234375px (gave 121)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 134px: Data URI: widest line: DOM 133.3125px (wants 134), Pretext 132.7039031982422px (gave 133)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 135px: Data URI: widest line: DOM 133.3125px (wants 134), Pretext 134.8319091796875px (gave 135)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 144-145px: Data URI: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 147-148px: Data URI: widest line: DOM 145.4609375px (wants 146), Pretext 146.33592224121094px (gave 147)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 168-169px: Data URI: widest line: DOM 165.96875px (wants 166), Pretext 167.3759002685547px (gave 168)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 184-185px: Data URI: widest line: DOM 183.4140625px (wants 184), Pretext 182.20785522460938px (gave 183)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 186px: Data URI: widest line: DOM 183.4140625px (wants 184), Pretext 185.74388122558594px (gave 186)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 217-218px: Data URI: widest line: DOM 216.2578125px (wants 217), Pretext 210.43182373046875px (gave 211)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 230-231px: Data URI: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 232px: Data URI: widest line: DOM 229.6328125px (wants 230), Pretext 231.6638641357422px (gave 232)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 233px: Data URI: widest line: DOM 232.8515625px (wants 233), Pretext 231.6638641357422px (gave 232)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 235-236px: Data URI: widest line: DOM 233.796875px (wants 234), Pretext 234.62384033203125px (gave 235)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 245-246px: Data URI: widest line: DOM 244.421875px (wants 245), Pretext 242.41580200195312px (gave 243)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 247-248px: Data URI: widest line: DOM 244.421875px (wants 245), Pretext 246.7838134765625px (gave 247)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 252-253px: Data URI: widest line: DOM 251.84375px (wants 252), Pretext 249.4878387451172px (gave 250)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 255-256px: Data URI: widest line: DOM 254.53125px (wants 255), Pretext 253.08779907226562px (gave 254)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 263-265px: Data URI: widest line: DOM 262.8359375px (wants 263), Pretext 260.0958251953125px (gave 261)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 269-270px: Data URI: widest line: DOM 267.5078125px (wants 268), Pretext 268.6878204345703px (gave 269)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 278-279px: Data URI: widest line: DOM 277.875px (wants 278), Pretext 274.65577697753906px (gave 275)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 280px: Data URI: widest line: DOM 277.875px (wants 278), Pretext 279.727783203125px (gave 280)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 281px: Data URI: widest line: DOM 277.875px (wants 278), Pretext 280.2398223876953px (gave 281)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 290-291px: Data URI: widest line: DOM 289.4296875px (wants 290), Pretext 283.5997772216797px (gave 284)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 296-301px: Data URI: widest line: DOM 293.96875px (wants 294), Pretext 295.34381103515625px (gave 296)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 310-311px: Data URI: widest line: DOM 309.875px (wants 310), Pretext 304.3357696533203px (gave 305)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 313-314px: Data URI: widest line: DOM 311.4140625px (wants 312), Pretext 312.2397918701172px (gave 313)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 321-322px: Data URI: widest line: DOM 320.2421875px (wants 321), Pretext 318.23976135253906px (gave 319)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 323-325px: Data URI: widest line: DOM 320.2421875px (wants 321), Pretext 322.6077880859375px (gave 323)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 331-332px: Data URI: widest line: DOM 330.609375px (wants 331), Pretext 327.4237518310547px (gave 328)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 333-336px: Data URI: widest line: DOM 330.609375px (wants 331), Pretext 332.9757843017578px (gave 333)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 342-344px: Data URI: widest line: DOM 341.875px (wants 342), Pretext 337.4877471923828px (gave 338)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 345px: Data URI: widest line: DOM 341.875px (wants 342), Pretext 344.2397766113281px (gave 345)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 348-352px: Data URI: widest line: DOM 346.9921875px (wants 347), Pretext 347.1997528076172px (gave 348)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 357-358px: Data URI: widest line: DOM 356.9921875px (wants 357), Pretext 352.3197479248047px (gave 353)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 367px: Data URI: widest line: DOM 366.1796875px (wants 367), Pretext 362.09571838378906px (gave 363)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 369px: Data URI: widest line: DOM 367.4453125px (wants 368), Pretext 368.5437316894531px (gave 369)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 376-377px: Data URI: widest line: DOM 375.078125px (wants 376), Pretext 369.7917022705078px (gave 370)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 379-380px: Data URI: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 381px: Data URI: widest line: DOM 378.9453125px (wants 379), Pretext 380.09568786621094px (gave 381)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 382-388px: Data URI: widest line: DOM 378.9453125px (wants 379), Pretext 381.3117370605469px (gave 382)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 390-397px: Data URI: widest line: DOM 388.7734375px (wants 389), Pretext 389.61572265625px (gave 390)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 399-401px: Data URI: widest line: DOM 398.8046875px (wants 399), Pretext 397.9516906738281px (gave 398)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 402-407px: Data URI: widest line: DOM 398.8046875px (wants 399), Pretext 401.167724609375px (gave 402)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 408px: Data URI: widest line: DOM 407.703125px (wants 408), Pretext 401.167724609375px (gave 402)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 414-415px: Data URI: widest line: DOM 413.328125px (wants 414), Pretext 408.31968688964844px (gave 409)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 416-418px: Data URI: widest line: DOM 413.328125px (wants 414), Pretext 415.6957092285156px (gave 416)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 426-427px: Data URI: widest line: DOM 425.4609375px (wants 426), Pretext 418.68768310546875px (gave 419)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 428-429px: Data URI: widest line: DOM 425.4609375px (wants 426), Pretext 427.8236999511719px (gave 428)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 436-437px: Data URI: widest line: DOM 435.5390625px (wants 436), Pretext 429.05567932128906px (gave 430)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 438-439px: Data URI: widest line: DOM 435.5390625px (wants 436), Pretext 437.9036865234375px (gave 438)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 451-452px: Data URI: widest line: DOM 450.0390625px (wants 451), Pretext 449.1996612548828px (gave 450)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 453-458px: Data URI: widest line: DOM 450.0390625px (wants 451), Pretext 452.3996887207031px (gave 453)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 459px: Data URI: widest line: DOM 458.9296875px (wants 459), Pretext 452.3996887207031px (gave 453)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 467-468px: Data URI: widest line: DOM 466.0546875px (wants 467), Pretext 459.8236846923828px (gave 460)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 469px: Data URI: widest line: DOM 466.0546875px (wants 467), Pretext 468.4156799316406px (gave 469)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 473-475px: Data URI: widest line: DOM 472.8828125px (wants 473), Pretext 469.93565368652344px (gave 470)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 476-480px: Data URI: widest line: DOM 472.8828125px (wants 473), Pretext 475.24766540527344px (gave 476)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 483-484px: Data URI: widest line: DOM 482.0703125px (wants 483), Pretext 480.30364990234375px (gave 481)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 485-490px: Data URI: widest line: DOM 482.0703125px (wants 483), Pretext 484.43165588378906px (gave 485)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 493-494px: Data URI: widest line: DOM 492.4375px (wants 493), Pretext 490.67164611816406px (gave 491)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 495-501px: Data URI: widest line: DOM 492.4375px (wants 493), Pretext 494.7996520996094px (gave 495)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 503-505px: Data URI: widest line: DOM 502.8046875px (wants 503), Pretext 501.6316375732422px (gave 502)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 506-511px: Data URI: widest line: DOM 502.8046875px (wants 503), Pretext 505.1676483154297px (gave 506)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 512-513px: Data URI: widest line: DOM 511.109375px (wants 512), Pretext 505.1676483154297px (gave 506)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 523px: Data URI: widest line: DOM 522.0703125px (wants 523), Pretext 513.1836242675781px (gave 514)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 532px: Data URI: widest line: DOM 531.5546875px (wants 532), Pretext 523.5516204833984px (gave 524)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 534-535px: Data URI: widest line: DOM 532.7421875px (wants 533), Pretext 533.9196166992188px (gave 534)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 542-543px: Data URI: widest line: DOM 541.921875px (wants 542), Pretext 535.9995880126953px (gave 536)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 544px: Data URI: widest line: DOM 543.125px (wants 544), Pretext 535.9995880126953px (gave 536)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 545-552px: Data URI: widest line: DOM 543.125px (wants 544), Pretext 544.2876129150391px (gave 545)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 555-560px: Data URI: widest line: DOM 552.2890625px (wants 553), Pretext 554.6556091308594px (gave 555)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 563-565px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 566-573px: Data URI: widest line: DOM 562.65625px (wants 563), Pretext 565.0236053466797px (gave 566)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 574-575px: Data URI: widest line: DOM 573.03125px (wants 574), Pretext 565.0236053466797px (gave 566)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 576-577px: Data URI: widest line: DOM 573.03125px (wants 574), Pretext 575.3916015625px (gave 576)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 578-580px: Data URI: widest line: DOM 577.765625px (wants 578), Pretext 575.3916015625px (gave 576)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 581-586px: Data URI: widest line: DOM 577.765625px (wants 578), Pretext 580.1275939941406px (gave 581)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 587-589px: Data URI: widest line: DOM 586.9453125px (wants 587), Pretext 580.1275939941406px (gave 581)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 590-595px: Data URI: widest line: DOM 586.9453125px (wants 587), Pretext 589.3115844726562px (gave 590)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 596-597px: Data URI: widest line: DOM 595.5390625px (wants 596), Pretext 589.3115844726562px (gave 590)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 598-600px: Data URI: widest line: DOM 595.5390625px (wants 596), Pretext 597.9035797119141px (gave 598)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 129px: npm scope: widest line: DOM 128.9609375px (wants 129), Pretext 126.81587219238281px (gave 127)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 130-132px: npm scope: widest line: DOM 128.9609375px (wants 129), Pretext 129.2478790283203px (gave 130)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 139px: npm scope: widest line: DOM 138.9765625px (wants 139), Pretext 133.9998779296875px (gave 134)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 140-141px: npm scope: widest line: DOM 138.9765625px (wants 139), Pretext 139.26385498046875px (gave 140)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 146px: npm scope: widest line: DOM 145.78125px (wants 146), Pretext 141.13589477539062px (gave 142)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 147-149px: npm scope: widest line: DOM 145.78125px (wants 146), Pretext 146.06382751464844px (gave 147)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 218px: npm scope: widest line: DOM 217.890625px (wants 218), Pretext 211.64781188964844px (gave 212)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 219-221px: npm scope: widest line: DOM 217.890625px (wants 218), Pretext 218.17581176757812px (gave 219)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 223px: npm scope: widest line: DOM 222.9296875px (wants 223), Pretext 221.66378784179688px (gave 222)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 224-231px: npm scope: widest line: DOM 222.9296875px (wants 223), Pretext 223.21580505371094px (gave 224)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 240px: npm scope: widest line: DOM 239.8125px (wants 240), Pretext 231.80780029296875px (gave 232)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 241-244px: npm scope: widest line: DOM 239.8125px (wants 240), Pretext 240.09579467773438px (gave 241)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 245px: npm scope: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 246-250px: npm scope: widest line: DOM 244.8515625px (wants 245), Pretext 245.1357879638672px (gave 246)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 287px: npm scope: widest line: DOM 286.9140625px (wants 287), Pretext 281.8717346191406px (gave 282)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 288-290px: npm scope: widest line: DOM 286.9140625px (wants 287), Pretext 287.19972229003906px (gave 288)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 308px: npm scope: widest line: DOM 307.953125px (wants 308), Pretext 299.3437042236328px (gave 300)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 309-314px: npm scope: widest line: DOM 307.953125px (wants 308), Pretext 308.2397003173828px (gave 309)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 126-127px: Snake case: widest line: DOM 125.6484375px (wants 126), Pretext 124.76789855957031px (gave 125)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 128px: Snake case: widest line: DOM 125.6484375px (wants 126), Pretext 127.11990356445312px (gave 128)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 147px: Snake case: widest line: DOM 146.421875px (wants 147), Pretext 143.8398895263672px (gave 144)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 148-149px: Snake case: widest line: DOM 146.421875px (wants 147), Pretext 147.88787841796875px (gave 148)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 167px: Snake case: widest line: DOM 166.2421875px (wants 167), Pretext 162.23988342285156px (gave 163)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 168-169px: Snake case: widest line: DOM 166.2421875px (wants 167), Pretext 167.71188354492188px (gave 168)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 171px: Snake case: widest line: DOM 170.6953125px (wants 171), Pretext 169.1998748779297px (gave 170)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 181px: Snake case: widest line: DOM 180.7734375px (wants 181), Pretext 177.79183959960938px (gave 178)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 185-186px: Snake case: widest line: DOM 183.140625px (wants 184), Pretext 184.6078643798828px (gave 185)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 197-199px: Snake case: widest line: DOM 195.5859375px (wants 196), Pretext 196.76785278320312px (gave 197)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 204px: Snake case: widest line: DOM 203.296875px (wants 204), Pretext 199.7278289794922px (gave 200)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 214px: Snake case: widest line: DOM 213.09375px (wants 214), Pretext 210.0958251953125px (gave 211)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 215-216px: Snake case: widest line: DOM 213.09375px (wants 214), Pretext 214.55982971191406px (gave 215)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 223px: Snake case: widest line: DOM 222.2734375px (wants 223), Pretext 219.87181091308594px (gave 220)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 224-227px: Snake case: widest line: DOM 222.2734375px (wants 223), Pretext 223.7438201904297px (gave 224)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 230-231px: Snake case: widest line: DOM 229.6875px (wants 230), Pretext 227.5358123779297px (gave 228)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 247px: Snake case: widest line: DOM 246.2578125px (wants 247), Pretext 243.5837860107422px (gave 244)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 248-251px: Snake case: widest line: DOM 246.2578125px (wants 247), Pretext 247.72781372070312px (gave 248)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 262px: Snake case: widest line: DOM 261.6875px (wants 262), Pretext 255.13577270507812px (gave 256)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 272-273px: Snake case: widest line: DOM 271.765625px (wants 272), Pretext 266.39976501464844px (gave 267)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 274px: Snake case: widest line: DOM 271.765625px (wants 272), Pretext 273.2318115234375px (gave 274)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 282px: Snake case: widest line: DOM 281.234375px (wants 282), Pretext 276.76776123046875px (gave 277)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 285-286px: Snake case: widest line: DOM 282.8359375px (wants 283), Pretext 284.3037872314453px (gave 285)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 292-293px: Snake case: widest line: DOM 291.734375px (wants 292), Pretext 286.3677520751953px (gave 287)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 362px: Snake case: widest line: DOM 361.203125px (wants 362), Pretext 353.4877166748047px (gave 354)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 363-365px: Snake case: widest line: DOM 361.203125px (wants 362), Pretext 362.6717071533203px (gave 363)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 366px: Snake case: widest line: DOM 365.3515625px (wants 366), Pretext 362.6717071533203px (gave 363)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 367-377px: Snake case: widest line: DOM 365.3515625px (wants 366), Pretext 366.8157043457031px (gave 367)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 378px: Snake case: widest line: DOM 377.5078125px (wants 378), Pretext 366.8157043457031px (gave 367)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 379-389px: Snake case: widest line: DOM 377.5078125px (wants 378), Pretext 378.97569274902344px (gave 379)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 390px: Snake case: widest line: DOM 389.0625px (wants 390), Pretext 378.97569274902344px (gave 379)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 391-397px: Snake case: widest line: DOM 389.0625px (wants 390), Pretext 390.5276794433594px (gave 391)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 398px: Snake case: widest line: DOM 397.0625px (wants 398), Pretext 390.5276794433594px (gave 391)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 399-405px: Snake case: widest line: DOM 397.0625px (wants 398), Pretext 398.5276794433594px (gave 399)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 406px: Snake case: widest line: DOM 405.3671875px (wants 406), Pretext 398.5276794433594px (gave 399)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 407-417px: Snake case: widest line: DOM 405.3671875px (wants 406), Pretext 406.8316650390625px (gave 407)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 418px: Snake case: widest line: DOM 417.5234375px (wants 418), Pretext 406.8316650390625px (gave 407)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 419-428px: Snake case: widest line: DOM 417.5234375px (wants 418), Pretext 418.9916534423828px (gave 419)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 429px: Snake case: widest line: DOM 428.484375px (wants 429), Pretext 418.9916534423828px (gave 419)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 430-438px: Snake case: widest line: DOM 428.484375px (wants 429), Pretext 429.95164489746094px (gave 430)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 439-440px: Snake case: widest line: DOM 438.8515625px (wants 439), Pretext 429.95164489746094px (gave 430)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 441-446px: Snake case: widest line: DOM 438.8515625px (wants 439), Pretext 440.31964111328125px (gave 441)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 447-448px: Snake case: widest line: DOM 446.8515625px (wants 447), Pretext 440.31964111328125px (gave 441)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 449-457px: Snake case: widest line: DOM 446.8515625px (wants 447), Pretext 448.31964111328125px (gave 449)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 458px: Snake case: widest line: DOM 457.21875px (wants 458), Pretext 448.31964111328125px (gave 449)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 459-466px: Snake case: widest line: DOM 457.21875px (wants 458), Pretext 458.68763732910156px (gave 459)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 467-468px: Snake case: widest line: DOM 466.9921875px (wants 467), Pretext 458.68763732910156px (gave 459)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 469-477px: Snake case: widest line: DOM 466.9921875px (wants 467), Pretext 468.463623046875px (gave 469)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 480-485px: Snake case: widest line: DOM 477.953125px (wants 478), Pretext 479.4236145019531px (gave 480)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 486-487px: Snake case: widest line: DOM 485.953125px (wants 486), Pretext 479.4236145019531px (gave 480)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 488-500px: Snake case: widest line: DOM 485.953125px (wants 486), Pretext 487.4236145019531px (gave 488)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 501-502px: Snake case: widest line: DOM 500.7734375px (wants 501), Pretext 487.4236145019531px (gave 488)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 503-512px: Snake case: widest line: DOM 500.7734375px (wants 501), Pretext 502.23960876464844px (gave 503)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 513-514px: Snake case: widest line: DOM 512.9296875px (wants 513), Pretext 502.23960876464844px (gave 503)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 515-523px: Snake case: widest line: DOM 512.9296875px (wants 513), Pretext 514.3995971679688px (gave 515)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 524-525px: Snake case: widest line: DOM 523.890625px (wants 524), Pretext 514.3995971679688px (gave 515)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 526-534px: Snake case: widest line: DOM 523.890625px (wants 524), Pretext 525.3595886230469px (gave 526)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 535-536px: Snake case: widest line: DOM 534.5625px (wants 535), Pretext 525.3595886230469px (gave 526)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 537-544px: Snake case: widest line: DOM 534.5625px (wants 535), Pretext 536.0315856933594px (gave 537)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 545px: Snake case: widest line: DOM 544.3359375px (wants 545), Pretext 536.0315856933594px (gave 537)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 546-555px: Snake case: widest line: DOM 544.3359375px (wants 545), Pretext 545.8075714111328px (gave 546)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 556px: Snake case: widest line: DOM 555.296875px (wants 556), Pretext 545.8075714111328px (gave 546)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 557-564px: Snake case: widest line: DOM 555.296875px (wants 556), Pretext 556.7675628662109px (gave 557)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 565-566px: Snake case: widest line: DOM 564.8984375px (wants 565), Pretext 556.7675628662109px (gave 557)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 567-573px: Snake case: widest line: DOM 564.8984375px (wants 565), Pretext 566.3675537109375px (gave 567)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 162px: Path with spaces: widest line: DOM 161.84375px (wants 162), Pretext 160.01583862304688px (gave 161)
-- chromium@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 163-171px: Path with spaces: widest line: DOM 161.84375px (wants 162), Pretext 162.1278533935547px (gave 163)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 177px: Bare URL: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 126px: Query string: widest line: DOM 125.375px (wants 126), Pretext 123.6171875px (gave 124)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 127px: Query string: widest line: DOM 125.375px (wants 126), Pretext 126.2578125px (gave 127)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 135px: Query string: widest line: DOM 134.2734375px (wants 135), Pretext 132.9609375px (gave 133)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 138px: Query string: widest line: DOM 137.828125px (wants 138), Pretext 136.546875px (gave 137)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 139-141px: Query string: widest line: DOM 137.828125px (wants 138), Pretext 138.7109375px (gave 139)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 147px: Query string: widest line: DOM 146.7265625px (wants 147), Pretext 144.5625px (gave 145)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 148px: Query string: widest line: DOM 146.7265625px (wants 147), Pretext 147.609375px (gave 148)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 152px: Query string: widest line: DOM 151.171875px (wants 152), Pretext 150.2890625px (gave 151)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 153px: Query string: widest line: DOM 151.171875px (wants 152), Pretext 152.0546875px (gave 153)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 166px: Query string: widest line: DOM 165.3984375px (wants 166), Pretext 164.1328125px (gave 165)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 175px: Query string: widest line: DOM 174.296875px (wants 175), Pretext 173.84375px (gave 174)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 176px: Query string: widest line: DOM 174.296875px (wants 175), Pretext 175.1796875px (gave 176)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 179px: Query string: widest line: DOM 178.7421875px (wants 179), Pretext 176.53125px (gave 177)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 180-181px: Query string: widest line: DOM 178.7421875px (wants 179), Pretext 179.625px (gave 180)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 188-190px: Query string: widest line: DOM 186.7421875px (wants 187), Pretext 187.625px (gave 188)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 196px: Query string: widest line: DOM 195.640625px (wants 196), Pretext 190.8046875px (gave 191)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 197px: Query string: widest line: DOM 195.640625px (wants 196), Pretext 196.5234375px (gave 197)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 205px: Query string: widest line: DOM 204.5390625px (wants 205), Pretext 203.2109375px (gave 204)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 210px: Query string: widest line: DOM 209.8671875px (wants 210), Pretext 205.921875px (gave 206)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 211px: Query string: widest line: DOM 209.8671875px (wants 210), Pretext 210.75px (gave 211)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 219px: Query string: widest line: DOM 217.9296875px (wants 218), Pretext 218.75px (gave 219)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 228px: Query string: widest line: DOM 226.828125px (wants 227), Pretext 227.6484375px (gave 228)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 153px: Unix path: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 297px: Windows path: widest line: DOM 297.0078125px (wants 297), Pretext 293.453125px (gave 294)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 145px: macOS path: widest line: DOM 145.0078125px (wants 145), Pretext 142.2890625px (gave 143)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 234px: Hash: widest line: DOM 234.0078125px (wants 234), Pretext 225.109375px (gave 226)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 120px: Data URI: widest line: DOM 117.390625px (wants 118), Pretext 118.2734375px (gave 119)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 123px: Data URI: widest line: DOM 120.34375px (wants 121), Pretext 122.71875px (gave 123)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 136px: Data URI: widest line: DOM 135.75px (wants 136), Pretext 134.2890625px (gave 135)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 137-138px: Data URI: widest line: DOM 135.75px (wants 136), Pretext 136.9375px (gave 137)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 140px: Data URI: widest line: DOM 138.4296875px (wants 139), Pretext 139.6171875px (gave 140)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 148px: Data URI: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 171px: Data URI: widest line: DOM 168.96875px (wants 169), Pretext 170.71875px (gave 171)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 190-192px: Data URI: widest line: DOM 189.7109375px (wants 190), Pretext 187.6015625px (gave 188)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 205px: Data URI: widest line: DOM 202.1484375px (wants 203), Pretext 204.5234375px (gave 205)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 212px: Data URI: widest line: DOM 210.7578125px (wants 211), Pretext 211.6171875px (gave 212)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 223px: Data URI: widest line: DOM 221.4296875px (wants 222), Pretext 222.28125px (gave 223)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 237px: Data URI: widest line: DOM 236.8125px (wants 237), Pretext 232.140625px (gave 233)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 238-239px: Data URI: widest line: DOM 236.8125px (wants 237), Pretext 237.4140625px (gave 238)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 240px: Data URI: widest line: DOM 236.8125px (wants 237), Pretext 239.1875px (gave 240)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 241px: Data URI: widest line: DOM 241.0078125px (wants 241), Pretext 239.1875px (gave 240)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 251px: Data URI: widest line: DOM 250.140625px (wants 251), Pretext 248.9921875px (gave 249)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 260-262px: Data URI: widest line: DOM 259.921875px (wants 260), Pretext 253.453125px (gave 254)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 263-264px: Data URI: widest line: DOM 259.921875px (wants 260), Pretext 262.296875px (gave 263)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 271-272px: Data URI: widest line: DOM 269.453125px (wants 270), Pretext 270.296875px (gave 271)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 273px: Data URI: widest line: DOM 272.71875px (wants 273), Pretext 270.296875px (gave 271)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 286-288px: Data URI: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 289-292px: Data URI: widest line: DOM 285.75px (wants 286), Pretext 288.125px (gave 289)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 300-302px: Data URI: widest line: DOM 299.96875px (wants 300), Pretext 292.625px (gave 293)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 303px: Data URI: widest line: DOM 299.96875px (wants 300), Pretext 302.34375px (gave 303)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 311-313px: Data URI: widest line: DOM 307.96875px (wants 308), Pretext 310.34375px (gave 311)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 319-321px: Data URI: widest line: DOM 315.96875px (wants 316), Pretext 318.34375px (gave 319)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 327-329px: Data URI: widest line: DOM 326.640625px (wants 327), Pretext 324.640625px (gave 325)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 330px: Data URI: widest line: DOM 326.640625px (wants 327), Pretext 329.015625px (gave 330)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 338-339px: Data URI: widest line: DOM 337.3125px (wants 338), Pretext 336.1953125px (gave 337)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 340px: Data URI: widest line: DOM 337.3125px (wants 338), Pretext 339.6875px (gave 340)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 353-354px: Data URI: widest line: DOM 352.421875px (wants 353), Pretext 346.8671875px (gave 347)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 364-366px: Data URI: widest line: DOM 363.984375px (wants 364), Pretext 358.421875px (gave 359)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 367px: Data URI: widest line: DOM 363.984375px (wants 364), Pretext 366.359375px (gave 367)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 376-377px: Data URI: widest line: DOM 375.5390625px (wants 376), Pretext 369.9296875px (gave 370)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 388-389px: Data URI: widest line: DOM 387.09375px (wants 388), Pretext 379.71875px (gave 380)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 396-397px: Data URI: widest line: DOM 395.09375px (wants 396), Pretext 389.546875px (gave 390)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 398px: Data URI: widest line: DOM 395.09375px (wants 396), Pretext 397.46875px (gave 398)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 400-407px: Data URI: widest line: DOM 398.4453125px (wants 399), Pretext 399.2421875px (gave 400)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 408-409px: Data URI: widest line: DOM 407.5390625px (wants 408), Pretext 399.2421875px (gave 400)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 411-412px: Data URI: widest line: DOM 410.2109375px (wants 411), Pretext 409.1171875px (gave 410)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 413-419px: Data URI: widest line: DOM 410.2109375px (wants 411), Pretext 412.5859375px (gave 413)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 423-425px: Data URI: widest line: DOM 422.6484375px (wants 423), Pretext 419.7890625px (gave 420)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 426-430px: Data URI: widest line: DOM 422.6484375px (wants 423), Pretext 425.0234375px (gave 426)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 435-436px: Data URI: widest line: DOM 434.203125px (wants 435), Pretext 430.4609375px (gave 431)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 437-441px: Data URI: widest line: DOM 434.203125px (wants 435), Pretext 436.578125px (gave 437)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 444-446px: Data URI: widest line: DOM 443.984375px (wants 444), Pretext 441.1328125px (gave 442)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 447-451px: Data URI: widest line: DOM 443.984375px (wants 444), Pretext 446.359375px (gave 447)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 457-458px: Data URI: widest line: DOM 456.4296875px (wants 457), Pretext 451.8046875px (gave 452)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 459-462px: Data URI: widest line: DOM 456.4296875px (wants 457), Pretext 458.8046875px (gave 459)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 464-465px: Data URI: widest line: DOM 463.5546875px (wants 464), Pretext 462.4765625px (gave 463)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 466-472px: Data URI: widest line: DOM 463.5546875px (wants 464), Pretext 465.9296875px (gave 466)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 473px: Data URI: widest line: DOM 472.453125px (wants 473), Pretext 465.9296875px (gave 466)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 479-481px: Data URI: widest line: DOM 478.6796875px (wants 479), Pretext 473.1484375px (gave 474)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 482-483px: Data URI: widest line: DOM 478.6796875px (wants 479), Pretext 481.0546875px (gave 482)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 488-489px: Data URI: widest line: DOM 487.578125px (wants 488), Pretext 483.8203125px (gave 484)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 490-494px: Data URI: widest line: DOM 487.578125px (wants 488), Pretext 489.953125px (gave 490)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 499-500px: Data URI: widest line: DOM 498.25px (wants 499), Pretext 494.4921875px (gave 495)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 501-505px: Data URI: widest line: DOM 498.25px (wants 499), Pretext 500.625px (gave 501)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 509-511px: Data URI: widest line: DOM 508.921875px (wants 509), Pretext 505.1640625px (gave 506)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 512-516px: Data URI: widest line: DOM 508.921875px (wants 509), Pretext 511.296875px (gave 512)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 520-527px: Data URI: widest line: DOM 516.921875px (wants 517), Pretext 519.296875px (gave 520)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 530-536px: Data URI: widest line: DOM 527.890625px (wants 528), Pretext 529.078125px (gave 530)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 537-538px: Data URI: widest line: DOM 536.875px (wants 537), Pretext 529.078125px (gave 530)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 539-542px: Data URI: widest line: DOM 536.875px (wants 537), Pretext 538.0625px (gave 539)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 547-548px: Data URI: widest line: DOM 546.359375px (wants 547), Pretext 542.40625px (gave 543)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 560-565px: Data URI: widest line: DOM 557.03125px (wants 558), Pretext 559.40625px (gave 560)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 568-570px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 571-578px: Data URI: widest line: DOM 567.703125px (wants 568), Pretext 570.078125px (gave 571)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 579-580px: Data URI: widest line: DOM 578.375px (wants 579), Pretext 570.078125px (gave 571)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 581-582px: Data URI: widest line: DOM 578.375px (wants 579), Pretext 580.75px (gave 581)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 583-585px: Data URI: widest line: DOM 582.8203125px (wants 583), Pretext 580.75px (gave 581)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 586-592px: Data URI: widest line: DOM 582.8203125px (wants 583), Pretext 585.1953125px (gave 586)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 593-594px: Data URI: widest line: DOM 592.59375px (wants 593), Pretext 585.1953125px (gave 586)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 595-600px: Data URI: widest line: DOM 592.59375px (wants 593), Pretext 594.96875px (gave 595)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 120px: Snake case: widest line: DOM 120.0078125px (wants 120), Pretext 116.0625px (gave 117)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 129px: Snake case: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 130-132px: Snake case: widest line: DOM 128.609375px (wants 129), Pretext 129.796875px (gave 130)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 140-142px: Snake case: widest line: DOM 138.6953125px (wants 139), Pretext 139.5859375px (gave 140)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 150px: Snake case: widest line: DOM 149.0625px (wants 150), Pretext 148.4609375px (gave 149)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 151px: Snake case: widest line: DOM 149.0625px (wants 150), Pretext 150.25px (gave 151)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 166px: Snake case: widest line: DOM 165.9765625px (wants 166), Pretext 164.078125px (gave 165)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 189-193px: Snake case: widest line: DOM 187.5859375px (wants 188), Pretext 188.46875px (gave 189)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 201-202px: Snake case: widest line: DOM 199.7265625px (wants 200), Pretext 200.9140625px (gave 201)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 209px: Snake case: widest line: DOM 208.625px (wants 209), Pretext 207.1484375px (gave 208)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 219px: Snake case: widest line: DOM 218.3984375px (wants 219), Pretext 217.8203125px (gave 218)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 220-222px: Snake case: widest line: DOM 218.3984375px (wants 219), Pretext 219.5859375px (gave 220)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 228px: Snake case: widest line: DOM 227.296875px (wants 228), Pretext 222.2578125px (gave 223)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 236px: Snake case: widest line: DOM 235.3125px (wants 236), Pretext 233.8125px (gave 234)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 237-240px: Snake case: widest line: DOM 235.3125px (wants 236), Pretext 236.5px (gave 237)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 246px: Snake case: widest line: DOM 245.984375px (wants 246), Pretext 240.046875px (gave 241)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 254-255px: Snake case: widest line: DOM 253.9921875px (wants 254), Pretext 252.4921875px (gave 253)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 256-257px: Snake case: widest line: DOM 253.9921875px (wants 254), Pretext 255.1796875px (gave 256)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 259-264px: Snake case: widest line: DOM 257.8125px (wants 258), Pretext 258.7265625px (gave 259)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 272-275px: Snake case: widest line: DOM 269.984375px (wants 270), Pretext 271.171875px (gave 272)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 292px: Snake case: widest line: DOM 291.7734375px (wants 292), Pretext 289.8203125px (gave 290)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 293-295px: Snake case: widest line: DOM 291.7734375px (wants 292), Pretext 292.9609375px (gave 293)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 301px: Snake case: widest line: DOM 300.671875px (wants 301), Pretext 295.6171875px (gave 296)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 371px: Snake case: widest line: DOM 370.421875px (wants 371), Pretext 361.8359375px (gave 362)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 372-374px: Snake case: widest line: DOM 370.421875px (wants 371), Pretext 371.609375px (gave 372)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 375-376px: Snake case: widest line: DOM 374.8671875px (wants 375), Pretext 371.609375px (gave 372)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 377-387px: Snake case: widest line: DOM 374.8671875px (wants 375), Pretext 376.0546875px (gave 377)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 388px: Snake case: widest line: DOM 387.3125px (wants 388), Pretext 376.0546875px (gave 377)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 389-398px: Snake case: widest line: DOM 387.3125px (wants 388), Pretext 388.5px (gave 389)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 399-400px: Snake case: widest line: DOM 398.8671875px (wants 399), Pretext 388.5px (gave 389)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 401-407px: Snake case: widest line: DOM 398.8671875px (wants 399), Pretext 400.0546875px (gave 401)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 408px: Snake case: widest line: DOM 407.765625px (wants 408), Pretext 400.0546875px (gave 401)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 409-415px: Snake case: widest line: DOM 407.765625px (wants 408), Pretext 408.953125px (gave 409)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 416px: Snake case: widest line: DOM 415.765625px (wants 416), Pretext 408.953125px (gave 409)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 417-428px: Snake case: widest line: DOM 415.765625px (wants 416), Pretext 416.953125px (gave 417)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 429px: Snake case: widest line: DOM 428.2109375px (wants 429), Pretext 416.953125px (gave 417)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 430-438px: Snake case: widest line: DOM 428.2109375px (wants 429), Pretext 429.3984375px (gave 430)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 439-440px: Snake case: widest line: DOM 438.8828125px (wants 439), Pretext 429.3984375px (gave 430)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 441-449px: Snake case: widest line: DOM 438.8828125px (wants 439), Pretext 440.0703125px (gave 441)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 450px: Snake case: widest line: DOM 449.5546875px (wants 450), Pretext 440.0703125px (gave 441)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 451-458px: Snake case: widest line: DOM 449.5546875px (wants 450), Pretext 450.7421875px (gave 451)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 459px: Snake case: widest line: DOM 458.453125px (wants 459), Pretext 450.7421875px (gave 451)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 460-469px: Snake case: widest line: DOM 458.453125px (wants 459), Pretext 459.640625px (gave 460)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 470px: Snake case: widest line: DOM 469.125px (wants 470), Pretext 459.640625px (gave 460)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 471-479px: Snake case: widest line: DOM 469.125px (wants 470), Pretext 470.3125px (gave 471)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 480px: Snake case: widest line: DOM 479.796875px (wants 480), Pretext 470.3125px (gave 471)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 481-490px: Snake case: widest line: DOM 479.796875px (wants 480), Pretext 480.984375px (gave 481)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 492px: Snake case: widest line: DOM 491.3515625px (wants 492), Pretext 490.8359375px (gave 491)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 493-500px: Snake case: widest line: DOM 491.3515625px (wants 492), Pretext 492.5390625px (gave 493)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 501px: Snake case: widest line: DOM 500.25px (wants 501), Pretext 492.5390625px (gave 493)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 502-515px: Snake case: widest line: DOM 500.25px (wants 501), Pretext 501.4375px (gave 502)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 516px: Snake case: widest line: DOM 515.3515625px (wants 516), Pretext 501.4375px (gave 502)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 517-527px: Snake case: widest line: DOM 515.3515625px (wants 516), Pretext 516.5390625px (gave 517)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 528px: Snake case: widest line: DOM 527.796875px (wants 528), Pretext 516.5390625px (gave 517)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 529-539px: Snake case: widest line: DOM 527.796875px (wants 528), Pretext 528.984375px (gave 529)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 540px: Snake case: widest line: DOM 539.3515625px (wants 540), Pretext 528.984375px (gave 529)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 541-550px: Snake case: widest line: DOM 539.3515625px (wants 540), Pretext 540.5390625px (gave 541)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 551px: Snake case: widest line: DOM 550.0234375px (wants 551), Pretext 540.5390625px (gave 541)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 552-560px: Snake case: widest line: DOM 550.0234375px (wants 551), Pretext 551.2109375px (gave 552)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 561px: Snake case: widest line: DOM 560.6953125px (wants 561), Pretext 551.2109375px (gave 552)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 562-572px: Snake case: widest line: DOM 560.6953125px (wants 561), Pretext 561.8828125px (gave 562)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 573px: Snake case: widest line: DOM 572.25px (wants 573), Pretext 561.8828125px (gave 562)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 574-581px: Snake case: widest line: DOM 572.25px (wants 573), Pretext 573.4375px (gave 574)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 582px: Snake case: widest line: DOM 581.59375px (wants 582), Pretext 573.4375px (gave 574)
-- chromium@1,1.25,2 shrinkwrap urls / Arial @ 583-590px: Snake case: widest line: DOM 581.59375px (wants 582), Pretext 582.78125px (gave 583)
-- chromium@1,1.25,2 shrinkwrap urls / Georgia @ 140px: Backup URL: widest line: DOM 140.0078125px (wants 140), Pretext 137.8984375px (gave 138)
-- chromium@1,1.25,2 shrinkwrap urls / Georgia @ 225px: Bare URL: widest line: DOM 225.0078125px (wants 225), Pretext 215.8671875px (gave 216)
-- chromium@1,1.25,2 shrinkwrap urls / Georgia @ 360px: Data URI: widest line: DOM 360.0078125px (wants 360), Pretext 358.21875px (gave 359)
-- chromium@1,1.25,2 shrinkwrap urls / Georgia @ 457px: Snake case: widest line: DOM 457.0078125px (wants 457), Pretext 448.03125px (gave 449)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 125px: Query string: widest line: DOM 124.7265625px (wants 125), Pretext 122.75px (gave 123)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 130px: Query string: widest line: DOM 129.171875px (wants 130), Pretext 127.234375px (gave 128)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 131px: Query string: widest line: DOM 129.171875px (wants 130), Pretext 130.2109375px (gave 131)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 137px: Query string: widest line: DOM 136.2734375px (wants 137), Pretext 135.34375px (gave 136)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 138px: Query string: widest line: DOM 136.2734375px (wants 137), Pretext 137.3125px (gave 138)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 141px: Query string: widest line: DOM 140.2734375px (wants 141), Pretext 138.6328125px (gave 139)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 149px: Query string: widest line: DOM 148.2734375px (wants 149), Pretext 146.8984375px (gave 147)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 154px: Query string: widest line: DOM 153.6015625px (wants 154), Pretext 150.46875px (gave 151)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 163-165px: Query string: widest line: DOM 161.8671875px (wants 162), Pretext 162.640625px (gave 163)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 166-167px: Query string: widest line: DOM 165.7578125px (wants 166), Pretext 162.640625px (gave 163)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 168px: Query string: widest line: DOM 165.7578125px (wants 166), Pretext 167.0859375px (gave 168)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 172-173px: Query string: widest line: DOM 171.984375px (wants 172), Pretext 168.375px (gave 169)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 180px: Query string: widest line: DOM 179.0859375px (wants 180), Pretext 178.1484375px (gave 179)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 181px: Query string: widest line: DOM 179.0859375px (wants 180), Pretext 180.4140625px (gave 181)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 187px: Query string: widest line: DOM 186.1875px (wants 187), Pretext 183.1875px (gave 184)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 192px: Query string: widest line: DOM 191.515625px (wants 192), Pretext 188.515625px (gave 189)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 199px: Query string: widest line: DOM 198.6171875px (wants 199), Pretext 195.7734375px (gave 196)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 207px: Query string: widest line: DOM 206.6171875px (wants 207), Pretext 204.046875px (gave 205)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 208px: Query string: widest line: DOM 206.6171875px (wants 207), Pretext 207.9453125px (gave 208)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 134-135px: Windows path: widest line: DOM 132.6796875px (wants 133), Pretext 133.3203125px (gave 134)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 143px: Windows path: widest line: DOM 142.4375px (wants 143), Pretext 139.515625px (gave 140)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 144px: Windows path: widest line: DOM 142.4375px (wants 143), Pretext 143.078125px (gave 144)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 148px: Windows path: widest line: DOM 147.78125px (wants 148), Pretext 144.8828125px (gave 145)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 149-150px: Windows path: widest line: DOM 147.78125px (wants 148), Pretext 148.421875px (gave 149)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 156px: Windows path: widest line: DOM 155.7578125px (wants 156), Pretext 154.65625px (gave 155)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 158px: Windows path: widest line: DOM 157.53125px (wants 158), Pretext 156.3984375px (gave 157)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 159px: Windows path: widest line: DOM 157.53125px (wants 158), Pretext 158.171875px (gave 159)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 163-166px: Windows path: widest line: DOM 161.9765625px (wants 162), Pretext 162.6171875px (gave 163)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 171px: Windows path: widest line: DOM 170.859375px (wants 171), Pretext 166.2109375px (gave 167)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 172-174px: Windows path: widest line: DOM 170.859375px (wants 171), Pretext 171.5px (gave 172)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 178px: Windows path: widest line: DOM 177.96875px (wants 178), Pretext 174.2109375px (gave 175)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 179px: Windows path: widest line: DOM 177.96875px (wants 178), Pretext 178.609375px (gave 179)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 186px: Windows path: widest line: DOM 185.96875px (wants 186), Pretext 182.2109375px (gave 183)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 187-193px: Windows path: widest line: DOM 185.96875px (wants 186), Pretext 186.609375px (gave 187)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 197px: Windows path: widest line: DOM 196.640625px (wants 197), Pretext 193.765625px (gave 194)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 198-200px: Windows path: widest line: DOM 196.640625px (wants 197), Pretext 197.28125px (gave 198)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 220px: Windows path: widest line: DOM 219.75px (wants 220), Pretext 216.859375px (gave 217)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 221-226px: Windows path: widest line: DOM 219.75px (wants 220), Pretext 220.390625px (gave 221)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 252px: Windows path: widest line: DOM 251.7421875px (wants 252), Pretext 248.8359375px (gave 249)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 253px: Windows path: widest line: DOM 251.7421875px (wants 252), Pretext 252.3828125px (gave 253)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 260px: Windows path: widest line: DOM 259.7421875px (wants 260), Pretext 257.7265625px (gave 258)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 261-267px: Windows path: widest line: DOM 259.7421875px (wants 260), Pretext 260.3828125px (gave 261)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 268px: Windows path: widest line: DOM 267.7421875px (wants 268), Pretext 260.3828125px (gave 261)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 269-271px: Windows path: widest line: DOM 267.7421875px (wants 268), Pretext 268.3828125px (gave 269)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 291px: Windows path: widest line: DOM 290.859375px (wants 291), Pretext 288.828125px (gave 289)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 292-296px: Windows path: widest line: DOM 290.859375px (wants 291), Pretext 291.5px (gave 292)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 380px: Windows path: widest line: DOM 379.734375px (wants 380), Pretext 368.8203125px (gave 369)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 381-385px: Windows path: widest line: DOM 379.734375px (wants 380), Pretext 380.375px (gave 381)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 386px: Windows path: widest line: DOM 385.9609375px (wants 386), Pretext 380.375px (gave 381)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 387-390px: Windows path: widest line: DOM 385.9609375px (wants 386), Pretext 386.6015625px (gave 387)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 391px: Windows path: widest line: DOM 390.40625px (wants 391), Pretext 386.6015625px (gave 387)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 392-395px: Windows path: widest line: DOM 390.40625px (wants 391), Pretext 391.046875px (gave 392)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 396px: Windows path: widest line: DOM 395.734375px (wants 396), Pretext 391.046875px (gave 392)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 397-407px: Windows path: widest line: DOM 395.734375px (wants 396), Pretext 396.375px (gave 397)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 415px: Windows path: widest line: DOM 414.390625px (wants 415), Pretext 407.9296875px (gave 408)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 416-418px: Windows path: widest line: DOM 414.390625px (wants 415), Pretext 415.03125px (gave 416)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 419px: Windows path: widest line: DOM 418.8359375px (wants 419), Pretext 415.03125px (gave 416)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 420-429px: Windows path: widest line: DOM 418.8359375px (wants 419), Pretext 419.4765625px (gave 420)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 430px: Windows path: widest line: DOM 429.5078125px (wants 430), Pretext 419.4765625px (gave 420)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 431-436px: Windows path: widest line: DOM 429.5078125px (wants 430), Pretext 430.1484375px (gave 431)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 437px: Windows path: widest line: DOM 436.609375px (wants 437), Pretext 430.1484375px (gave 431)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 438-443px: Windows path: widest line: DOM 436.609375px (wants 437), Pretext 437.25px (gave 438)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 444px: Windows path: widest line: DOM 443.7109375px (wants 444), Pretext 437.25px (gave 438)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 445-451px: Windows path: widest line: DOM 443.7109375px (wants 444), Pretext 444.3515625px (gave 445)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 452px: Windows path: widest line: DOM 451.7109375px (wants 452), Pretext 444.3515625px (gave 445)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 453-458px: Windows path: widest line: DOM 451.7109375px (wants 452), Pretext 452.3515625px (gave 453)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 459px: Windows path: widest line: DOM 458.8125px (wants 459), Pretext 452.3515625px (gave 453)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 460-463px: Windows path: widest line: DOM 458.8125px (wants 459), Pretext 459.453125px (gave 460)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 469px: Windows path: widest line: DOM 468.5859375px (wants 469), Pretext 463.8984375px (gave 464)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 470-478px: Windows path: widest line: DOM 468.5859375px (wants 469), Pretext 469.2265625px (gave 470)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 483px: Windows path: widest line: DOM 482.8046875px (wants 483), Pretext 479px (gave 479)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 484-489px: Windows path: widest line: DOM 482.8046875px (wants 483), Pretext 483.4453125px (gave 484)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 501px: Windows path: widest line: DOM 500.578125px (wants 501), Pretext 496.7734375px (gave 497)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 502-505px: Windows path: widest line: DOM 500.578125px (wants 501), Pretext 501.21875px (gave 502)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 510px: Windows path: widest line: DOM 509.46875px (wants 510), Pretext 505.6640625px (gave 506)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 511-517px: Windows path: widest line: DOM 509.46875px (wants 510), Pretext 510.109375px (gave 511)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 518px: Windows path: widest line: DOM 517.46875px (wants 518), Pretext 510.109375px (gave 511)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 519-525px: Windows path: widest line: DOM 517.46875px (wants 518), Pretext 518.109375px (gave 519)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 526px: Windows path: widest line: DOM 525.46875px (wants 526), Pretext 518.109375px (gave 519)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 527-531px: Windows path: widest line: DOM 525.46875px (wants 526), Pretext 526.109375px (gave 527)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 532px: Windows path: widest line: DOM 531.6953125px (wants 532), Pretext 526.109375px (gave 527)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 533-535px: Windows path: widest line: DOM 531.6953125px (wants 532), Pretext 532.3359375px (gave 533)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 536px: Windows path: widest line: DOM 535.6953125px (wants 536), Pretext 532.3359375px (gave 533)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 537-540px: Windows path: widest line: DOM 535.6953125px (wants 536), Pretext 536.3359375px (gave 537)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 121px: Data URI: widest line: DOM 120.3125px (wants 121), Pretext 119.984375px (gave 120)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 122px: Data URI: widest line: DOM 121.78125px (wants 122), Pretext 119.984375px (gave 120)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 123px: Data URI: widest line: DOM 122.671875px (wants 123), Pretext 119.984375px (gave 120)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 126px: Data URI: widest line: DOM 124.765625px (wants 125), Pretext 125.328125px (gave 126)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 127px: Data URI: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 129px: Data URI: widest line: DOM 127.1015625px (wants 128), Pretext 128.890625px (gave 129)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 134-135px: Data URI: widest line: DOM 133.640625px (wants 134), Pretext 132.4453125px (gave 133)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 136-138px: Data URI: widest line: DOM 133.640625px (wants 134), Pretext 135.109375px (gave 136)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 146px: Data URI: widest line: DOM 145.7890625px (wants 146), Pretext 143.109375px (gave 144)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 147px: Data URI: widest line: DOM 145.7890625px (wants 146), Pretext 146.6640625px (gave 147)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 153px: Data URI: widest line: DOM 152.3203125px (wants 153), Pretext 152px (gave 152)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 159px: Data URI: widest line: DOM 158.546875px (wants 159), Pretext 157.328125px (gave 158)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 161px: Data URI: baseline: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 162-163px: Data URI: widest line: DOM 160.890625px (wants 161), Pretext 161.7890625px (gave 162)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 172px: Data URI: widest line: DOM 171.8671875px (wants 172), Pretext 169.7890625px (gave 170)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 187-188px: Data URI: widest line: DOM 186.0859375px (wants 187), Pretext 185.7734375px (gave 186)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 193px: Data URI: widest line: DOM 189.734375px (wants 190), Pretext 192.8828125px (gave 193)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 195-196px: Data URI: widest line: DOM 194.96875px (wants 195), Pretext 193.78125px (gave 194)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 203px: Data URI: widest line: DOM 202.984375px (wants 203), Pretext 200.40625px (gave 201)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 204-205px: Data URI: widest line: DOM 202.984375px (wants 203), Pretext 203.546875px (gave 204)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 206px: Data URI: widest line: DOM 202.984375px (wants 203), Pretext 205.3359375px (gave 206)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 207-208px: Data URI: widest line: DOM 202.984375px (wants 203), Pretext 206.2265625px (gave 207)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 215-216px: Data URI: widest line: DOM 214.5390625px (wants 215), Pretext 211.9609375px (gave 212)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 217px: Data URI: widest line: DOM 214.5390625px (wants 215), Pretext 216.8828125px (gave 217)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 228-229px: Data URI: widest line: DOM 227.875px (wants 228), Pretext 223.375px (gave 224)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 230-231px: Data URI: widest line: DOM 227.875px (wants 228), Pretext 229.3359375px (gave 230)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 243px: Data URI: widest line: DOM 242.09375px (wants 243), Pretext 239.109375px (gave 240)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 247px: Data URI: widest line: DOM 246.5390625px (wants 247), Pretext 244.4375px (gave 245)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 248-249px: Data URI: widest line: DOM 247.1015625px (wants 248), Pretext 244.4375px (gave 245)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 250-251px: Data URI: widest line: DOM 247.1015625px (wants 248), Pretext 249.78125px (gave 250)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 261-262px: Data URI: widest line: DOM 260.75px (wants 261), Pretext 259.5546875px (gave 260)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 263-265px: Data URI: widest line: DOM 260.75px (wants 261), Pretext 262.21875px (gave 263)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 274-279px: Data URI: widest line: DOM 270.625px (wants 271), Pretext 273.7734375px (gave 274)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 286-287px: Data URI: widest line: DOM 282.1796875px (wants 283), Pretext 285.328125px (gave 286)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 288px: Data URI: widest line: DOM 287.4140625px (wants 288), Pretext 285.328125px (gave 286)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 289-290px: Data URI: widest line: DOM 287.4140625px (wants 288), Pretext 288.8984375px (gave 289)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 291-293px: Data URI: widest line: DOM 287.4140625px (wants 288), Pretext 290.65625px (gave 291)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 296-300px: Data URI: widest line: DOM 293.734375px (wants 294), Pretext 295.1015625px (gave 296)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 301px: Data URI: widest line: DOM 300.7578125px (wants 301), Pretext 295.1015625px (gave 296)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 302px: Data URI: widest line: DOM 301.3359375px (wants 302), Pretext 295.1015625px (gave 296)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 303px: Data URI: widest line: DOM 301.3359375px (wants 302), Pretext 302.234375px (gave 303)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 304-305px: Data URI: widest line: DOM 301.3359375px (wants 302), Pretext 304px (gave 304)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 307-310px: Data URI: widest line: DOM 306.984375px (wants 307), Pretext 305.2890625px (gave 306)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 311-314px: Data URI: widest line: DOM 306.984375px (wants 307), Pretext 310.2265625px (gave 311)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 319-321px: Data URI: widest line: DOM 318.5390625px (wants 319), Pretext 316.84375px (gave 317)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 322px: Data URI: widest line: DOM 318.5390625px (wants 319), Pretext 321.78125px (gave 322)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 333px: Data URI: widest line: DOM 332.75px (wants 333), Pretext 325.7421875px (gave 326)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 334px: Data URI: widest line: DOM 333.328125px (wants 334), Pretext 325.7421875px (gave 326)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 335px: Data URI: widest line: DOM 333.328125px (wants 334), Pretext 334.2109375px (gave 335)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 336-337px: Data URI: widest line: DOM 333.328125px (wants 334), Pretext 335.9921875px (gave 336)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 339-340px: Data URI: widest line: DOM 337.296875px (wants 338), Pretext 338.671875px (gave 339)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 341-345px: Data URI: widest line: DOM 337.296875px (wants 338), Pretext 340.4375px (gave 341)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 351-353px: Data URI: widest line: DOM 350.5234375px (wants 351), Pretext 345.296875px (gave 346)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 354-355px: Data URI: widest line: DOM 350.5234375px (wants 351), Pretext 353.765625px (gave 354)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 363px: Data URI: widest line: DOM 362.9765625px (wants 363), Pretext 358.2265625px (gave 359)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 364-366px: Data URI: widest line: DOM 363.5546875px (wants 364), Pretext 358.2265625px (gave 359)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 368-370px: Data URI: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 371-374px: Data URI: widest line: DOM 367.421875px (wants 368), Pretext 370.6640625px (gave 371)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 376-383px: Data URI: widest line: DOM 374.625px (wants 375), Pretext 375.109375px (gave 376)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 384-386px: Data URI: widest line: DOM 383.421875px (wants 384), Pretext 375.109375px (gave 376)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 392-394px: Data URI: widest line: DOM 391.421875px (wants 392), Pretext 386.1796875px (gave 387)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 395-397px: Data URI: widest line: DOM 391.421875px (wants 392), Pretext 394.6640625px (gave 395)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 401-402px: Data URI: widest line: DOM 397.734375px (wants 398), Pretext 400.0078125px (gave 401)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 403-405px: Data URI: widest line: DOM 402.09375px (wants 403), Pretext 400.0078125px (gave 401)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 406-409px: Data URI: widest line: DOM 402.09375px (wants 403), Pretext 405.3359375px (gave 406)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 414-416px: Data URI: widest line: DOM 413.6484375px (wants 414), Pretext 409.2890625px (gave 410)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 417-420px: Data URI: widest line: DOM 413.6484375px (wants 414), Pretext 416.890625px (gave 417)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 425-427px: Data URI: widest line: DOM 424.3203125px (wants 425), Pretext 420.84375px (gave 421)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 428-430px: Data URI: widest line: DOM 424.3203125px (wants 425), Pretext 427.5625px (gave 428)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 435-437px: Data URI: widest line: DOM 434.1015625px (wants 435), Pretext 430.6171875px (gave 431)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 438-442px: Data URI: widest line: DOM 434.1015625px (wants 435), Pretext 437.34375px (gave 438)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 446-448px: Data URI: widest line: DOM 445.65625px (wants 446), Pretext 442.171875px (gave 443)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 449-453px: Data URI: widest line: DOM 445.65625px (wants 446), Pretext 448.8984375px (gave 449)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 458-460px: Data URI: widest line: DOM 457.203125px (wants 458), Pretext 453.7265625px (gave 454)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 461-465px: Data URI: widest line: DOM 457.203125px (wants 458), Pretext 460.4453125px (gave 461)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 470-472px: Data URI: widest line: DOM 469.6484375px (wants 470), Pretext 465.28125px (gave 466)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 473-476px: Data URI: widest line: DOM 469.6484375px (wants 470), Pretext 472.890625px (gave 473)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 482-484px: Data URI: widest line: DOM 481.203125px (wants 482), Pretext 476.8359375px (gave 477)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 485-487px: Data URI: widest line: DOM 481.203125px (wants 482), Pretext 484.4453125px (gave 485)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 494-496px: Data URI: widest line: DOM 493.640625px (wants 494), Pretext 487.5078125px (gave 488)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 497-498px: Data URI: widest line: DOM 493.640625px (wants 494), Pretext 496.8828125px (gave 497)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 500-503px: Data URI: widest line: DOM 499.8671875px (wants 500), Pretext 498.1796875px (gave 499)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 504-509px: Data URI: widest line: DOM 499.8671875px (wants 500), Pretext 503.109375px (gave 504)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 512px: Data URI: widest line: DOM 512.0078125px (wants 512), Pretext 509.734375px (gave 510)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 513px: Data URI: widest line: DOM 512.0078125px (wants 513), Pretext 509.734375px (gave 510)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 514-519px: Data URI: widest line: DOM 512.0078125px (wants 513), Pretext 513.78125px (gave 514)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 520-521px: Data URI: widest line: DOM 520px (wants 520), Pretext 513.78125px (gave 514)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 522-525px: Data URI: widest line: DOM 520px (wants 520), Pretext 521.2890625px (gave 522)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 530-532px: Data URI: widest line: DOM 529.6015625px (wants 530), Pretext 525.328125px (gave 526)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 533-535px: Data URI: widest line: DOM 529.6015625px (wants 530), Pretext 532.84375px (gave 533)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 542-543px: Data URI: widest line: DOM 541.15625px (wants 542), Pretext 536px (gave 536)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 544px: Data URI: widest line: DOM 541.15625px (wants 542), Pretext 544px (gave 544)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 545-549px: Data URI: widest line: DOM 541.15625px (wants 542), Pretext 544.3984375px (gave 545)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 553-555px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 556-564px: Data URI: widest line: DOM 552.7109375px (wants 553), Pretext 555.953125px (gave 556)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 565-567px: Data URI: widest line: DOM 564.265625px (wants 565), Pretext 555.953125px (gave 556)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 568-569px: Data URI: widest line: DOM 564.265625px (wants 565), Pretext 567.5078125px (gave 568)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 570-572px: Data URI: widest line: DOM 569.59375px (wants 570), Pretext 567.5078125px (gave 568)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 573-578px: Data URI: widest line: DOM 569.59375px (wants 570), Pretext 572.8359375px (gave 573)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 579-581px: Data URI: widest line: DOM 578.4921875px (wants 579), Pretext 572.8359375px (gave 573)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 582-585px: Data URI: widest line: DOM 578.4921875px (wants 579), Pretext 581.734375px (gave 582)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 586-588px: Data URI: widest line: DOM 585.59375px (wants 586), Pretext 581.734375px (gave 582)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 589-594px: Data URI: widest line: DOM 585.59375px (wants 586), Pretext 588.8359375px (gave 589)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 595-597px: Data URI: widest line: DOM 594.4921875px (wants 595), Pretext 588.8359375px (gave 589)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 598-600px: Data URI: widest line: DOM 594.4921875px (wants 595), Pretext 597.734375px (gave 598)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 568px: npm scope: widest line: DOM 568.0078125px (wants 568), Pretext 542.6796875px (gave 543)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 121px: Snake case: widest line: DOM 120.015625px (wants 121), Pretext 119.1015625px (gave 120)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 122px: Snake case: widest line: DOM 120.015625px (wants 121), Pretext 121.7890625px (gave 122)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 125-126px: Snake case: widest line: DOM 122.6875px (wants 123), Pretext 124.4453125px (gave 125)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 128px: Snake case: widest line: DOM 128px (wants 128), Pretext 126.2109375px (gave 127)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 130px: Snake case: widest line: DOM 128.90625px (wants 129), Pretext 129.7734375px (gave 130)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 136-137px: Snake case: widest line: DOM 136px (wants 136), Pretext 132.4609375px (gave 133)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 147-149px: Snake case: widest line: DOM 144.8984375px (wants 145), Pretext 146.671875px (gave 147)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 152px: Snake case: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 153px: Snake case: widest line: DOM 151.984375px (wants 152), Pretext 152.8984375px (gave 153)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 161px: Snake case: widest line: DOM 159.984375px (wants 160), Pretext 160.015625px (gave 161)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 163-164px: Snake case: widest line: DOM 162.6875px (wants 163), Pretext 161.7890625px (gave 162)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 165-166px: Snake case: widest line: DOM 162.6875px (wants 163), Pretext 164.4609375px (gave 165)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 169-170px: Snake case: widest line: DOM 168.890625px (wants 169), Pretext 166.359375px (gave 167)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 177px: Snake case: widest line: DOM 176.015625px (wants 177), Pretext 174.2109375px (gave 175)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 178-179px: Snake case: widest line: DOM 176.015625px (wants 177), Pretext 177.7890625px (gave 178)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 186-189px: Snake case: widest line: DOM 184.015625px (wants 185), Pretext 185.78125px (gave 186)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 197-198px: Snake case: widest line: DOM 196.4453125px (wants 197), Pretext 194.6875px (gave 195)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 199px: Snake case: widest line: DOM 196.4453125px (wants 197), Pretext 198.21875px (gave 199)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 211-212px: Snake case: widest line: DOM 210.671875px (wants 211), Pretext 206.2421875px (gave 207)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 213px: Snake case: widest line: DOM 210.671875px (wants 211), Pretext 212.4453125px (gave 213)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 219-220px: Snake case: widest line: DOM 218.6875px (wants 219), Pretext 217.796875px (gave 218)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 221-223px: Snake case: widest line: DOM 218.6875px (wants 219), Pretext 220.4609375px (gave 221)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 227-228px: Snake case: widest line: DOM 226.6875px (wants 227), Pretext 223.0859375px (gave 224)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 235-236px: Snake case: widest line: DOM 234.6875px (wants 235), Pretext 233.7578125px (gave 234)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 237-240px: Snake case: widest line: DOM 234.6875px (wants 235), Pretext 236.4609375px (gave 237)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 242-243px: Snake case: widest line: DOM 241.8046875px (wants 242), Pretext 240.0234375px (gave 241)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 244-245px: Snake case: widest line: DOM 241.8046875px (wants 242), Pretext 243.578125px (gave 244)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 259-263px: Snake case: widest line: DOM 256.90625px (wants 257), Pretext 258.6796875px (gave 259)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 268px: Snake case: widest line: DOM 267.578125px (wants 268), Pretext 263.1328125px (gave 264)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 270-274px: Snake case: widest line: DOM 268.421875px (wants 269), Pretext 269.3515625px (gave 270)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 277px: Snake case: widest line: DOM 276.46875px (wants 277), Pretext 274.6875px (gave 275)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 279-282px: Snake case: widest line: DOM 277.3203125px (wants 278), Pretext 278.2421875px (gave 279)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 286px: Snake case: widest line: DOM 285.4921875px (wants 286), Pretext 282.6875px (gave 283)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 288-293px: Snake case: widest line: DOM 286.34375px (wants 287), Pretext 287.265625px (gave 288)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 302-303px: Snake case: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 304px: Snake case: widest line: DOM 302.34375px (wants 303), Pretext 303.6953125px (gave 304)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 363-364px: Snake case: widest line: DOM 362.6953125px (wants 363), Pretext 354.6953125px (gave 355)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 365-368px: Snake case: widest line: DOM 362.6953125px (wants 363), Pretext 364.46875px (gave 365)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 369px: Snake case: widest line: DOM 368.0234375px (wants 369), Pretext 364.46875px (gave 365)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 370-379px: Snake case: widest line: DOM 368.0234375px (wants 369), Pretext 369.796875px (gave 370)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 380-381px: Snake case: widest line: DOM 379.578125px (wants 380), Pretext 369.796875px (gave 370)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 382-391px: Snake case: widest line: DOM 379.578125px (wants 380), Pretext 381.3515625px (gave 382)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 392px: Snake case: widest line: DOM 391.1328125px (wants 392), Pretext 381.3515625px (gave 382)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 393-399px: Snake case: widest line: DOM 391.1328125px (wants 392), Pretext 392.90625px (gave 393)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 400px: Snake case: widest line: DOM 399.1328125px (wants 400), Pretext 392.90625px (gave 393)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 401-405px: Snake case: widest line: DOM 399.1328125px (wants 400), Pretext 400.90625px (gave 401)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 406-407px: Snake case: widest line: DOM 405.359375px (wants 406), Pretext 400.90625px (gave 401)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 408-416px: Snake case: widest line: DOM 405.359375px (wants 406), Pretext 407.1328125px (gave 408)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 417-418px: Snake case: widest line: DOM 416.9140625px (wants 417), Pretext 407.1328125px (gave 408)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 419-427px: Snake case: widest line: DOM 416.9140625px (wants 417), Pretext 418.6875px (gave 419)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 428-429px: Snake case: widest line: DOM 427.5859375px (wants 428), Pretext 418.6875px (gave 419)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 430-436px: Snake case: widest line: DOM 427.5859375px (wants 428), Pretext 429.359375px (gave 430)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 437-438px: Snake case: widest line: DOM 436.484375px (wants 437), Pretext 429.359375px (gave 430)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 439-444px: Snake case: widest line: DOM 436.484375px (wants 437), Pretext 438.2578125px (gave 439)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 445-446px: Snake case: widest line: DOM 444.484375px (wants 445), Pretext 438.2578125px (gave 439)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 447-453px: Snake case: widest line: DOM 444.484375px (wants 445), Pretext 446.2578125px (gave 447)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 454-455px: Snake case: widest line: DOM 453.3828125px (wants 454), Pretext 446.2578125px (gave 447)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 456-463px: Snake case: widest line: DOM 453.3828125px (wants 454), Pretext 455.15625px (gave 456)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 464px: Snake case: widest line: DOM 463.15625px (wants 464), Pretext 455.15625px (gave 456)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 465-466px: Snake case: widest line: DOM 463.15625px (wants 464), Pretext 464.9296875px (gave 465)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 474-475px: Snake case: widest line: DOM 473.828125px (wants 474), Pretext 466.46875px (gave 467)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 476-481px: Snake case: widest line: DOM 473.828125px (wants 474), Pretext 475.6015625px (gave 476)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 482-483px: Snake case: widest line: DOM 481.828125px (wants 482), Pretext 475.6015625px (gave 476)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 484-496px: Snake case: widest line: DOM 481.828125px (wants 482), Pretext 483.6015625px (gave 484)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 497-498px: Snake case: widest line: DOM 496.9296875px (wants 497), Pretext 483.6015625px (gave 484)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 499-508px: Snake case: widest line: DOM 496.9296875px (wants 497), Pretext 498.703125px (gave 499)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 509-510px: Snake case: widest line: DOM 508.484375px (wants 509), Pretext 498.703125px (gave 499)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 511-519px: Snake case: widest line: DOM 508.484375px (wants 509), Pretext 510.2578125px (gave 511)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 520px: Snake case: widest line: DOM 519.15625px (wants 520), Pretext 510.2578125px (gave 511)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 521-530px: Snake case: widest line: DOM 519.15625px (wants 520), Pretext 520.9296875px (gave 521)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 531-532px: Snake case: widest line: DOM 530.7109375px (wants 531), Pretext 520.9296875px (gave 521)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 533-540px: Snake case: widest line: DOM 530.7109375px (wants 531), Pretext 532.484375px (gave 533)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 541-542px: Snake case: widest line: DOM 540.484375px (wants 541), Pretext 532.484375px (gave 533)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 543-551px: Snake case: widest line: DOM 540.484375px (wants 541), Pretext 542.2578125px (gave 543)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 552px: Snake case: widest line: DOM 551.15625px (wants 552), Pretext 542.2578125px (gave 543)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 553-560px: Snake case: widest line: DOM 551.15625px (wants 552), Pretext 552.9296875px (gave 553)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 561px: Snake case: widest line: DOM 560.1796875px (wants 561), Pretext 552.9296875px (gave 553)
-- chromium@1,1.25,2 shrinkwrap urls / Times New Roman @ 562-568px: Snake case: widest line: DOM 560.1796875px (wants 561), Pretext 561.953125px (gave 562)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 172px: Nebenrollen: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 172)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 173px: Nebenrollen: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 173)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 174px: Nebenrollen: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 174)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 175px: Nebenrollen: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 175)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 176px: Nebenrollen: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 176)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 177px: Nebenrollen: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 177)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 178px: Nebenrollen: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 178)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 177px: Datenschutz: widest line: DOM 176.9296875px (wants 177), Pretext 170.9278106689453px (gave 171)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 178px: Datenschutz: widest line: DOM 176.9296875px (wants 177), Pretext 177.21585083007812px (gave 178)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 187px: Datenschutz: widest line: DOM 178.9375px (wants 179), Pretext 187.2798614501953px (gave 187)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 274-275px: Datenschutz: widest line: DOM 272.953125px (wants 273), Pretext 273.23179626464844px (gave 274)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 302px: Datenschutz: widest line: DOM 301.984375px (wants 302), Pretext 296.87969970703125px (gave 297)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 303px: Datenschutz: widest line: DOM 301.984375px (wants 302), Pretext 302.2717590332031px (gave 303)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 454-460px: Datenschutz: widest line: DOM 452.8046875px (wants 453), Pretext 453.08763122558594px (gave 454)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 212px: Fehlermeldung: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 213px: Fehlermeldung: widest line: DOM 211.890625px (wants 212), Pretext 212.1758270263672px (gave 213)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 158px: Förderung: widest line: DOM 157.796875px (wants 158), Pretext 152.31985473632812px (gave 153)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 159px: Förderung: widest line: DOM 157.796875px (wants 158), Pretext 158.2398681640625px (gave 159)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 201-216px: Förderung: widest line: DOM 199.75px (wants 200), Pretext 200.03182983398438px (gave 201)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 230-233px: Förderung: widest line: DOM 228.6328125px (wants 229), Pretext 229.0718231201172px (gave 230)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 337px: Förderung: widest line: DOM 336.9296875px (wants 337), Pretext 324.7837219238281px (gave 325)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 338-348px: Förderung: widest line: DOM 336.9296875px (wants 337), Pretext 337.2156982421875px (gave 338)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 350-369px: Förderung: widest line: DOM 348.6484375px (wants 349), Pretext 349.0877227783203px (gave 350)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 377-398px: Förderung: widest line: DOM 375.625px (wants 376), Pretext 376.0636901855469px (gave 377)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 505px: Förderung: widest line: DOM 504.9609375px (wants 505), Pretext 488.3515930175781px (gave 489)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 506-548px: Förderung: widest line: DOM 504.9609375px (wants 505), Pretext 505.24757385253906px (gave 506)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 595-600px: Förderung: widest line: DOM 593.859375px (wants 594), Pretext 594.1434936523438px (gave 595)
-- chromium@1,1.25,2 shrinkwrap german / Helvetica Neue @ 509-537px: One word: widest line: DOM 507.9609375px (wants 508), Pretext 508.2395935058594px (gave 509)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 171px: Nebenrollen: widest line: DOM 168.9609375px (wants 169), Pretext 176.09375px (gave 171)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 172px: Nebenrollen: widest line: DOM 168.9609375px (wants 169), Pretext 176.09375px (gave 172)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 173px: Nebenrollen: widest line: DOM 168.9609375px (wants 169), Pretext 176.09375px (gave 173)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 174px: Nebenrollen: widest line: DOM 168.9609375px (wants 169), Pretext 176.09375px (gave 174)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 175px: Nebenrollen: widest line: DOM 168.9609375px (wants 169), Pretext 176.09375px (gave 175)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 176px: Nebenrollen: widest line: DOM 168.9609375px (wants 169), Pretext 176.09375px (gave 176)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 177px: Datenschutz: widest line: DOM 177.0078125px (wants 177), Pretext 169.8671875px (gave 170)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 201px: Umfrage: widest line: DOM 201.0078125px (wants 201), Pretext 195.671875px (gave 196)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 164px: Kapitän: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 222-233px: Kapitän: widest line: DOM 220.8515625px (wants 221), Pretext 221.140625px (gave 222)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 399-429px: Kapitän: widest line: DOM 397.8515625px (wants 398), Pretext 398.140625px (gave 399)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 431-456px: Kapitän: widest line: DOM 429.875px (wants 430), Pretext 430.1640625px (gave 431)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 488-508px: Kapitän: widest line: DOM 486.7890625px (wants 487), Pretext 487.078125px (gave 488)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 153px: Baustellen: widest line: DOM 153.0078125px (wants 153), Pretext 147.625px (gave 148)
-- chromium@1,1.25,2 shrinkwrap german / Arial @ 263px: Förderung: widest line: DOM 261.5px (wants 262), Pretext 263.2734375px (gave 263)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 453px: Tagesabschluss: widest line: DOM 453.0078125px (wants 453), Pretext 424.2890625px (gave 425)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 175px: Nebenrollen: widest line: DOM 170.2421875px (wants 171), Pretext 180.8671875px (gave 175)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 176px: Nebenrollen: widest line: DOM 170.2421875px (wants 171), Pretext 180.8671875px (gave 176)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 177px: Nebenrollen: widest line: DOM 170.2421875px (wants 171), Pretext 180.8671875px (gave 177)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 178px: Nebenrollen: widest line: DOM 170.2421875px (wants 171), Pretext 180.8671875px (gave 178)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 179px: Nebenrollen: widest line: DOM 170.2421875px (wants 171), Pretext 180.8671875px (gave 179)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 180px: Nebenrollen: widest line: DOM 170.2421875px (wants 171), Pretext 180.8671875px (gave 180)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 257px: Umfrage: widest line: DOM 257.0078125px (wants 257), Pretext 248.46875px (gave 249)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 280px: Baustellen: widest line: DOM 280.0078125px (wants 280), Pretext 266.1640625px (gave 267)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 427px: Baustellen: widest line: DOM 427.0078125px (wants 427), Pretext 396.703125px (gave 397)
-- chromium@1,1.25,2 shrinkwrap german / Georgia @ 329px: One word: widest line: DOM 329.0078125px (wants 329), Pretext 306.984375px (gave 307)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 159px: Nebenrollen: widest line: DOM 153.9375px (wants 154), Pretext 164.1484375px (gave 159)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 160px: Nebenrollen: widest line: DOM 153.9375px (wants 154), Pretext 164.1484375px (gave 160)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 161px: Nebenrollen: widest line: DOM 153.9375px (wants 154), Pretext 164.1484375px (gave 161)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 162px: Nebenrollen: widest line: DOM 153.9375px (wants 154), Pretext 164.1484375px (gave 162)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 163px: Nebenrollen: widest line: DOM 153.9375px (wants 154), Pretext 164.1484375px (gave 163)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 164px: Nebenrollen: widest line: DOM 153.9375px (wants 154), Pretext 164.1484375px (gave 164)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 265px: Nebenrollen: widest line: DOM 265.0078125px (wants 265), Pretext 262.6015625px (gave 263)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 363px: Umfrage: widest line: DOM 363.0078125px (wants 363), Pretext 340.3359375px (gave 341)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 231px: Kapitän: widest line: DOM 230.890625px (wants 231), Pretext 216.9609375px (gave 217)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 395-418px: Kapitän: widest line: DOM 393.9375px (wants 394), Pretext 394.2265625px (gave 395)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 419px: Kapitän: widest line: DOM 418.8125px (wants 419), Pretext 394.2265625px (gave 395)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 420-446px: Kapitän: widest line: DOM 418.8125px (wants 419), Pretext 419.1015625px (gave 420)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 448-464px: Kapitän: widest line: DOM 446.796875px (wants 447), Pretext 447.0859375px (gave 448)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 490-508px: Kapitän: widest line: DOM 489px (wants 489), Pretext 489.2890625px (gave 490)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 206-209px: Förderung: widest line: DOM 204.9609375px (wants 205), Pretext 205.25px (gave 206)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 243-251px: Förderung: widest line: DOM 241.8359375px (wants 242), Pretext 242.125px (gave 243)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 340-361px: Förderung: widest line: DOM 338.9375px (wants 339), Pretext 339.2265625px (gave 340)
-- chromium@1,1.25,2 shrinkwrap german / Times New Roman @ 362px: Förderung: widest line: DOM 338.9375px (wants 339), Pretext 362.328125px (gave 362)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 140px: Synchroniser: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 141-142px: Synchroniser: at returned 140px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 231px: Synchroniser: baseline: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 232-254px: Synchroniser: at returned 231px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 285px: Synchroniser: widest line: DOM 272.0703125px (wants 273), Pretext 284.7677764892578px (gave 285)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 286-302px: Synchroniser: widest line: DOM 285.0625px (wants 286), Pretext 284.7677764892578px (gave 285)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 303px: Synchroniser: widest line: DOM 285.0625px (wants 286), Pretext 302.84776306152344px (gave 303)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 304-310px: Synchroniser: widest line: DOM 303.140625px (wants 304), Pretext 302.84776306152344px (gave 303)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 130-148px: Justificatifs: widest line: DOM 128.7421875px (wants 129), Pretext 129.18386840820312px (gave 130)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 153-158px: Justificatifs: widest line: DOM 151.84375px (wants 152), Pretext 152.287841796875px (gave 153)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 160px: Justificatifs: widest line: DOM 158.953125px (wants 159), Pretext 159.39181518554688px (gave 160)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 197px: Justificatifs: widest line: DOM 196.8828125px (wants 197), Pretext 192.01585388183594px (gave 193)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 198-199px: Justificatifs: widest line: DOM 196.8828125px (wants 197), Pretext 197.32778930664062px (gave 198)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 289-296px: Justificatifs: widest line: DOM 287.859375px (wants 288), Pretext 288.3037109375px (gave 289)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 363px: Justificatifs: widest line: DOM 362.8203125px (wants 363), Pretext 340.7356719970703px (gave 341)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 364-400px: Justificatifs: widest line: DOM 362.8203125px (wants 363), Pretext 363.26365661621094px (gave 364)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 402-433px: Justificatifs: widest line: DOM 400.7734375px (wants 401), Pretext 401.21563720703125px (gave 402)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 435-450px: Justificatifs: widest line: DOM 433.671875px (wants 434), Pretext 434.1116027832031px (gave 435)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 178px: Responsabilité: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 179-184px: Responsabilité: at returned 178px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 196px: Responsabilité: widest line: DOM 188.5px (wants 189), Pretext 195.88784790039062px (gave 196)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 197-199px: Responsabilité: widest line: DOM 196.1796875px (wants 197), Pretext 195.88784790039062px (gave 196)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 265px: Responsabilité: widest line: DOM 252.515625px (wants 253), Pretext 264.9598083496094px (gave 265)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 266-273px: Responsabilité: widest line: DOM 265.2578125px (wants 266), Pretext 264.9598083496094px (gave 265)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 286px: Responsabilité: baseline: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 287-302px: Responsabilité: at returned 286px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 313-329px: Responsabilité: widest line: DOM 312.0546875px (wants 313), Pretext 311.75975036621094px (gave 312)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 444px: Responsabilité: widest line: DOM 437.4765625px (wants 438), Pretext 443.9516296386719px (gave 444)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 445-475px: Responsabilité: widest line: DOM 444.25px (wants 445), Pretext 443.9516296386719px (gave 444)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 547px: Responsabilité: widest line: DOM 530.484375px (wants 531), Pretext 546.7835693359375px (gave 547)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 548-566px: Responsabilité: widest line: DOM 547.078125px (wants 548), Pretext 546.7835693359375px (gave 547)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 567px: Responsabilité: widest line: DOM 547.078125px (wants 548), Pretext 566.9435577392578px (gave 567)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 568-590px: Responsabilité: widest line: DOM 567.234375px (wants 568), Pretext 566.9435577392578px (gave 567)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 150-155px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 422px: Syndicats: widest line: DOM 397.734375px (wants 398), Pretext 427.66371154785156px (gave 422)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 423px: Syndicats: widest line: DOM 397.734375px (wants 398), Pretext 427.66371154785156px (gave 423)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 424px: Syndicats: widest line: DOM 397.734375px (wants 398), Pretext 427.66371154785156px (gave 424)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 425px: Syndicats: widest line: DOM 397.734375px (wants 398), Pretext 427.66371154785156px (gave 425)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 426px: Syndicats: widest line: DOM 397.734375px (wants 398), Pretext 427.66371154785156px (gave 426)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 427px: Syndicats: widest line: DOM 397.734375px (wants 398), Pretext 427.66371154785156px (gave 427)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 271-278px: Récit: widest line: DOM 269.734375px (wants 270), Pretext 270.0157928466797px (gave 271)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 302px: Récit: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 303-340px: Récit: widest line: DOM 301.734375px (wants 302), Pretext 302.0157470703125px (gave 303)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 379px: Récit: widest line: DOM 378.7734375px (wants 379), Pretext 375.5196838378906px (gave 376)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 380-405px: Récit: widest line: DOM 378.7734375px (wants 379), Pretext 379.05567932128906px (gave 380)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 470px: Récit: widest line: DOM 469.75px (wants 470), Pretext 455.2796630859375px (gave 456)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 471-487px: Récit: widest line: DOM 469.75px (wants 470), Pretext 470.03160095214844px (gave 471)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 488px: Récit: widest line: DOM 487.828125px (wants 488), Pretext 470.03160095214844px (gave 471)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 489-541px: Récit: widest line: DOM 487.828125px (wants 488), Pretext 488.11158752441406px (gave 489)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 542px: Récit: widest line: DOM 541.765625px (wants 542), Pretext 488.11158752441406px (gave 489)
-- chromium@1,1.25,2 shrinkwrap french / Helvetica Neue @ 543-564px: Récit: widest line: DOM 541.765625px (wants 542), Pretext 542.0475311279297px (gave 543)
-- chromium@1,1.25,2 shrinkwrap french / Arial @ 148-152px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Arial @ 419px: Syndicats: widest line: DOM 394.90625px (wants 395), Pretext 423.359375px (gave 419)
-- chromium@1,1.25,2 shrinkwrap french / Arial @ 420px: Syndicats: widest line: DOM 394.90625px (wants 395), Pretext 423.359375px (gave 420)
-- chromium@1,1.25,2 shrinkwrap french / Arial @ 421px: Syndicats: widest line: DOM 394.90625px (wants 395), Pretext 423.359375px (gave 421)
-- chromium@1,1.25,2 shrinkwrap french / Arial @ 422px: Syndicats: widest line: DOM 394.90625px (wants 395), Pretext 423.359375px (gave 422)
-- chromium@1,1.25,2 shrinkwrap french / Arial @ 423px: Syndicats: widest line: DOM 394.90625px (wants 395), Pretext 423.359375px (gave 423)
-- chromium@1,1.25,2 shrinkwrap french / Arial @ 595px: Anticonstitutionnalité: widest line: DOM 595.0078125px (wants 595), Pretext 568.3359375px (gave 569)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 147px: Syndicats: widest line: DOM 142.2578125px (wants 143), Pretext 152.9140625px (gave 147)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 148px: Syndicats: widest line: DOM 142.2578125px (wants 143), Pretext 152.9140625px (gave 148)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 149px: Syndicats: widest line: DOM 142.2578125px (wants 143), Pretext 152.9140625px (gave 149)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 150-152px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 412px: Syndicats: widest line: DOM 387.0859375px (wants 388), Pretext 417.390625px (gave 412)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 413px: Syndicats: widest line: DOM 387.0859375px (wants 388), Pretext 417.390625px (gave 413)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 414px: Syndicats: widest line: DOM 387.0859375px (wants 388), Pretext 417.390625px (gave 414)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 415px: Syndicats: widest line: DOM 387.0859375px (wants 388), Pretext 417.390625px (gave 415)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 416px: Syndicats: widest line: DOM 387.0859375px (wants 388), Pretext 417.390625px (gave 416)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 417px: Syndicats: widest line: DOM 387.0859375px (wants 388), Pretext 417.390625px (gave 417)
-- chromium@1,1.25,2 shrinkwrap french / Georgia @ 361px: Anticonstitutionnalité: widest line: DOM 361.0078125px (wants 361), Pretext 343.578125px (gave 344)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 155px: Justificatifs: widest line: DOM 154.7265625px (wants 155), Pretext 152.84375px (gave 153)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 156-170px: Justificatifs: widest line: DOM 154.7265625px (wants 155), Pretext 155.015625px (gave 156)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 262-270px: Justificatifs: widest line: DOM 260.921875px (wants 261), Pretext 261.2109375px (gave 262)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 286-309px: Justificatifs: widest line: DOM 284.8984375px (wants 285), Pretext 285.1875px (gave 286)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 310px: Justificatifs: widest line: DOM 309.7890625px (wants 310), Pretext 285.1875px (gave 286)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 311-328px: Justificatifs: widest line: DOM 309.7890625px (wants 310), Pretext 310.078125px (gave 311)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 329px: Justificatifs: widest line: DOM 328.890625px (wants 329), Pretext 310.078125px (gave 311)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 330-363px: Justificatifs: widest line: DOM 328.890625px (wants 329), Pretext 329.1796875px (gave 330)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 407-432px: Justificatifs: widest line: DOM 405.75px (wants 406), Pretext 406.0390625px (gave 407)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 131px: Syndicats: widest line: DOM 126.640625px (wants 127), Pretext 135.9375px (gave 131)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 132px: Syndicats: widest line: DOM 126.640625px (wants 127), Pretext 135.9375px (gave 132)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 133px: Syndicats: widest line: DOM 126.640625px (wants 127), Pretext 135.9375px (gave 133)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 134-135px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 271px: Syndicats: widest line: DOM 271.0078125px (wants 271), Pretext 269.6796875px (gave 270)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 369px: Syndicats: widest line: DOM 347.4140625px (wants 348), Pretext 374.0703125px (gave 369)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 370px: Syndicats: widest line: DOM 347.4140625px (wants 348), Pretext 374.0703125px (gave 370)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 371px: Syndicats: widest line: DOM 347.4140625px (wants 348), Pretext 374.0703125px (gave 371)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 372px: Syndicats: widest line: DOM 347.4140625px (wants 348), Pretext 374.0703125px (gave 372)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 373px: Syndicats: widest line: DOM 347.4140625px (wants 348), Pretext 374.0703125px (gave 373)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 374px: Syndicats: widest line: DOM 347.4140625px (wants 348), Pretext 374.0703125px (gave 374)
-- chromium@1,1.25,2 shrinkwrap french / Times New Roman @ 219px: Récit: widest line: DOM 219.0078125px (wants 219), Pretext 203.9453125px (gave 204)
-- chromium@1,1.25,2 balance latin / Georgia @ 142px: Gatsby reserve: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 balance latin / Georgia @ 143-153px: Gatsby reserve: at 142px: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 balance latin / Georgia @ 592px: Gatsby reserve: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance latin / Georgia @ 593-600px: Gatsby reserve: at 592px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance cjk / Georgia @ 159px: Japanese: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance cjk / Georgia @ 160-190px: Japanese: at 159px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance cjk / Georgia @ 191px: Japanese: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance cjk / Georgia @ 192-254px: Japanese: at 191px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance cjk / Georgia @ 255px: Japanese: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance cjk / Georgia @ 256-380px: Japanese: at 255px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance cjk / Georgia @ 381px: Japanese: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance cjk / Georgia @ 382-600px: Japanese: at 381px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance cjk / Georgia @ 191px: Japanese short: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance cjk / Georgia @ 192-253px: Japanese short: at 191px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance cjk / Georgia @ 381px: Japanese short: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance cjk / Georgia @ 382-600px: Japanese short: at 381px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance cjk / Georgia @ 120-126px: Kumo no ito: at 111px: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 balance cjk / Georgia @ 127px: Kumo no ito: baseline: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 balance cjk / Georgia @ 128-142px: Kumo no ito: at 127px: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 balance cjk / Georgia @ 143px: Kumo no ito: baseline: DOM 6 lines, Pretext 7
-- chromium@1,1.25,2 balance cjk / Georgia @ 144-173px: Kumo no ito: at 143px: DOM 6 lines, Pretext 7
-- chromium@1,1.25,2 balance cjk / Georgia @ 207px: Kumo no ito: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance cjk / Georgia @ 208-270px: Kumo no ito: at 207px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance cjk / Georgia @ 271px: Kumo no ito: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance cjk / Georgia @ 272-413px: Kumo no ito: at 271px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance cjk / Georgia @ 414-415px: Kumo no ito: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance cjk / Georgia @ 416-600px: Kumo no ito: at 415px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance arabic / Arial @ 251px: Numbers+RTL: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance arabic / Arial @ 252-500px: Numbers+RTL: at 251px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance arabic / Arial @ 135px: Support thread: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance arabic / Arial @ 136-153px: Support thread: at 135px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance arabic / Arial @ 590px: Support thread: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 balance arabic / Arial @ 591-600px: Support thread: at 590px: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 294px: Long mixed: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 295-377px: Long mixed: at 294px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 124px: Support thread: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 125-151px: Support thread: at 124px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 284px: Support thread: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 285-563px: Support thread: at 284px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 564px: Support thread: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 balance arabic / Times New Roman @ 565-600px: Support thread: at 564px: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 balance emoji-chat / Arial @ 535px: Flags: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 balance emoji-chat / Arial @ 536-600px: Flags: at 535px: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 balance emoji-chat / Arial @ 257px: ZWJ family: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance emoji-chat / Arial @ 258-497px: ZWJ family: at 257px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance emoji-chat / Times New Roman @ 206px: Weather report: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance emoji-chat / Times New Roman @ 207-412px: Weather report: at 206px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 274px: Bare URL: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 275-542px: Bare URL: at 274px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 125px: Query string: baseline: DOM 10 lines, Pretext 11
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 126-128px: Query string: at 125px: DOM 10 lines, Pretext 11
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 246px: Query string: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 247-273px: Query string: at 246px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 144-145px: Data URI: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 146-165px: Data URI: at 145px: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 230-231px: Data URI: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 232-283px: Data URI: at 231px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 379-380px: Data URI: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 381-562px: Data URI: at 380px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 563-565px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 566-600px: Data URI: at 565px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 245px: npm scope: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Helvetica Neue @ 246-487px: npm scope: at 245px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Arial @ 177px: Bare URL: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Arial @ 178-263px: Bare URL: at 177px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Arial @ 153px: Unix path: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance urls / Arial @ 154-195px: Unix path: at 153px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance urls / Arial @ 148px: Data URI: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 balance urls / Arial @ 149-166px: Data URI: at 148px: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 balance urls / Arial @ 286-288px: Data URI: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance urls / Arial @ 289-379px: Data URI: at 288px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 balance urls / Arial @ 568-570px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Arial @ 571-600px: Data URI: at 570px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Arial @ 129px: Snake case: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 balance urls / Arial @ 130-157px: Snake case: at 129px: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 balance urls / Times New Roman @ 127px: Data URI: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 balance urls / Times New Roman @ 128-142px: Data URI: at 127px: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 balance urls / Times New Roman @ 161px: Data URI: baseline: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 balance urls / Times New Roman @ 162-188px: Data URI: at 161px: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 balance urls / Times New Roman @ 368-370px: Data URI: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Times New Roman @ 371-552px: Data URI: at 370px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance urls / Times New Roman @ 553-555px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Times New Roman @ 556-600px: Data URI: at 555px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 balance urls / Times New Roman @ 152px: Snake case: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 balance urls / Times New Roman @ 153-170px: Snake case: at 152px: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 balance urls / Times New Roman @ 302-303px: Snake case: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance urls / Times New Roman @ 304-330px: Snake case: at 303px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 balance german / Helvetica Neue @ 212px: Fehlermeldung: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance german / Helvetica Neue @ 213-300px: Fehlermeldung: at 212px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance german / Arial @ 164px: Kapitän: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance german / Arial @ 165-203px: Kapitän: at returned 164px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 140px: Synchroniser: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 141-168px: Synchroniser: at returned 140px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 231px: Synchroniser: baseline: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 232-325px: Synchroniser: at returned 231px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 178px: Responsabilité: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 179-230px: Responsabilité: at returned 178px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 286px: Responsabilité: baseline: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 287-437px: Responsabilité: at returned 286px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 150-155px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 156-192px: Syndicats: at returned 150px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 120-125px: Récit: at 113px: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 302px: Récit: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance french / Helvetica Neue @ 303-455px: Récit: at 302px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 balance french / Arial @ 148-152px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Arial @ 153-185px: Syndicats: at returned 148px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Georgia @ 150-152px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Georgia @ 153-193px: Syndicats: at returned 150px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Times New Roman @ 134-135px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 balance french / Times New Roman @ 136-171px: Syndicats: at returned 134px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize latin / Georgia @ 142px: Gatsby reserve: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 fitFontSize latin / Georgia @ 592px: Gatsby reserve: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize latin / Times New Roman @ 143px: Gatsby reserve: returned 10px, at 10px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize latin / Times New Roman @ 516px: Gatsby decencies: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 129px: Japanese: returned 12px, at 13px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 143px: Japanese: returned 12px, at 12px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 155px: Japanese: returned 12px, at 13px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 159px: Japanese: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 167px: Japanese: returned 13px, at 14px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 179px: Japanese: returned 14px, at 15px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 191px: Japanese: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 203px: Japanese: returned 16px, at 17px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 255px: Japanese: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 271px: Japanese: returned 16px, at 17px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 287px: Japanese: returned 17px, at 18px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 303px: Japanese: returned 18px, at 19px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 318-319px: Japanese: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 334-335px: Japanese: returned 20px, at 21px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 350-351px: Japanese: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 381px: Japanese: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 500-501px: Japanese: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 524-525px: Japanese: returned 21px, at 22px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 547-549px: Japanese: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 571-572px: Japanese: returned 23px, at 24px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 595-596px: Japanese: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 143px: Japanese short: returned 12px, at 12px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 155px: Japanese short: returned 12px, at 13px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 167px: Japanese short: returned 13px, at 14px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 179px: Japanese short: returned 14px, at 15px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 191px: Japanese short: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 203px: Japanese short: returned 16px, at 17px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 381px: Japanese short: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 499-501px: Japanese short: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 523-525px: Japanese short: returned 21px, at 22px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 547-549px: Japanese short: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 571-572px: Japanese short: returned 23px, at 24px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 594-596px: Japanese short: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 127px: Kumo no ito: baseline: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 143px: Kumo no ito: baseline: DOM 6 lines, Pretext 7
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 194px: Kumo no ito: returned 14px, at 15px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 207px: Kumo no ito: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 220px: Kumo no ito: returned 16px, at 17px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 271px: Kumo no ito: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 288px: Kumo no ito: returned 16px, at 17px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 305px: Kumo no ito: returned 17px, at 18px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 322px: Kumo no ito: returned 18px, at 19px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 339px: Kumo no ito: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 356px: Kumo no ito: returned 20px, at 21px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 373px: Kumo no ito: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 414-415px: Kumo no ito: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 543-545px: Kumo no ito: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 569-571px: Kumo no ito: returned 21px, at 22px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize cjk / Georgia @ 595-597px: Kumo no ito: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Helvetica Neue @ 305px: Bukhala names: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 251px: Numbers+RTL: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 135px: Support thread: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 401px: Support thread: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 420px: Support thread: returned 21px, at 22px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 439px: Support thread: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 458px: Support thread: returned 23px, at 24px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 477-478px: Support thread: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 496-497px: Support thread: returned 25px, at 26px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 515-516px: Support thread: returned 26px, at 27px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 534-535px: Support thread: returned 27px, at 28px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 554px: Support thread: returned 28px, at 29px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 573px: Support thread: returned 29px, at 30px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 590px: Support thread: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 fitFontSize arabic / Arial @ 592px: Support thread: returned 30px, at 31px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 294px: Long mixed: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 401px: Long mixed: returned 16px, at 17px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 448px: Long mixed: returned 18px, at 19px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 519px: Long mixed: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 124px: Support thread: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 284px: Support thread: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 373px: Support thread: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 391px: Support thread: returned 21px, at 22px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 409px: Support thread: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 426-427px: Support thread: returned 23px, at 24px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 444-445px: Support thread: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 462px: Support thread: returned 25px, at 26px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 480px: Support thread: returned 26px, at 27px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 497-498px: Support thread: returned 27px, at 28px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 515-516px: Support thread: returned 28px, at 29px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 533-534px: Support thread: returned 29px, at 30px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 551px: Support thread: returned 30px, at 31px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 564px: Support thread: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 568-569px: Support thread: returned 31px, at 32px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize arabic / Times New Roman @ 586-587px: Support thread: returned 32px, at 33px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize emoji-chat / Arial @ 535px: Flags: baseline: DOM 1 lines, Pretext 2
-- chromium@1,1.25,2 fitFontSize emoji-chat / Arial @ 257px: ZWJ family: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize emoji-chat / Times New Roman @ 206px: Weather report: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 274px: Bare URL: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 394px: Bare URL: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 411px: Bare URL: returned 23px, at 24px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 428px: Bare URL: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 445px: Bare URL: returned 25px, at 26px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 531px: Bare URL: returned 30px, at 31px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 548px: Bare URL: returned 31px, at 32px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 565px: Bare URL: returned 32px, at 33px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 125px: Query string: baseline: DOM 10 lines, Pretext 11
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 169px: Query string: returned 10px, at 11px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 246px: Query string: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 397px: Query string: returned 16px, at 17px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 467px: Query string: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 144-145px: Data URI: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 158-159px: Data URI: returned 10px, at 11px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 172-173px: Data URI: returned 11px, at 12px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 187-188px: Data URI: returned 12px, at 13px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 230-231px: Data URI: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 379-380px: Data URI: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 403px: Data URI: returned 16px, at 17px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 427px: Data URI: returned 17px, at 18px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 450-451px: Data URI: returned 18px, at 19px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 474-475px: Data URI: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 498px: Data URI: returned 20px, at 21px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 522px: Data URI: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 563-565px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 245px: npm scope: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 291px: npm scope: returned 18px, at 19px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Helvetica Neue @ 337px: npm scope: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 177px: Bare URL: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 235px: Query string: returned 13px, at 14px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 441px: Query string: returned 18px, at 19px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 153px: Unix path: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 148px: Data URI: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 215-216px: Data URI: returned 12px, at 12px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 233-234px: Data URI: returned 12px, at 13px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 251-252px: Data URI: returned 13px, at 14px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 268-270px: Data URI: returned 14px, at 15px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 286-288px: Data URI: baseline: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 304-306px: Data URI: returned 16px, at 17px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 568-570px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Arial @ 129px: Snake case: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 fitFontSize urls / Georgia @ 189px: Data URI: returned 12px, at 13px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 127px: Data URI: baseline: DOM 9 lines, Pretext 10
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 161px: Data URI: baseline: DOM 7 lines, Pretext 8
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 368-370px: Data URI: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 391-393px: Data URI: returned 16px, at 17px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 414-416px: Data URI: returned 17px, at 18px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 437-440px: Data URI: returned 18px, at 19px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 460-463px: Data URI: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 483-486px: Data URI: returned 20px, at 21px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 506-509px: Data URI: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 553-555px: Data URI: baseline: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 145px: npm scope: returned 12px, at 12px: DOM 4 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 152px: Snake case: baseline: DOM 8 lines, Pretext 9
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 189px: Snake case: returned 10px, at 10px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 208px: Snake case: returned 10px, at 11px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 227px: Snake case: returned 11px, at 12px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 246px: Snake case: returned 12px, at 13px: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 302-303px: Snake case: baseline: DOM 5 lines, Pretext 6
-- chromium@1,1.25,2 fitFontSize urls / Times New Roman @ 490px: Path with spaces: returned 23px, at 24px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 589px: Datenschutz: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 278px: Kapitän: returned 17px, at 17px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 311px: Kapitän: returned 19px, at 19px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 360px: Kapitän: returned 21px, at 22px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 212px: Fehlermeldung: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 265px: Fehlermeldung: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 367px: One word: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 402px: One word: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 437px: One word: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 472px: One word: returned 26px, at 27px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 507px: One word: returned 28px, at 29px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 524px: One word: returned 29px, at 30px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Helvetica Neue @ 559px: One word: returned 31px, at 32px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize german / Arial @ 368px: Datenschutz: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize german / Arial @ 123px: Kapitän: returned 12px, at 12px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize german / Arial @ 164px: Kapitän: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 311px: Enregistrer: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 140px: Synchroniser: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 231px: Synchroniser: baseline: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 303px: Synchroniser: returned 21px, at 21px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 448px: Synchroniser: returned 22px, at 22px: DOM 3 lines, Pretext 2
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 509px: Synchroniser: returned 25px, at 25px: DOM 3 lines, Pretext 2
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 570px: Synchroniser: returned 28px, at 28px: DOM 3 lines, Pretext 2
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 326px: Justificatifs: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 357px: Justificatifs: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 388px: Justificatifs: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 419px: Justificatifs: returned 26px, at 27px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 435px: Justificatifs: returned 27px, at 28px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 450px: Justificatifs: returned 28px, at 29px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 466px: Justificatifs: returned 29px, at 30px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 481px: Justificatifs: returned 30px, at 31px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 497px: Justificatifs: returned 31px, at 32px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 512px: Justificatifs: returned 32px, at 33px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 173px: Responsabilité: returned 12px, at 12px: DOM 5 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 178px: Responsabilité: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 202px: Responsabilité: returned 14px, at 14px: DOM 5 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 245px: Responsabilité: returned 16px, at 17px: DOM 5 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 286px: Responsabilité: baseline: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 393px: Responsabilité: returned 21px, at 22px: DOM 4 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 574px: Responsabilité: returned 21px, at 21px: DOM 3 lines, Pretext 2
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 122-126px: Syndicats: returned 12px, at 13px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 150-155px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 501px: Syndicats: returned 21px, at 22px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 592px: Syndicats: returned 25px, at 26px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 302px: Récit: baseline: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize french / Helvetica Neue @ 415px: Récit: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- chromium@1,1.25,2 fitFontSize french / Arial @ 120-124px: Syndicats: returned 12px, at 13px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Arial @ 148-152px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Georgia @ 322px: Enregistrer: returned 23px, at 24px: DOM 2 lines, Pretext 3
-- chromium@1,1.25,2 fitFontSize french / Georgia @ 122-124px: Syndicats: returned 12px, at 13px: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Georgia @ 150-152px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 fitFontSize french / Times New Roman @ 134-135px: Syndicats: baseline: DOM 6 lines, Pretext 5
-- chromium@1,1.25,2 clamp maxLines 2 latin / Helvetica Neue @ 462px: Latin update: line 2 "performance improvements are really noticeable, especially on…" paints 462.0234375px, Pretext 462.015625px, box 462px
-- chromium@1,1.25,2 clamp maxLines 1 latin / Helvetica Neue @ 492px: Latin hyphenation: line 1 "One thing I noticed is that the line breaking algorithm doesn't hand…" paints 492.0234375px, Pretext 492.0155792236328px, box 492px
-- chromium@1,1.25,2 clamp maxLines 2 latin / Georgia @ 592px: Gatsby reserve: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 latin / Georgia @ 592px: Gatsby reserve: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 latin / Georgia @ 592px: Gatsby reserve: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 latin / Georgia @ 592px: Gatsby reserve: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 384px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 384px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 385px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 385px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 386px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 386px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 387px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 387px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 388px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 388px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 389px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 389px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 390px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 390px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Helvetica Neue @ 391px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 391px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 192px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 192px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 193px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 193px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 194px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 194px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 195px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 195px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 196px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 196px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 197px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 197px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 198px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 198px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 199px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 199px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Helvetica Neue @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Helvetica Neue @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 128px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 128px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 129px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 129px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 130px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 130px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 131px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 131px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 132px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 132px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 133px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 133px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 134px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 134px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 135px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 135px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Helvetica Neue @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 128px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 128px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 129px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 129px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 130px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 130px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 131px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 131px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 132px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 132px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 133px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 133px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 134px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 134px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 135px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 135px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Helvetica Neue @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 384px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 384px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 385px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 385px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 386px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 386px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 387px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 387px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 388px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 388px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 389px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 389px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 390px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 390px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Arial @ 391px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 392px, Pretext 384px, box 391px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 192px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 192px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 193px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 193px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 194px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 194px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 195px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 195px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 196px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 196px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 197px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 197px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 198px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 198px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 199px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 200px, Pretext 192px, box 199px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Arial @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Arial @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 128px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 128px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 129px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 129px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 130px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 130px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 131px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 131px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 132px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 132px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 133px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 133px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 134px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 134px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 135px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 135px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Arial @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 128px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 128px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 129px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 129px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 130px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 130px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 131px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 131px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 132px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 132px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 133px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 133px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 134px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 134px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 135px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 135px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Arial @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 381px: Japanese: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 255px: Japanese: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 381px: Japanese: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 191px: Japanese: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 4 (truncated true; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 255px: Japanese: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 381px: Japanese: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 159px: Japanese: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 191px: Japanese: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 255px: Japanese: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 381px: Japanese: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 381px: Japanese short: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 381px: Japanese short: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 191px: Japanese short: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 4 (truncated true; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 381px: Japanese short: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 191px: Japanese short: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 381px: Japanese short: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 381px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 381px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 382px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 382px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 383px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 383px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 384px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 384px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 385px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 385px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 386px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 386px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 387px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 387px
-- chromium@1,1.25,2 clamp maxLines 1 cjk / Georgia @ 388px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」…" paints 388.9140625px, Pretext 380.9140625px, box 388px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 192px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 196.9140625px, Pretext 188.9140625px, box 192px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 193px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 196.9140625px, Pretext 188.9140625px, box 193px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 194px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 196.9140625px, Pretext 188.9140625px, box 194px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 195px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 196.9140625px, Pretext 188.9140625px, box 195px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 196px: Zhufu quotes: line 2 "我「胖了」，說我「胖了」…" paints 196.9140625px, Pretext 188.9140625px, box 196px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 141px: Zhufu quotes: line 3 "了」，說我「胖了」…" paints 148.9140625px, Pretext 140.9140625px, box 141px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 142px: Zhufu quotes: line 3 "了」，說我「胖了」…" paints 148.9140625px, Pretext 140.9140625px, box 142px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 143px: Zhufu quotes: line 3 "了」，說我「胖了」…" paints 148.9140625px, Pretext 140.9140625px, box 143px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 128px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 128px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 129px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 129px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 130px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 130px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 131px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 131px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 132px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 132px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 133px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 133px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 134px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 134px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 135px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 135px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 128px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 128px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 129px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 129px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 130px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 130px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 131px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 131px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 132px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 132px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 133px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 133px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 134px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 134px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 135px: Zhufu quotes: line 3 "了」，說我「胖了」" paints 136px, Pretext 128px, box 135px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 368px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 369px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 369px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 370px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 370px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 371px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 371px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 372px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 372px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 373px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 373px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 374px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 374px
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 375px: Zhufu quotes: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 375px
-- chromium@1,1.25,2 clamp maxLines 2 cjk / Georgia @ 414-415px: Kumo no ito: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 271px: Kumo no ito: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 cjk / Georgia @ 414-415px: Kumo no ito: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 207px: Kumo no ito: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 4 (truncated true; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 271px: Kumo no ito: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 cjk / Georgia @ 414-415px: Kumo no ito: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 207px: Kumo no ito: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 271px: Kumo no ito: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 cjk / Georgia @ 414-415px: Kumo no ito: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 142px: Arabic: line 2 "لاختبار دعم الاتجاه من…" paints 142.296875px, Pretext 141.77786254882812px, box 142px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 153px: Arabic: line 3 "اليمين إلى اليسار في مك…" paints 153.2890625px, Pretext 152.9527587890625px, box 153px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 231px: Mixed report: line 1 "According to the report by محم…" paints 231.421875px, Pretext 230.4130859375px, box 231px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 237px: Mixed report: line 1 "According to the report by محمد…" paints 238.4609375px, Pretext 236.93748474121094px, box 237px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 238px: Mixed report: line 1 "According to the report by محمد…" paints 238.4609375px, Pretext 236.93748474121094px, box 238px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 517px: Long mixed: line 2 "modern cafés. The city's history spans millennia. كل شارع يحكي قصة مخت…" paints 517.2578125px, Pretext 516.2368927001953px, box 517px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 336px: Bukhala opening: line 1 "تولاك الله بحفظه وأعانك على شكره ووفقك لطاعته وجعلك من…" paints 336.2109375px, Pretext 335.69171142578125px, box 336px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 295px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حي…" paints 296.421875px, Pretext 295.0080108642578px, box 295px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 296px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حي…" paints 296.421875px, Pretext 295.0080108642578px, box 296px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 472px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حيل لصوص النهار وفي تفصيل حي…" paints 473.09375px, Pretext 471.67823791503906px, box 472px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 473px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حيل لصوص النهار وفي تفصيل حي…" paints 473.09375px, Pretext 471.67823791503906px, box 473px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 224px: Bukhala book: line 3 "حيل سراق الليل وأنك سددت به كل خل…" paints 224.3359375px, Pretext 223.84466552734375px, box 224px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 331px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هار…" paints 332.3671875px, Pretext 329.64515686035156px, box 331px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 332px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هار…" paints 332.3671875px, Pretext 329.64515686035156px, box 332px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 336px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 338.0546875px, Pretext 335.9236297607422px, box 336px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 337px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 338.0546875px, Pretext 335.9236297607422px, box 337px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 338px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 338.0546875px, Pretext 335.9236297607422px, box 338px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 345px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 346.5859375px, Pretext 344.45887756347656px, box 345px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 346px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 346.5859375px, Pretext 344.45887756347656px, box 346px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 165px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 166.46875px, Pretext 163.74481201171875px, box 165px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 166px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 166.46875px, Pretext 163.74481201171875px, box 166px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 171px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 172.15625px, Pretext 170.02328491210938px, box 171px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 172px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 172.15625px, Pretext 170.02328491210938px, box 172px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 179px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 180.6875px, Pretext 178.55853271484375px, box 179px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 180px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 180.6875px, Pretext 178.55853271484375px, box 180px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 285px: Bukhala names: line 2 "بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 285.4921875px, Pretext 284.9724884033203px, box 285px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 124px: Bukhala names: line 3 "ورسالة سهل بن هار…" paints 124.9296875px, Pretext 122.20463562011719px, box 124px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 129px: Bukhala names: line 3 "ورسالة سهل بن هارو…" paints 130.6171875px, Pretext 128.4831085205078px, box 129px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 130px: Bukhala names: line 3 "ورسالة سهل بن هارو…" paints 130.6171875px, Pretext 128.4831085205078px, box 130px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 251px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من…" paints 251.203125px, Pretext 250.687744140625px, box 251px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 357px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 357.34375px, Pretext 356.8114471435547px, box 357px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 413px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مثلاً كلمّة طيّ…" paints 413.8046875px, Pretext 412.8755798339844px, box 413px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 486px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مثلاً كلمّة طيّبةً كشجرةً طيّ…" paints 486.2734375px, Pretext 485.3447570800781px, box 486px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 185px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 185.359375px, Pretext 184.82843017578125px, box 185px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 208px: Ghufran tree: line 2 "ألم تر كيف ضرب الله مثلاً كلمّة طيّ…" paints 208.4453125px, Pretext 207.51919555664062px, box 208px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 245px: Ghufran tree: line 2 "كيف ضرب الله مثلاً كلمّة طيّبةً كشجرةً طيّ…" paints 245.8359375px, Pretext 244.90797424316406px, box 245px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 398px: Ghufran tree: line 2 "طيّبةً كشجرةً طيّبةٍ، أصلها ثابت وفرعها في السّمّاء، تؤتي أكلها كلّ حي…" paints 398.578125px, Pretext 397.16632080078125px, box 398px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 144px: Ghufran tree: line 3 "ضرب الله مثلاً كلمّة طيّ…" paints 144.546875px, Pretext 143.61468505859375px, box 144px
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Helvetica Neue @ 164px: Ghufran tree: line 5 "السّمّاء، تؤتي أكلها كلّ حي…" paints 164.0859375px, Pretext 162.67430114746094px, box 164px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 265px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 267.65625px, Pretext 264.9299774169922px, box 265px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 266px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 267.65625px, Pretext 264.9299774169922px, box 266px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 267px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 267.65625px, Pretext 264.9299774169922px, box 267px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 270px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 272.3359375px, Pretext 269.6098937988281px, box 270px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 271px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 272.3359375px, Pretext 269.6098937988281px, box 271px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 272px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 272.3359375px, Pretext 269.6098937988281px, box 272px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 297px: Support thread: line 1 "The Arabic support thread said: \"هذا جي…" paints 297.7890625px, Pretext 296.3725280761719px, box 297px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 580px: Support thread: line 1 "The Arabic support thread said: \"هذا جيد، ولكن لا تكسر العبارة «فيقول: وعليك السلام» داخل…" paints 580.2734375px, Pretext 579.7771453857422px, box 580px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 155px: Support thread: line 2 "thread said: \"هذا جي…" paints 156.4296875px, Pretext 155.0126495361328px, box 155px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 156px: Support thread: line 2 "thread said: \"هذا جي…" paints 156.4296875px, Pretext 155.0126495361328px, box 156px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 289px: Support thread: line 2 "ولكن لا تكسر العبارة «فيقول: وعليك السلام» داخل…" paints 289.2578125px, Pretext 288.7721862792969px, box 289px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 255px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من…" paints 255.2109375px, Pretext 254.3125px, box 255px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 382px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار في مك…" paints 382.765625px, Pretext 381.8671875px, box 382px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 132px: Arabic: line 2 "لاختبار دعم الاتجاه من…" paints 132.34375px, Pretext 131.4453125px, box 132px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 195px: Arabic: line 2 "الاتجاه من اليمين إلى اليسار في مك…" paints 195.3046875px, Pretext 194.40625px, box 195px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Arial @ 139px: Arabic: line 3 "اليمين إلى اليسار في مك…" paints 139.109375px, Pretext 138.2109375px, box 139px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 229px: Mixed report: line 1 "According to the report by محمد…" paints 230.140625px, Pretext 228.875px, box 229px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 230px: Mixed report: line 1 "According to the report by محمد…" paints 230.140625px, Pretext 228.875px, box 230px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 251px: Numbers+RTL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Arial @ 251px: Numbers+RTL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Arial @ 251px: Numbers+RTL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Arial @ 251px: Numbers+RTL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 329px: Bukhala opening: line 1 "تولاك الله بحفظه وأعانك على شكره ووفقك لطاعته وجعلك من…" paints 329.71875px, Pretext 328.8203125px, box 329px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 176px: Bukhala opening: line 2 "شكره ووفقك لطاعته وجعلك من…" paints 176.796875px, Pretext 175.8984375px, box 176px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 320px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 322.6484375px, Pretext 319.6015625px, box 320px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 321px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 322.6484375px, Pretext 319.6015625px, box 321px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 322px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 322.6484375px, Pretext 319.6015625px, box 322px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 328px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 331.0625px, Pretext 328.015625px, box 328px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 329px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 331.0625px, Pretext 328.015625px, box 329px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 330px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 331.0625px, Pretext 328.015625px, box 330px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 331px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 331.0625px, Pretext 328.015625px, box 331px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 546px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 546.734375px, Pretext 545.4765625px, box 546px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 156px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 156.3515625px, Pretext 153.3046875px, box 156px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 161px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 163.265625px, Pretext 160.21875px, box 161px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 162px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 163.265625px, Pretext 160.21875px, box 162px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 163px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 163.265625px, Pretext 160.21875px, box 163px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 169px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 171.6796875px, Pretext 168.6328125px, box 169px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 170px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 171.6796875px, Pretext 168.6328125px, box 170px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 171px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 171.6796875px, Pretext 168.6328125px, box 171px
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Arial @ 162px: Bukhala names: line 4 "الحارثي وكل ما حضرني من…" paints 162.8671875px, Pretext 161.96875px, box 162px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 249px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من…" paints 249.2734375px, Pretext 248.375px, box 249px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 396px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من اتسِّاق عقودها الفاخرة، ومث…" paints 396.59375px, Pretext 395.6953125px, box 396px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 342px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 342.671875px, Pretext 341.7734375px, box 342px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 181px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 181.21875px, Pretext 180.3203125px, box 181px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 260px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 261.078125px, Pretext 259.2734375px, box 260px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 261px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 261.078125px, Pretext 259.2734375px, box 261px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 263px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 264.390625px, Pretext 262.5859375px, box 263px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 264px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 264.390625px, Pretext 262.5859375px, box 264px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Arial @ 590px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Arial @ 590px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Arial @ 590px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Arial @ 590px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Arial @ 135px: Support thread: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Arial @ 590px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 268px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من…" paints 268.4921875px, Pretext 267.9728088378906px, box 268px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 137px: Arabic: line 2 "لاختبار دعم الاتجاه من…" paints 137.4453125px, Pretext 136.92605590820312px, box 137px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 225px: Mixed report: line 1 "According to the report by محم…" paints 225.1875px, Pretext 224.18556213378906px, box 225px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 231px: Mixed report: line 1 "According to the report by محمد…" paints 232.2265625px, Pretext 230.7099609375px, box 231px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 232px: Mixed report: line 1 "According to the report by محمد…" paints 232.2265625px, Pretext 230.7099609375px, box 232px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 506px: Long mixed: line 2 "modern cafés. The city's history spans millennia. كل شارع يحكي قصة مخت…" paints 506.1640625px, Pretext 505.14642333984375px, box 506px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 174px: Bukhala opening: line 2 "شكره ووفقك لطاعته وجعلك من…" paints 174.2265625px, Pretext 173.71124267578125px, box 174px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 287px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حي…" paints 287.796875px, Pretext 286.3848419189453px, box 287px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 461px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حيل لصوص النهار وفي تفصيل حي…" paints 461.5234375px, Pretext 460.11195373535156px, box 461px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 217px: Bukhala book: line 3 "حيل سراق الليل وأنك سددت به كل خل…" paints 217.125px, Pretext 216.63836669921875px, box 217px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 329px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 330.2578125px, Pretext 328.1287078857422px, box 329px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 330px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 330.2578125px, Pretext 328.1287078857422px, box 330px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 337px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 338.796875px, Pretext 336.66395568847656px, box 337px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 338px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 338.796875px, Pretext 336.66395568847656px, box 338px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 165px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 166.7109375px, Pretext 164.58285522460938px, box 165px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 166px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 166.7109375px, Pretext 164.58285522460938px, box 166px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 174px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 175.25px, Pretext 173.11810302734375px, box 174px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 175px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 175.25px, Pretext 173.11810302734375px, box 175px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 124px: Bukhala names: line 3 "ورسالة سهل بن هارو…" paints 125.765625px, Pretext 123.63130187988281px, box 124px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 125px: Bukhala names: line 3 "ورسالة سهل بن هارو…" paints 125.765625px, Pretext 123.63130187988281px, box 125px
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Georgia @ 164px: Bukhala names: line 4 "الحارثي وكل ما حضرني من…" paints 164.3046875px, Pretext 163.78721618652344px, box 164px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 348px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 348.3359375px, Pretext 347.8026580810547px, box 348px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 403px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مثلاً كلمّة طيّ…" paints 403.6171875px, Pretext 402.6895446777344px, box 403px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 474px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مثلاً كلمّة طيّبةً كشجرةً طيّ…" paints 474.9140625px, Pretext 473.9814758300781px, box 474px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 179px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 179.296875px, Pretext 178.76275634765625px, box 179px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 201px: Ghufran tree: line 2 "ألم تر كيف ضرب الله مثلاً كلمّة طيّ…" paints 201.2421875px, Pretext 200.31289672851562px, box 201px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 238px: Ghufran tree: line 2 "كيف ضرب الله مثلاً كلمّة طيّبةً كشجرةً طيّ…" paints 238.6328125px, Pretext 237.70167541503906px, box 238px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 388px: Ghufran tree: line 2 "طيّبةً كشجرةً طيّبةٍ، أصلها ثابت وفرعها في السّمّاء، تؤتي أكلها كلّ حي…" paints 389.0234375px, Pretext 387.60552978515625px, box 388px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 389px: Ghufran tree: line 2 "طيّبةً كشجرةً طيّبةٍ، أصلها ثابت وفرعها في السّمّاء، تؤتي أكلها كلّ حي…" paints 389.0234375px, Pretext 387.60552978515625px, box 389px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 127px: Ghufran tree: line 3 "تر كيف ضرب الله مث…" paints 127.1875px, Pretext 126.65165710449219px, box 127px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 139px: Ghufran tree: line 3 "ضرب الله مثلاً كلمّة طيّ…" paints 139.1015625px, Pretext 138.17425537109375px, box 139px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 260px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 262.1875px, Pretext 259.4661102294922px, box 260px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 261px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 262.1875px, Pretext 259.4661102294922px, box 261px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 262px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 262.1875px, Pretext 259.4661102294922px, box 262px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 265px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 266.8671875px, Pretext 264.1460266113281px, box 265px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 266px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 266.8671875px, Pretext 264.1460266113281px, box 266px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 291px: Support thread: line 1 "The Arabic support thread said: \"هذا جي…" paints 291.734375px, Pretext 290.3200378417969px, box 291px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 151px: Support thread: line 2 "thread said: \"هذا جي…" paints 151.84375px, Pretext 150.42941284179688px, box 151px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 286px: Support thread: line 2 "ولكن لا تكسر العبارة «فيقول: وعليك السلام» داخل…" paints 286.3828125px, Pretext 285.8956604003906px, box 286px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 252px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من…" paints 252.09375px, Pretext 251.1953125px, box 252px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 377px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار في مك…" paints 377.421875px, Pretext 376.5234375px, box 377px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 192px: Arabic: line 2 "الاتجاه من اليمين إلى اليسار في مك…" paints 192.6328125px, Pretext 191.734375px, box 192px
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Times New Roman @ 137px: Arabic: line 3 "اليمين إلى اليسار في مك…" paints 137.328125px, Pretext 136.4296875px, box 137px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 215px: Mixed report: line 1 "According to the report by محمد…" paints 216.2109375px, Pretext 214.9453125px, box 215px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 216px: Mixed report: line 1 "According to the report by محمد…" paints 216.2109375px, Pretext 214.9453125px, box 216px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 469px: Long mixed: line 2 "modern cafés. The city's history spans millennia. كل شارع يحكي قصة مخت…" paints 469.0625px, Pretext 468.984375px, box 469px
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Times New Roman @ 294px: Long mixed: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 4 (truncated true; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Times New Roman @ 294px: Long mixed: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 124px: Bukhala opening: line 1 "تولاك الله بحفظه وأعا…" paints 124.03125px, Pretext 123.9609375px, box 124px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 325px: Bukhala opening: line 1 "تولاك الله بحفظه وأعانك على شكره ووفقك لطاعته وجعلك من…" paints 325.7109375px, Pretext 324.8125px, box 325px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 312px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هار…" paints 312.171875px, Pretext 309.125px, box 312px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 317px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 319.0859375px, Pretext 316.0390625px, box 317px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 318px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 319.0859375px, Pretext 316.0390625px, box 318px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 319px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 319.0859375px, Pretext 316.0390625px, box 319px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 325px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 327.5px, Pretext 324.453125px, box 325px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 326px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 327.5px, Pretext 324.453125px, box 326px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 327px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 327.5px, Pretext 324.453125px, box 327px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 539px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 540.0546875px, Pretext 538.796875px, box 539px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 540px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 540.0546875px, Pretext 538.796875px, box 540px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 154px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 154.5703125px, Pretext 151.5234375px, box 154px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 159px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 161.484375px, Pretext 158.4375px, box 159px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 160px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 161.484375px, Pretext 158.4375px, box 160px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 161px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 161.484375px, Pretext 158.4375px, box 161px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 167px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 169.8984375px, Pretext 166.8515625px, box 167px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 168px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 169.8984375px, Pretext 166.8515625px, box 168px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 169px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 169.8984375px, Pretext 166.8515625px, box 169px
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Times New Roman @ 161px: Bukhala names: line 4 "الحارثي وكل ما حضرني من…" paints 161.0859375px, Pretext 160.1875px, box 161px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 246px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من…" paints 246.6015625px, Pretext 245.703125px, box 246px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 392px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من اتسِّاق عقودها الفاخرة، ومث…" paints 392.140625px, Pretext 391.2421875px, box 392px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 337px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 337.7734375px, Pretext 336.875px, box 337px
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 178px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 178.546875px, Pretext 177.6484375px, box 178px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 240px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 240.8515625px, Pretext 239.046875px, box 240px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 243px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 244.1640625px, Pretext 242.359375px, box 243px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 244px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 244.1640625px, Pretext 242.359375px, box 244px
-- chromium@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 564px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 284px: Support thread: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 564px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Times New Roman @ 284px: Support thread: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 arabic / Times New Roman @ 564px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Times New Roman @ 284px: Support thread: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 arabic / Times New Roman @ 564px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Times New Roman @ 124px: Support thread: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Times New Roman @ 284px: Support thread: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 arabic / Times New Roman @ 564px: Support thread: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 1 emoji-chat / Arial @ 535px: Flags: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 emoji-chat / Arial @ 535px: Flags: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 emoji-chat / Arial @ 535px: Flags: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 emoji-chat / Arial @ 535px: Flags: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 emoji-chat / Arial @ 535px: Flags: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 emoji-chat / Arial @ 257px: ZWJ family: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 emoji-chat / Arial @ 257px: ZWJ family: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 emoji-chat / Arial @ 257px: ZWJ family: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 emoji-chat / Arial @ 257px: ZWJ family: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 emoji-chat / Times New Roman @ 206px: Weather report: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 emoji-chat / Times New Roman @ 206px: Weather report: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 emoji-chat / Times New Roman @ 206px: Weather report: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 emoji-chat / Times New Roman @ 206px: Weather report: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 urls / Helvetica Neue @ 274px: Bare URL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 274px: Bare URL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 274px: Bare URL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 274px: Bare URL: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 246px: Query string: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 urls / Helvetica Neue @ 563-565px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 379-380px: Data URI: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 563-565px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 379-380px: Data URI: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 563-565px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 230-231px: Data URI: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 379-380px: Data URI: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 563-565px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 245px: npm scope: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 245px: npm scope: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 245px: npm scope: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Arial @ 177px: Bare URL: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Arial @ 177px: Bare URL: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Arial @ 177px: Bare URL: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Arial @ 153px: Unix path: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 urls / Arial @ 568-570px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Arial @ 568-570px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Arial @ 286-288px: Data URI: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 4 (truncated true; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Arial @ 568-570px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Arial @ 286-288px: Data URI: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Arial @ 568-570px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 urls / Times New Roman @ 553-555px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 368-370px: Data URI: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 553-555px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 368-370px: Data URI: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 553-555px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 368-370px: Data URI: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 553-555px: Data URI: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 302-303px: Snake case: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 172px
-- chromium@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 173px
-- chromium@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 174px
-- chromium@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 175px
-- chromium@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 176px
-- chromium@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 177px
-- chromium@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 178px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 172px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 173px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 174px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 175px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 176px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 177px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 178px
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 172px
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 173px
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 174px
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 175px
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 176px
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 177px
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 178px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 172px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 173px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 174px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 175px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 176px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 177px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 178px
-- chromium@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 212px: Fehlermeldung: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 212px: Fehlermeldung: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 212px: Fehlermeldung: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 265px: Förderung: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 265.0625px, Pretext 265.5037536621094px, box 265px
-- chromium@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 265px: Förderung: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 265.0625px, Pretext 265.5037536621094px, box 265px
-- chromium@1,1.25,2 clamp maxLines 2 german / Arial @ 171px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 171px
-- chromium@1,1.25,2 clamp maxLines 2 german / Arial @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 172px
-- chromium@1,1.25,2 clamp maxLines 2 german / Arial @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 173px
-- chromium@1,1.25,2 clamp maxLines 2 german / Arial @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 174px
-- chromium@1,1.25,2 clamp maxLines 2 german / Arial @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 175px
-- chromium@1,1.25,2 clamp maxLines 2 german / Arial @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 176px
-- chromium@1,1.25,2 clamp maxLines 3 german / Arial @ 171px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 171px
-- chromium@1,1.25,2 clamp maxLines 3 german / Arial @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 172px
-- chromium@1,1.25,2 clamp maxLines 3 german / Arial @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 173px
-- chromium@1,1.25,2 clamp maxLines 3 german / Arial @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 174px
-- chromium@1,1.25,2 clamp maxLines 3 german / Arial @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 175px
-- chromium@1,1.25,2 clamp maxLines 3 german / Arial @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 176px
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 171px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 171px
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 172px
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 173px
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 174px
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 175px
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 176px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 171px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 171px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 172px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 172px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 173px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 173px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 174px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 174px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 175px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 176.09375px, Pretext 176.09375px, box 176px
-- chromium@1,1.25,2 clamp maxLines 2 german / Arial @ 164px: Kapitän: line 1 "Der Donaudampfschiff-" paints 164.2265625px, Pretext 164.2265625px, box 164px
-- chromium@1,1.25,2 clamp maxLines 3 german / Arial @ 164px: Kapitän: line 1 "Der Donaudampfschiff-" paints 164.2265625px, Pretext 164.2265625px, box 164px
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 164px: Kapitän: line 1 "Der Donaudampfschiff-" paints 164.2265625px, Pretext 164.2265625px, box 164px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 164px: Kapitän: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 german / Arial @ 263px: Förderung: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 263.2734375px, Pretext 263.2734375px, box 263px
-- chromium@1,1.25,2 clamp maxLines 5 german / Arial @ 263px: Förderung: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 263.2734375px, Pretext 263.2734375px, box 263px
-- chromium@1,1.25,2 clamp maxLines 2 german / Georgia @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 175px
-- chromium@1,1.25,2 clamp maxLines 2 german / Georgia @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 176px
-- chromium@1,1.25,2 clamp maxLines 2 german / Georgia @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 177px
-- chromium@1,1.25,2 clamp maxLines 2 german / Georgia @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 178px
-- chromium@1,1.25,2 clamp maxLines 2 german / Georgia @ 179px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 179px
-- chromium@1,1.25,2 clamp maxLines 2 german / Georgia @ 180px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 180px
-- chromium@1,1.25,2 clamp maxLines 3 german / Georgia @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 175px
-- chromium@1,1.25,2 clamp maxLines 3 german / Georgia @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 176px
-- chromium@1,1.25,2 clamp maxLines 3 german / Georgia @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 177px
-- chromium@1,1.25,2 clamp maxLines 3 german / Georgia @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 178px
-- chromium@1,1.25,2 clamp maxLines 3 german / Georgia @ 179px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 179px
-- chromium@1,1.25,2 clamp maxLines 3 german / Georgia @ 180px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 180px
-- chromium@1,1.25,2 clamp maxLines 4 german / Georgia @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 175px
-- chromium@1,1.25,2 clamp maxLines 4 german / Georgia @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 176px
-- chromium@1,1.25,2 clamp maxLines 4 german / Georgia @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 177px
-- chromium@1,1.25,2 clamp maxLines 4 german / Georgia @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 178px
-- chromium@1,1.25,2 clamp maxLines 4 german / Georgia @ 179px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 179px
-- chromium@1,1.25,2 clamp maxLines 4 german / Georgia @ 180px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 180px
-- chromium@1,1.25,2 clamp maxLines 5 german / Georgia @ 175px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 175px
-- chromium@1,1.25,2 clamp maxLines 5 german / Georgia @ 176px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 176px
-- chromium@1,1.25,2 clamp maxLines 5 german / Georgia @ 177px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 177px
-- chromium@1,1.25,2 clamp maxLines 5 german / Georgia @ 178px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 178px
-- chromium@1,1.25,2 clamp maxLines 5 german / Georgia @ 179px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 179px
-- chromium@1,1.25,2 clamp maxLines 5 german / Georgia @ 180px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 180.8671875px, Pretext 180.8671875px, box 180px
-- chromium@1,1.25,2 clamp maxLines 2 german / Times New Roman @ 159px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 159px
-- chromium@1,1.25,2 clamp maxLines 2 german / Times New Roman @ 160px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 160px
-- chromium@1,1.25,2 clamp maxLines 2 german / Times New Roman @ 161px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 161px
-- chromium@1,1.25,2 clamp maxLines 2 german / Times New Roman @ 162px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 162px
-- chromium@1,1.25,2 clamp maxLines 2 german / Times New Roman @ 163px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 163px
-- chromium@1,1.25,2 clamp maxLines 2 german / Times New Roman @ 164px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 164px
-- chromium@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 159px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 159px
-- chromium@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 160px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 160px
-- chromium@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 161px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 161px
-- chromium@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 162px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 162px
-- chromium@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 163px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 163px
-- chromium@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 164px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 164px
-- chromium@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 159px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 159px
-- chromium@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 160px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 160px
-- chromium@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 161px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 161px
-- chromium@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 162px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 162px
-- chromium@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 163px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 163px
-- chromium@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 164px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 164px
-- chromium@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 159px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 159px
-- chromium@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 160px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 160px
-- chromium@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 161px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 161px
-- chromium@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 162px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 162px
-- chromium@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 163px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 163px
-- chromium@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 164px: Nebenrollen: line 1 "Bitte die Nebenrollen-Ta-" paints 164.1484375px, Pretext 164.1484375px, box 164px
-- chromium@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 362px: Förderung: line 2 "Wintersemester in Kraft, Übergangsregelungen inbegrif-" paints 362.0390625px, Pretext 362.328125px, box 362px
-- chromium@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 362px: Förderung: line 2 "Wintersemester in Kraft, Übergangsregelungen inbegrif-" paints 362.0390625px, Pretext 362.328125px, box 362px
-- chromium@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 362px: Förderung: line 2 "Wintersemester in Kraft, Übergangsregelungen inbegrif-" paints 362.0390625px, Pretext 362.328125px, box 362px
-- chromium@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 553px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion intern…" paints 553.265625px, Pretext 552.9756011962891px, box 553px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 296px: Synchroniser: line 2 "ments : vérifiez votre connexion interne…" paints 296.0234375px, Pretext 295.727783203125px, box 296px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 301px: Synchroniser: line 2 "ments : vérifiez votre connexion internet…" paints 301.0625px, Pretext 300.7677764892578px, box 301px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 202px: Synchroniser: line 3 "votre connexion internet e…" paints 202.1015625px, Pretext 201.80784606933594px, box 202px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 207px: Synchroniser: line 3 "votre connexion internet et…" paints 207.140625px, Pretext 206.84783935546875px, box 207px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 231px: Synchroniser: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 284.7677764892578px, box 285px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.140625px, Pretext 302.84776306152344px, box 303px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 153px: Synchroniser: line 4 "connexion internet …" paints 153.203125px, Pretext 152.91188049316406px, box 153px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 231px: Synchroniser: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 284.7677764892578px, box 285px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.140625px, Pretext 302.84776306152344px, box 303px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 135px: Synchroniser: line 5 "connexion intern…" paints 135.125px, Pretext 134.83189392089844px, box 135px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 140px: Synchroniser: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 231px: Synchroniser: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 284.7677764892578px, box 285px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.140625px, Pretext 302.84776306152344px, box 303px
-- chromium@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 460px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-…" paints 460.2421875px, Pretext 459.9516296386719px, box 460px
-- chromium@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 548px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est dev…" paints 548.2578125px, Pretext 547.9675750732422px, box 548px
-- chromium@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 563px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-…" paints 563.078125px, Pretext 562.7835693359375px, box 563px
-- chromium@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 583px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue…" paints 583.234375px, Pretext 582.9435577392578px, box 583px
-- chromium@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 591px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue i…" paints 591.234375px, Pretext 590.9435424804688px, box 591px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 232px: Responsabilité: line 2 "mentale des entreprises intern…" paints 232.0546875px, Pretext 231.75982666015625px, box 232px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 287px: Responsabilité: line 2 "entreprises internationales est devenu…" paints 287.15625px, Pretext 286.86378479003906px, box 287px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 328px: Responsabilité: line 2 "treprises internationales est devenue incon-…" paints 328.0546875px, Pretext 327.75975036621094px, box 328px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 362px: Responsabilité: line 2 "prises internationales est devenue incontournabl…" paints 362.421875px, Pretext 361.83970642089844px, box 362px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.2421875px, Pretext 443.9516296386719px, box 444px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.7835693359375px, box 547px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9435577392578px, box 567px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 181px: Responsabilité: line 3 "prises internationales e…" paints 181.046875px, Pretext 180.75184631347656px, box 181px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 192px: Responsabilité: line 3 "internationales est deve-…" paints 192.0234375px, Pretext 191.7278594970703px, box 192px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 248px: Responsabilité: line 3 "nales est devenue incontournabl…" paints 248.0546875px, Pretext 247.75982666015625px, box 248px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 275px: Responsabilité: line 3 "venue incontournable dans les appe…" paints 275.03125px, Pretext 274.7358093261719px, box 275px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 286px: Responsabilité: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.0546875px, Pretext 311.75975036621094px, box 312px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.2421875px, Pretext 443.9516296386719px, box 444px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.7835693359375px, box 547px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9435577392578px, box 567px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 134px: Responsabilité: line 4 "ternationales est…" paints 134.2265625px, Pretext 133.93589782714844px, box 134px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 148px: Responsabilité: line 4 "ternationales est d…" paints 148.1640625px, Pretext 147.87188720703125px, box 148px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 178px: Responsabilité: line 3 "prises internationales est" paints 178.0859375px, Pretext 177.79183959960938px, box 178px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 193px: Responsabilité: line 4 "nue incontournable dans…" paints 193.234375px, Pretext 192.94386291503906px, box 193px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 196px: Responsabilité: line 3 "internationales est devenue" paints 196.1796875px, Pretext 195.88784790039062px, box 196px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 200px: Responsabilité: line 4 "incontournable dans les a…" paints 200.0390625px, Pretext 199.7438507080078px, box 200px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 265px: Responsabilité: line 3 "devenue incontournable dans les ap-" paints 265.25px, Pretext 264.9598083496094px, box 265px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 286px: Responsabilité: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.0546875px, Pretext 311.75975036621094px, box 312px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.2421875px, Pretext 443.9516296386719px, box 444px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.7835693359375px, box 547px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9435577392578px, box 567px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 178px: Responsabilité: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 196px: Responsabilité: line 3 "internationales est devenue" paints 196.1796875px, Pretext 195.88784790039062px, box 196px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 265px: Responsabilité: line 3 "devenue incontournable dans les ap-" paints 265.25px, Pretext 264.9598083496094px, box 265px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 286px: Responsabilité: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.0546875px, Pretext 311.75975036621094px, box 312px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.2421875px, Pretext 443.9516296386719px, box 444px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.7835693359375px, box 547px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9435577392578px, box 567px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 422px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 423px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 424px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 424px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 425px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 425px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 426px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 426px
-- chromium@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 427px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 427px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 422px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 423px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 424px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 424px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 425px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 425px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 426px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 426px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 427px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 427px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 150px: Syndicats: line 3 "senté une contre-pro-" paints 155.90625px, Pretext 155.90390014648438px, box 150px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 151px: Syndicats: line 3 "senté une contre-pro-" paints 155.90625px, Pretext 155.90390014648438px, box 151px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 152px: Syndicats: line 3 "senté une contre-pro-" paints 155.90625px, Pretext 155.90390014648438px, box 152px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 153px: Syndicats: line 3 "senté une contre-pro-" paints 155.90625px, Pretext 155.90390014648438px, box 153px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 154px: Syndicats: line 3 "senté une contre-pro-" paints 155.90625px, Pretext 155.90390014648438px, box 154px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 155px: Syndicats: line 3 "senté une contre-pro-" paints 155.90625px, Pretext 155.90390014648438px, box 155px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 422px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 423px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 424px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 424px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 425px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 425px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 426px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 426px
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 427px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 427px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 150-155px: Syndicats: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 422px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 423px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 424px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 424px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 425px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 425px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 426px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 426px
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 427px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 427px
-- chromium@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 302px: Récit: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 302px: Récit: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 302px: Récit: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- chromium@1,1.25,2 clamp maxLines 2 french / Arial @ 419px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 419px
-- chromium@1,1.25,2 clamp maxLines 2 french / Arial @ 420px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 420px
-- chromium@1,1.25,2 clamp maxLines 2 french / Arial @ 421px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 421px
-- chromium@1,1.25,2 clamp maxLines 2 french / Arial @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 422px
-- chromium@1,1.25,2 clamp maxLines 2 french / Arial @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 423px
-- chromium@1,1.25,2 clamp maxLines 3 french / Arial @ 419px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 419px
-- chromium@1,1.25,2 clamp maxLines 3 french / Arial @ 420px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 420px
-- chromium@1,1.25,2 clamp maxLines 3 french / Arial @ 421px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 421px
-- chromium@1,1.25,2 clamp maxLines 3 french / Arial @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 422px
-- chromium@1,1.25,2 clamp maxLines 3 french / Arial @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 423px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 148px: Syndicats: line 3 "senté une contre-pro-" paints 152.9765625px, Pretext 152.9765625px, box 148px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 149px: Syndicats: line 3 "senté une contre-pro-" paints 152.9765625px, Pretext 152.9765625px, box 149px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 150px: Syndicats: line 3 "senté une contre-pro-" paints 152.9765625px, Pretext 152.9765625px, box 150px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 151px: Syndicats: line 3 "senté une contre-pro-" paints 152.9765625px, Pretext 152.9765625px, box 151px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 152px: Syndicats: line 3 "senté une contre-pro-" paints 152.9765625px, Pretext 152.9765625px, box 152px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 419px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 419px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 420px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 420px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 421px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 421px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 422px
-- chromium@1,1.25,2 clamp maxLines 4 french / Arial @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 423px
-- chromium@1,1.25,2 clamp maxLines 5 french / Arial @ 148-152px: Syndicats: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Arial @ 419px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 419px
-- chromium@1,1.25,2 clamp maxLines 5 french / Arial @ 420px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 420px
-- chromium@1,1.25,2 clamp maxLines 5 french / Arial @ 421px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 421px
-- chromium@1,1.25,2 clamp maxLines 5 french / Arial @ 422px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 422px
-- chromium@1,1.25,2 clamp maxLines 5 french / Arial @ 423px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 423.359375px, Pretext 423.359375px, box 423px
-- chromium@1,1.25,2 clamp maxLines 2 french / Georgia @ 412px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 412px
-- chromium@1,1.25,2 clamp maxLines 2 french / Georgia @ 413px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 413px
-- chromium@1,1.25,2 clamp maxLines 2 french / Georgia @ 414px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 414px
-- chromium@1,1.25,2 clamp maxLines 2 french / Georgia @ 415px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 415px
-- chromium@1,1.25,2 clamp maxLines 2 french / Georgia @ 416px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 416px
-- chromium@1,1.25,2 clamp maxLines 2 french / Georgia @ 417px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 417px
-- chromium@1,1.25,2 clamp maxLines 3 french / Georgia @ 412px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 412px
-- chromium@1,1.25,2 clamp maxLines 3 french / Georgia @ 413px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 413px
-- chromium@1,1.25,2 clamp maxLines 3 french / Georgia @ 414px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 414px
-- chromium@1,1.25,2 clamp maxLines 3 french / Georgia @ 415px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 415px
-- chromium@1,1.25,2 clamp maxLines 3 french / Georgia @ 416px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 416px
-- chromium@1,1.25,2 clamp maxLines 3 french / Georgia @ 417px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 417px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 147px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 147px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 148px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 148px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 149px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 149px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 150px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 150px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 151px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 151px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 152px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 152px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 412px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 412px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 413px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 413px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 414px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 414px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 415px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 415px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 416px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 416px
-- chromium@1,1.25,2 clamp maxLines 4 french / Georgia @ 417px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 417px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 147px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 147px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 148px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 148px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 149px: Syndicats: line 3 "senté une contre-pro-" paints 152.9140625px, Pretext 152.9140625px, box 149px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 150-152px: Syndicats: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 412px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 412px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 413px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 413px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 414px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 414px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 415px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 415px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 416px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 416px
-- chromium@1,1.25,2 clamp maxLines 5 french / Georgia @ 417px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 417.390625px, Pretext 417.390625px, box 417px
-- chromium@1,1.25,2 clamp maxLines 2 french / Times New Roman @ 369px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 369px
-- chromium@1,1.25,2 clamp maxLines 2 french / Times New Roman @ 370px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 370px
-- chromium@1,1.25,2 clamp maxLines 2 french / Times New Roman @ 371px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 371px
-- chromium@1,1.25,2 clamp maxLines 2 french / Times New Roman @ 372px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 372px
-- chromium@1,1.25,2 clamp maxLines 2 french / Times New Roman @ 373px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 373px
-- chromium@1,1.25,2 clamp maxLines 2 french / Times New Roman @ 374px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 374px
-- chromium@1,1.25,2 clamp maxLines 3 french / Times New Roman @ 369px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 369px
-- chromium@1,1.25,2 clamp maxLines 3 french / Times New Roman @ 370px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 370px
-- chromium@1,1.25,2 clamp maxLines 3 french / Times New Roman @ 371px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 371px
-- chromium@1,1.25,2 clamp maxLines 3 french / Times New Roman @ 372px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 372px
-- chromium@1,1.25,2 clamp maxLines 3 french / Times New Roman @ 373px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 373px
-- chromium@1,1.25,2 clamp maxLines 3 french / Times New Roman @ 374px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 374px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 131px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 131px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 132px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 132px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 133px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 133px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 134px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 134px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 135px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 135px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 369px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 369px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 370px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 370px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 371px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 371px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 372px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 372px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 373px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 373px
-- chromium@1,1.25,2 clamp maxLines 4 french / Times New Roman @ 374px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 374px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 131px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 131px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 132px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 132px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 133px: Syndicats: line 3 "senté une contre-pro-" paints 135.9375px, Pretext 135.9375px, box 133px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 134-135px: Syndicats: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 369px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 369px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 370px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 370px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 371px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 371px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 372px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 372px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 373px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 373px
-- chromium@1,1.25,2 clamp maxLines 5 french / Times New Roman @ 374px: Syndicats: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 374.0703125px, Pretext 374.0703125px, box 374px
-- chromium@1,1.25,2 truncateMiddle labels / Helvetica Neue @ 354px: Deep: returned "a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/…/index.ts" paints 354.0234375px, Pretext 354.0155029296875px, box 354px
-- chromium@1,1.25,2 truncateMiddle labels / Helvetica Neue @ 362px: Deep: returned "a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v…/index.ts" paints 362.0234375px, Pretext 362.0155029296875px, box 362px
-- chromium@1,1.25,2 truncateMiddle german / Helvetica Neue @ 376px: Portal: returned "Arbeitszeiterfassung, Urla…t du im Mitarbeiterportal." paints 376.0234375px, Pretext 376.015625px, box 376px
-- webkit@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 213px: Query string: widest line: DOM 210.48001098632812px (wants 211), Pretext 212.92800903320312px (gave 213)
-- webkit@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 183px: Data URI: widest line: DOM 182.2080078125px (wants 183), Pretext 181.02400398254395px (gave 182)
-- webkit@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 273-274px: Data URI: widest line: DOM 270.7999572753906px (wants 271), Pretext 272.91200256347656px (gave 273)
-- webkit@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 531px: Data URI: widest line: DOM 523.5520629882812px (wants 524), Pretext 530.3680019378662px (gave 531)
-- webkit@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 532px: Data URI: widest line: DOM 531.552001953125px (wants 532), Pretext 530.3680019378662px (gave 531)
-- webkit@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 535px: Data URI: widest line: DOM 532.736083984375px (wants 533), Pretext 534.8160018920898px (gave 535)
-- webkit@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 536-541px: Data URI: widest line: DOM 536.0000610351562px (wants 536), Pretext 534.8160018920898px (gave 535)
-- webkit@1,1.25,2 shrinkwrap urls / Arial @ 136-138px: Data URI: widest line: DOM 135.75px (wants 136), Pretext 134.5625px (gave 135)
-- webkit@1,1.25,2 shrinkwrap urls / Arial @ 268-269px: Data URI: widest line: DOM 264.15625px (wants 265), Pretext 267.921875px (gave 268)
-- webkit@1,1.25,2 shrinkwrap urls / Arial @ 542px: Data URI: widest line: DOM 536.875px (wants 537), Pretext 541.21875px (gave 542)
-- webkit@1,1.25,2 shrinkwrap urls / Arial @ 543-546px: Data URI: widest line: DOM 542.40625px (wants 543), Pretext 541.21875px (gave 542)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 175px: Data URI: widest line: DOM 172.4375px (wants 173), Pretext 174.53125px (gave 175)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 267-268px: Data URI: widest line: DOM 265.7734375px (wants 266), Pretext 266.6796875px (gave 267)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 269-270px: Data URI: widest line: DOM 268.453125px (wants 269), Pretext 266.6796875px (gave 267)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 511px: Data URI: widest line: DOM 509.734375px (wants 510), Pretext 510.5390625px (gave 511)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 512px: Data URI: widest line: DOM 512.0078125px (wants 512), Pretext 510.5390625px (gave 511)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 513-518px: Data URI: widest line: DOM 512.0078125px (wants 513), Pretext 510.5390625px (gave 511)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 519px: Data URI: widest line: DOM 512.0078125px (wants 513), Pretext 518.5390625px (gave 519)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 524-525px: Data URI: widest line: DOM 520px (wants 520), Pretext 523.5546875px (gave 524)
-- webkit@1,1.25,2 shrinkwrap urls / Times New Roman @ 526-529px: Data URI: widest line: DOM 525.328125px (wants 526), Pretext 523.5546875px (gave 524)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 178px: Datenschutz: widest line: DOM 177px (wants 177), Pretext 177.21599578857422px (gave 178)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 274-275px: Datenschutz: widest line: DOM 273px (wants 273), Pretext 273.23199558258057px (gave 274)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 303px: Datenschutz: widest line: DOM 302px (wants 302), Pretext 302.27199363708496px (gave 303)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 407-409px: Datenschutz: widest line: DOM 406px (wants 406), Pretext 406.2879934310913px (gave 407)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 454-460px: Datenschutz: widest line: DOM 453px (wants 453), Pretext 453.0879945755005px (gave 454)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 213px: Fehlermeldung: widest line: DOM 212px (wants 212), Pretext 212.17599868774414px (gave 213)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 201-216px: Förderung: widest line: DOM 200px (wants 200), Pretext 200.03199863433838px (gave 201)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 230-233px: Förderung: widest line: DOM 229px (wants 229), Pretext 229.07199954986572px (gave 230)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 338-349px: Förderung: widest line: DOM 337px (wants 337), Pretext 337.21599769592285px (gave 338)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 350-369px: Förderung: widest line: DOM 349px (wants 349), Pretext 349.0879964828491px (gave 350)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 377-398px: Förderung: widest line: DOM 376px (wants 376), Pretext 376.0640001296997px (gave 377)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 506-548px: Förderung: widest line: DOM 505px (wants 505), Pretext 505.24799156188965px (gave 506)
-- webkit@1,1.25,2 shrinkwrap german / Helvetica Neue @ 595-600px: Förderung: widest line: DOM 594px (wants 594), Pretext 594.1439905166626px (gave 595)
-- webkit@1,1.25,2 shrinkwrap german / Arial @ 222-233px: Kapitän: widest line: DOM 221px (wants 221), Pretext 221.140625px (gave 222)
-- webkit@1,1.25,2 shrinkwrap german / Arial @ 399-430px: Kapitän: widest line: DOM 398px (wants 398), Pretext 398.140625px (gave 399)
-- webkit@1,1.25,2 shrinkwrap german / Arial @ 431-456px: Kapitän: widest line: DOM 430px (wants 430), Pretext 430.1640625px (gave 431)
-- webkit@1,1.25,2 shrinkwrap german / Arial @ 488-508px: Kapitän: widest line: DOM 487px (wants 487), Pretext 487.078125px (gave 488)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 170px: Datenschutz: widest line: DOM 169px (wants 169), Pretext 169.265625px (gave 170)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 248-251px: Datenschutz: widest line: DOM 247px (wants 247), Pretext 247.0234375px (gave 248)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 538-560px: Datenschutz: widest line: DOM 537px (wants 537), Pretext 537.1484375px (gave 538)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 139-142px: Versicherung: widest line: DOM 138px (wants 138), Pretext 138.1796875px (gave 139)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 486-496px: Versicherung: widest line: DOM 485px (wants 485), Pretext 485.1875px (gave 486)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 148-149px: Kapitän: widest line: DOM 147px (wants 147), Pretext 147.046875px (gave 148)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 150-152px: Kapitän: widest line: DOM 149px (wants 149), Pretext 149.421875px (gave 150)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 172-188px: Kapitän: widest line: DOM 171px (wants 171), Pretext 171.03125px (gave 172)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 395-419px: Kapitän: widest line: DOM 394px (wants 394), Pretext 394.2265625px (gave 395)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 420-447px: Kapitän: widest line: DOM 419px (wants 419), Pretext 419.1015625px (gave 420)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 448-464px: Kapitän: widest line: DOM 447px (wants 447), Pretext 447.0859375px (gave 448)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 490-508px: Kapitän: widest line: DOM 489px (wants 489), Pretext 489.2890625px (gave 490)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 142-147px: Förderung: widest line: DOM 141px (wants 141), Pretext 141.09375px (gave 142)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 206-209px: Förderung: widest line: DOM 205px (wants 205), Pretext 205.25px (gave 206)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 243-252px: Förderung: widest line: DOM 242px (wants 242), Pretext 242.125px (gave 243)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 296-303px: Förderung: widest line: DOM 295px (wants 295), Pretext 295.2578125px (gave 296)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 317-333px: Förderung: widest line: DOM 316px (wants 316), Pretext 316.125px (gave 317)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 340-362px: Förderung: widest line: DOM 339px (wants 339), Pretext 339.2265625px (gave 340)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 577-588px: Förderung: widest line: DOM 576px (wants 576), Pretext 576.078125px (gave 577)
-- webkit@1,1.25,2 shrinkwrap german / Times New Roman @ 188-194px: Portal: widest line: DOM 187px (wants 187), Pretext 187.0625px (gave 188)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 130-148px: Justificatifs: widest line: DOM 129px (wants 129), Pretext 129.18399810791016px (gave 130)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 153-159px: Justificatifs: widest line: DOM 152px (wants 152), Pretext 152.2879981994629px (gave 153)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 160px: Justificatifs: widest line: DOM 159px (wants 159), Pretext 159.39199829101562px (gave 160)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 198-199px: Justificatifs: widest line: DOM 197px (wants 197), Pretext 197.32799816131592px (gave 198)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 289-296px: Justificatifs: widest line: DOM 288px (wants 288), Pretext 288.30399799346924px (gave 289)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 364-401px: Justificatifs: widest line: DOM 363px (wants 363), Pretext 363.26399421691895px (gave 364)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 402-434px: Justificatifs: widest line: DOM 401px (wants 401), Pretext 401.21599292755127px (gave 402)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 435-450px: Justificatifs: widest line: DOM 434px (wants 434), Pretext 434.11199283599854px (gave 435)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 271-278px: Récit: widest line: DOM 270px (wants 270), Pretext 270.0159978866577px (gave 271)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 303-340px: Récit: widest line: DOM 302px (wants 302), Pretext 302.01599502563477px (gave 303)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 380-405px: Récit: widest line: DOM 379px (wants 379), Pretext 379.0559959411621px (gave 380)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 471-488px: Récit: widest line: DOM 470px (wants 470), Pretext 470.03199195861816px (gave 471)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 489-542px: Récit: widest line: DOM 488px (wants 488), Pretext 488.1119918823242px (gave 489)
-- webkit@1,1.25,2 shrinkwrap french / Helvetica Neue @ 543-564px: Récit: widest line: DOM 542px (wants 542), Pretext 542.0479888916016px (gave 543)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 171-175px: Synchroniser: widest line: DOM 170px (wants 170), Pretext 170.1484375px (gave 171)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 483-496px: Synchroniser: widest line: DOM 482px (wants 482), Pretext 482.09375px (gave 483)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 262-270px: Justificatifs: widest line: DOM 261px (wants 261), Pretext 261.2109375px (gave 262)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 286-310px: Justificatifs: widest line: DOM 285px (wants 285), Pretext 285.1875px (gave 286)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 311-329px: Justificatifs: widest line: DOM 310px (wants 310), Pretext 310.078125px (gave 311)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 330-363px: Justificatifs: widest line: DOM 329px (wants 329), Pretext 329.1796875px (gave 330)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 407-432px: Justificatifs: widest line: DOM 406px (wants 406), Pretext 406.0390625px (gave 407)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 315-344px: Autorisations: widest line: DOM 314px (wants 314), Pretext 314.09375px (gave 315)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 375-385px: Autorisations: widest line: DOM 374px (wants 374), Pretext 374.0703125px (gave 375)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 134px: Responsabilité: widest line: DOM 133px (wants 133), Pretext 133.28125px (gave 134)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 451-458px: Syndicats: widest line: DOM 450px (wants 450), Pretext 450.0625px (gave 451)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 444-454px: Anticonstitutionnalité: widest line: DOM 443px (wants 443), Pretext 443.2578125px (gave 444)
-- webkit@1,1.25,2 shrinkwrap french / Times New Roman @ 354-372px: Mot de passe: widest line: DOM 353px (wants 353), Pretext 353.2421875px (gave 354)
-- webkit@1,1.25,2 clamp maxLines 1 emoji-chat / Arial @ 396px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA…" paints 396.765625px, Pretext 395.8828125px, box 396px
-- webkit@1,1.25,2 clamp maxLines 2 emoji-chat / Arial @ 380px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 380.765625px, Pretext 379.8828125px, box 380px
-- webkit@1,1.25,2 clamp maxLines 3 emoji-chat / Arial @ 380px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 380.765625px, Pretext 379.8828125px, box 380px
-- webkit@1,1.25,2 clamp maxLines 4 emoji-chat / Arial @ 380px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 380.765625px, Pretext 379.8828125px, box 380px
-- webkit@1,1.25,2 clamp maxLines 5 emoji-chat / Arial @ 380px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 380.765625px, Pretext 379.8828125px, box 380px
-- webkit@1,1.25,2 clamp maxLines 1 emoji-chat / Times New Roman @ 376px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA…" paints 376.171875px, Pretext 375.28125px, box 376px
-- webkit@1,1.25,2 clamp maxLines 2 emoji-chat / Times New Roman @ 360px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 360.171875px, Pretext 359.28125px, box 360px
-- webkit@1,1.25,2 clamp maxLines 3 emoji-chat / Times New Roman @ 193px: Keycaps: line 2 "ship Monday, 3️⃣ wait for QA" paints 193.28125px, Pretext 192.390625px, box 193px
-- webkit@1,1.25,2 clamp maxLines 3 emoji-chat / Times New Roman @ 360px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 360.171875px, Pretext 359.28125px, box 360px
-- webkit@1,1.25,2 clamp maxLines 4 emoji-chat / Times New Roman @ 193px: Keycaps: line 2 "ship Monday, 3️⃣ wait for QA" paints 193.28125px, Pretext 192.390625px, box 193px
-- webkit@1,1.25,2 clamp maxLines 4 emoji-chat / Times New Roman @ 360px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 360.171875px, Pretext 359.28125px, box 360px
-- webkit@1,1.25,2 clamp maxLines 5 emoji-chat / Times New Roman @ 193px: Keycaps: line 2 "ship Monday, 3️⃣ wait for QA" paints 193.28125px, Pretext 192.390625px, box 193px
-- webkit@1,1.25,2 clamp maxLines 5 emoji-chat / Times New Roman @ 360px: Keycaps: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 360.171875px, Pretext 359.28125px, box 360px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 321px: Windows path: line 3 "osoft\\Windows\\INetCache\\IE\\settings.ini and" paints 321.171875px, Pretext 320.88002014160156px, box 321px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 321px: Windows path: line 3 "osoft\\Windows\\INetCache\\IE\\settings.ini and" paints 321.171875px, Pretext 320.88002014160156px, box 321px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Helvetica Neue @ 528px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU…" paints 528.890625px, Pretext 527.6960010528564px, box 528px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Helvetica Neue @ 538px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E…" paints 538.375px, Pretext 537.1840019226074px, box 538px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 270px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkY…" paints 270.84375px, Pretext 269.6480026245117px, box 270px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 531px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E" paints 531.5625px, Pretext 530.3680019378662px, box 531px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 535px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Erk" paints 536.015625px, Pretext 534.8160018920898px, box 535px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 273px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPh" paints 274.109375px, Pretext 272.91200256347656px, box 273px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 274px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPh" paints 274.109375px, Pretext 272.91200256347656px, box 274px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 531px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E" paints 531.5625px, Pretext 530.3680019378662px, box 531px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 535px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Erk" paints 536.015625px, Pretext 534.8160018920898px, box 535px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 139px: Data URI: line 5 "AAAAfFcSJAAAA…" paints 140.140625px, Pretext 138.94400215148926px, box 139px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 182px: Data URI: line 4 "AAAAfFcSJAAAADUlEQV" paints 182.21875px, Pretext 181.02400398254395px, box 182px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 273px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPh" paints 274.109375px, Pretext 272.91200256347656px, box 273px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 274px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPh" paints 274.109375px, Pretext 272.91200256347656px, box 274px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 531px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E" paints 531.5625px, Pretext 530.3680019378662px, box 531px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 535px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Erk" paints 536.015625px, Pretext 534.8160018920898px, box 535px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 211px: npm scope: line 4 "etext/dist/rich-inline.d.ts ha…" paints 211.28125px, Pretext 210.99197387695312px, box 211px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 182px: Snake case: line 4 "TION_JOBS_PER_WORK" paints 182.546875px, Pretext 181.07199096679688px, box 182px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Arial @ 534px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU…" paints 535px, Pretext 533.8046875px, box 534px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Arial @ 544px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E…" paints 545.078125px, Pretext 543.890625px, box 544px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Arial @ 545px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E…" paints 545.078125px, Pretext 543.890625px, box 545px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Arial @ 266px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mN…" paints 266.4375px, Pretext 265.25px, box 266px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Arial @ 542px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Erk" paints 542.40625px, Pretext 541.21875px, box 542px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Arial @ 268px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkY" paints 269.109375px, Pretext 267.921875px, box 268px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Arial @ 269px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkY" paints 269.109375px, Pretext 267.921875px, box 269px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Arial @ 542px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Erk" paints 542.40625px, Pretext 541.21875px, box 542px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Arial @ 268px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkY" paints 269.109375px, Pretext 267.921875px, box 268px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Arial @ 269px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkY" paints 269.109375px, Pretext 267.921875px, box 269px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Arial @ 542px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Erk" paints 542.40625px, Pretext 541.21875px, box 542px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Times New Roman @ 515px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJR…" paints 516.453125px, Pretext 514.984375px, box 515px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Times New Roman @ 516px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJR…" paints 516.453125px, Pretext 514.984375px, box 516px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Times New Roman @ 525px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5…" paints 526.234375px, Pretext 524.453125px, box 525px
-- webkit@1,1.25,2 clamp maxLines 2 urls / Times New Roman @ 526px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5…" paints 526.234375px, Pretext 524.453125px, box 526px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 263px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNk…" paints 264px, Pretext 262.2265625px, box 263px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 511px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU" paints 512.015625px, Pretext 510.5390625px, box 511px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 519px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5" paints 520.015625px, Pretext 518.5390625px, box 519px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 524px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Er" paints 525.328125px, Pretext 523.5546875px, box 524px
-- webkit@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 525px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Er" paints 525.328125px, Pretext 523.5546875px, box 525px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 177px: Data URI: line 4 "YAAAAfFcSJAAAADU…" paints 177.78125px, Pretext 176.3125px, box 177px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 267px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYP" paints 268.453125px, Pretext 266.6796875px, box 267px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 268px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYP" paints 268.453125px, Pretext 266.6796875px, box 268px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 511px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU" paints 512.015625px, Pretext 510.5390625px, box 511px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 519px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5" paints 520.015625px, Pretext 518.5390625px, box 519px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 524px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Er" paints 525.328125px, Pretext 523.5546875px, box 524px
-- webkit@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 525px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Er" paints 525.328125px, Pretext 523.5546875px, box 525px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 175px: Data URI: line 4 "YAAAAfFcSJAAAADUlE" paints 176px, Pretext 174.53125px, box 175px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 267px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYP" paints 268.453125px, Pretext 266.6796875px, box 267px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 268px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYP" paints 268.453125px, Pretext 266.6796875px, box 268px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 511px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU" paints 512.015625px, Pretext 510.5390625px, box 511px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 519px: Data URI: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5" paints 520.015625px, Pretext 518.5390625px, box 519px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 524px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Er" paints 525.328125px, Pretext 523.5546875px, box 524px
-- webkit@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 525px: Data URI: line 2 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5Er" paints 525.328125px, Pretext 523.5546875px, box 525px
-- webkit@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 553px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion intern…" paints 553.265625px, Pretext 552.9760026931763px, box 553px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 296px: Synchroniser: line 2 "ments : vérifiez votre connexion interne…" paints 296.03125px, Pretext 295.7279996871948px, box 296px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 301px: Synchroniser: line 2 "ments : vérifiez votre connexion internet…" paints 301.0625px, Pretext 300.76800060272217px, box 301px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 202px: Synchroniser: line 3 "votre connexion internet e…" paints 202.109375px, Pretext 201.80799961090088px, box 202px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 207px: Synchroniser: line 3 "votre connexion internet et…" paints 207.140625px, Pretext 206.8479995727539px, box 207px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 231px: Synchroniser: line 3 "connexion internet et réessayez." paints 231.109375px, Pretext 230.8159942626953px, box 231px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 284.76800060272217px, box 285px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.140625px, Pretext 302.8480005264282px, box 303px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 153px: Synchroniser: line 4 "connexion internet …" paints 153.203125px, Pretext 152.9119987487793px, box 153px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 231px: Synchroniser: line 3 "connexion internet et réessayez." paints 231.109375px, Pretext 230.8159942626953px, box 231px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 284.76800060272217px, box 285px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.140625px, Pretext 302.8480005264282px, box 303px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 135px: Synchroniser: line 5 "connexion intern…" paints 135.125px, Pretext 134.83199882507324px, box 135px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 140px: Synchroniser: line 5 "ternet et réessayez." paints 140.140625px, Pretext 139.839994430542px, box 140px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 231px: Synchroniser: line 3 "connexion internet et réessayez." paints 231.109375px, Pretext 230.8159942626953px, box 231px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 284.76800060272217px, box 285px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.140625px, Pretext 302.8480005264282px, box 303px
-- webkit@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 460px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-…" paints 460.25px, Pretext 459.9519920349121px, box 460px
-- webkit@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 548px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est dev…" paints 548.265625px, Pretext 547.9679937362671px, box 548px
-- webkit@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 563px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-…" paints 563.078125px, Pretext 562.783992767334px, box 563px
-- webkit@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 583px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue…" paints 583.234375px, Pretext 582.9439916610718px, box 583px
-- webkit@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 591px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue i…" paints 591.234375px, Pretext 590.9439916610718px, box 591px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 232px: Responsabilité: line 2 "mentale des entreprises intern…" paints 232.0625px, Pretext 231.75999641418457px, box 232px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 287px: Responsabilité: line 2 "entreprises internationales est devenu…" paints 287.15625px, Pretext 286.8639965057373px, box 287px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 328px: Responsabilité: line 2 "treprises internationales est devenue incon-…" paints 328.0625px, Pretext 327.7599973678589px, box 328px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 362px: Responsabilité: line 2 "prises internationales est devenue incontournabl…" paints 362.421875px, Pretext 361.83999252319336px, box 362px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.25px, Pretext 443.9519920349121px, box 444px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.783992767334px, box 547px
-- webkit@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9439916610718px, box 567px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 181px: Responsabilité: line 3 "prises internationales e…" paints 181.046875px, Pretext 180.75199794769287px, box 181px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 192px: Responsabilité: line 3 "internationales est deve-…" paints 192.03125px, Pretext 191.72799968719482px, box 192px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 248px: Responsabilité: line 3 "nales est devenue incontournabl…" paints 248.0625px, Pretext 247.75999641418457px, box 248px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 275px: Responsabilité: line 3 "venue incontournable dans les appe…" paints 275.03125px, Pretext 274.73599433898926px, box 275px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 286px: Responsabilité: line 3 "incontournable dans les appels d’offres." paints 286.046875px, Pretext 285.74399757385254px, box 286px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.0625px, Pretext 311.7599973678589px, box 312px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.25px, Pretext 443.9519920349121px, box 444px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.783992767334px, box 547px
-- webkit@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9439916610718px, box 567px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 134px: Responsabilité: line 4 "ternationales est…" paints 134.234375px, Pretext 133.9360008239746px, box 134px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 148px: Responsabilité: line 4 "ternationales est d…" paints 148.171875px, Pretext 147.8720006942749px, box 148px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 178px: Responsabilité: line 3 "prises internationales est" paints 178.09375px, Pretext 177.7919979095459px, box 178px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 193px: Responsabilité: line 4 "nue incontournable dans…" paints 193.234375px, Pretext 192.94399452209473px, box 193px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 196px: Responsabilité: line 3 "internationales est devenue" paints 196.1875px, Pretext 195.88799858093262px, box 196px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 200px: Responsabilité: line 4 "incontournable dans les a…" paints 200.046875px, Pretext 199.74399662017822px, box 200px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 265px: Responsabilité: line 3 "devenue incontournable dans les ap-" paints 265.25px, Pretext 264.9599943161011px, box 265px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 286px: Responsabilité: line 3 "incontournable dans les appels d’offres." paints 286.046875px, Pretext 285.74399757385254px, box 286px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.0625px, Pretext 311.7599973678589px, box 312px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.25px, Pretext 443.9519920349121px, box 444px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.783992767334px, box 547px
-- webkit@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9439916610718px, box 567px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 178px: Responsabilité: line 3 "prises internationales est" paints 178.09375px, Pretext 177.7919979095459px, box 178px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 196px: Responsabilité: line 3 "internationales est devenue" paints 196.1875px, Pretext 195.88799858093262px, box 196px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 265px: Responsabilité: line 3 "devenue incontournable dans les ap-" paints 265.25px, Pretext 264.9599943161011px, box 265px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 286px: Responsabilité: line 3 "incontournable dans les appels d’offres." paints 286.046875px, Pretext 285.74399757385254px, box 286px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.0625px, Pretext 311.7599973678589px, box 312px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 444px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internatio-" paints 444.25px, Pretext 443.9519920349121px, box 444px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.078125px, Pretext 546.783992767334px, box 547px
-- webkit@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 567px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est devenue" paints 567.234375px, Pretext 566.9439916610718px, box 567px
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 213px: Query string: widest line: DOM 208.64999389648438px (wants 209), Pretext 212.9833221435547px (gave 213)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 150-153px: Windows path: widest line: DOM 148.93333435058594px (wants 149), Pretext 149.0833282470703px (gave 150)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 228px: Data URI: widest line: DOM 227.81666564941406px (wants 228), Pretext 219.8833327293396px (gave 220)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 229px: Data URI: widest line: DOM 227.81666564941406px (wants 228), Pretext 228.41666412353516px (gave 229)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 347px: Data URI: baseline: DOM 4 lines, Pretext 5
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 348-354px: Data URI: widest line: DOM 347px (wants 347), Pretext 347.0166690349579px (gave 348)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 438px: Data URI: widest line: DOM 437.9666748046875px (wants 438), Pretext 429.71666836738586px (gave 430)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 439px: Data URI: widest line: DOM 437.9666748046875px (wants 438), Pretext 438.9000017642975px (gave 439)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 440-447px: Data URI: widest line: DOM 439.4666748046875px (wants 440), Pretext 438.9000017642975px (gave 439)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 451px: Data URI: widest line: DOM 447.1499938964844px (wants 448), Pretext 450.4333345890045px (gave 451)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 452-456px: Data URI: widest line: DOM 451.01666259765625px (wants 452), Pretext 450.4333345890045px (gave 451)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 353px: Snake case: widest line: DOM 352.79998779296875px (wants 353), Pretext 343.1666564941406px (gave 344)
-- firefox@1,1.25,2 shrinkwrap urls / Helvetica Neue @ 354-361px: Snake case: widest line: DOM 352.79998779296875px (wants 353), Pretext 353.5333251953125px (gave 354)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 150-152px: Data URI: widest line: DOM 148.53334045410156px (wants 149), Pretext 149.3333387374878px (gave 150)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 223px: Data URI: widest line: DOM 222.81666564941406px (wants 223), Pretext 219.68333649635315px (gave 220)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 224px: Data URI: widest line: DOM 222.81666564941406px (wants 223), Pretext 224.00000858306885px (gave 224)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 225px: Data URI: widest line: DOM 222.81666564941406px (wants 223), Pretext 224.2999985218048px (gave 225)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 226-230px: Data URI: widest line: DOM 225.48333740234375px (wants 226), Pretext 224.2999985218048px (gave 225)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 443px: Data URI: widest line: DOM 442.5px (wants 443), Pretext 435.0166685581207px (gave 436)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 444-445px: Data URI: widest line: DOM 442.5px (wants 443), Pretext 443.9166691303253px (gave 444)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 446-451px: Data URI: widest line: DOM 445.1000061035156px (wants 446), Pretext 443.9166691303253px (gave 444)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 452-453px: Data URI: widest line: DOM 451.98333740234375px (wants 452), Pretext 443.9166691303253px (gave 444)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 454-455px: Data URI: widest line: DOM 451.98333740234375px (wants 452), Pretext 453.16667771339417px (gave 454)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 456px: Data URI: widest line: DOM 451.98333740234375px (wants 452), Pretext 455.76667046546936px (gave 456)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 457-462px: Data URI: widest line: DOM 456.95001220703125px (wants 457), Pretext 455.76667046546936px (gave 456)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 184px: Snake case: widest line: DOM 183.71665954589844px (wants 184), Pretext 180.43333435058594px (gave 181)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 361px: Snake case: widest line: DOM 360.58331298828125px (wants 361), Pretext 351.1000061035156px (gave 352)
-- firefox@1,1.25,2 shrinkwrap urls / Arial @ 362-370px: Snake case: widest line: DOM 360.58331298828125px (wants 361), Pretext 361.76666259765625px (gave 362)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 166px: Windows path: widest line: DOM 165.88333129882812px (wants 166), Pretext 163.7833251953125px (gave 164)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 167px: Windows path: widest line: DOM 165.88333129882812px (wants 166), Pretext 166.20001220703125px (gave 167)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 149px: Data URI: widest line: DOM 147.53334045410156px (wants 148), Pretext 148.73333501815796px (gave 149)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 150-152px: Data URI: widest line: DOM 149.46665954589844px (wants 150), Pretext 148.73333501815796px (gave 149)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 154px: Data URI: widest line: DOM 152.86666870117188px (wants 153), Pretext 153.1333351135254px (gave 154)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 227px: Data URI: widest line: DOM 225.11666870117188px (wants 226), Pretext 226.63333654403687px (gave 227)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 228-230px: Data URI: widest line: DOM 227.51666259765625px (wants 228), Pretext 226.63333654403687px (gave 227)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 437px: Data URI: widest line: DOM 434.25px (wants 435), Pretext 436.66666650772095px (gave 437)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 438-444px: Data URI: widest line: DOM 437.3999938964844px (wants 438), Pretext 436.66666650772095px (gave 437)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 445px: Data URI: widest line: DOM 444.183349609375px (wants 445), Pretext 436.66666650772095px (gave 437)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 446-449px: Data URI: widest line: DOM 444.183349609375px (wants 445), Pretext 445.06666898727417px (gave 446)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 450px: Data URI: widest line: DOM 444.183349609375px (wants 445), Pretext 449.6833338737488px (gave 450)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 451-454px: Data URI: widest line: DOM 450.566650390625px (wants 451), Pretext 449.6833338737488px (gave 450)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 182px: Snake case: widest line: DOM 181.3000030517578px (wants 182), Pretext 179.5px (gave 180)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 183px: Snake case: widest line: DOM 181.3000030517578px (wants 182), Pretext 182.183349609375px (gave 183)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 354px: Snake case: widest line: DOM 353.70001220703125px (wants 354), Pretext 343.0333251953125px (gave 344)
-- firefox@1,1.25,2 shrinkwrap urls / Times New Roman @ 355-362px: Snake case: widest line: DOM 353.70001220703125px (wants 354), Pretext 354.5833435058594px (gave 355)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 177px: Datenschutz: widest line: DOM 176.98333740234375px (wants 177), Pretext 170.9666666984558px (gave 171)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 178px: Datenschutz: widest line: DOM 176.98333740234375px (wants 177), Pretext 177.28333282470703px (gave 178)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 201px: Datenschutz: widest line: DOM 200.86666870117188px (wants 201), Pretext 187.33332872390747px (gave 188)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 202-205px: Datenschutz: widest line: DOM 200.86666870117188px (wants 201), Pretext 201.01666688919067px (gave 202)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 212-230px: Datenschutz: widest line: DOM 210.75px (wants 211), Pretext 211.04999589920044px (gave 212)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 383-386px: Datenschutz: widest line: DOM 381.8333282470703px (wants 382), Pretext 382.13332891464233px (gave 383)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 436-452px: Datenschutz: widest line: DOM 434.8500061035156px (wants 435), Pretext 435.14999532699585px (gave 436)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 454-460px: Datenschutz: widest line: DOM 452.93333435058594px (wants 453), Pretext 453.23332929611206px (gave 454)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 565-585px: Datenschutz: widest line: DOM 563.7499847412109px (wants 564), Pretext 564.0499973297119px (gave 565)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 262px: Kapitän: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 263-284px: Kapitän: at returned 262px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 128px: Fehlermeldung: baseline: DOM 5 lines, Pretext 6
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 129-138px: Fehlermeldung: widest line: DOM 127.76666259765625px (wants 128), Pretext 128.05000019073486px (gave 129)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 212px: Fehlermeldung: baseline: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 213px: Fehlermeldung: widest line: DOM 211.96665954589844px (wants 212), Pretext 212.24999904632568px (gave 213)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 594px: Fehlermeldung: baseline: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 595-600px: Fehlermeldung: widest line: DOM 593.7833251953125px (wants 594), Pretext 594.0666627883911px (gave 595)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 158px: Förderung: widest line: DOM 157.8333282470703px (wants 158), Pretext 152.33333253860474px (gave 153)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 159px: Förderung: widest line: DOM 157.8333282470703px (wants 158), Pretext 158.2833309173584px (gave 159)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 201-216px: Förderung: widest line: DOM 199.76666259765625px (wants 200), Pretext 200.0499997138977px (gave 201)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 230-233px: Förderung: widest line: DOM 228.6666717529297px (wants 229), Pretext 229.11666440963745px (gave 230)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 266-269px: Förderung: widest line: DOM 264.3666687011719px (wants 265), Pretext 265.54999589920044px (gave 266)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 270-282px: Förderung: widest line: DOM 264.98333740234375px (wants 265), Pretext 265.54999589920044px (gave 266)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 337px: Förderung: widest line: DOM 336.98333740234375px (wants 337), Pretext 324.8333315849304px (gave 325)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 338-348px: Förderung: widest line: DOM 336.98333740234375px (wants 337), Pretext 337.2666664123535px (gave 338)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 350-369px: Förderung: widest line: DOM 348.71665954589844px (wants 349), Pretext 349.1666646003723px (gave 350)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 377-398px: Förderung: widest line: DOM 375.70001220703125px (wants 376), Pretext 376.1499972343445px (gave 377)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 399-402px: Förderung: widest line: DOM 375.70001220703125px (wants 376), Pretext 398.94999647140503px (gave 399)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 595-600px: Förderung: widest line: DOM 593.7333221435547px (wants 594), Pretext 594.2499995231628px (gave 595)
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 538px: One word: baseline: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 shrinkwrap german / Helvetica Neue @ 539-600px: One word: widest line: DOM 537.7166748046875px (wants 538), Pretext 538.0166702270508px (gave 539)
-- firefox@1,1.25,2 shrinkwrap german / Arial @ 165-184px: Kapitän: widest line: DOM 163.9499969482422px (wants 164), Pretext 164.25000047683716px (gave 165)
-- firefox@1,1.25,2 shrinkwrap german / Arial @ 222-233px: Kapitän: widest line: DOM 220.88333129882812px (wants 221), Pretext 221.18333292007446px (gave 222)
-- firefox@1,1.25,2 shrinkwrap german / Arial @ 399-429px: Kapitän: widest line: DOM 397.9166717529297px (wants 398), Pretext 398.2166676521301px (gave 399)
-- firefox@1,1.25,2 shrinkwrap german / Arial @ 431-456px: Kapitän: widest line: DOM 429.9499969482422px (wants 430), Pretext 430.25000047683716px (gave 431)
-- firefox@1,1.25,2 shrinkwrap german / Arial @ 488-508px: Kapitän: widest line: DOM 486.8833312988281px (wants 487), Pretext 487.1833338737488px (gave 488)
-- firefox@1,1.25,2 shrinkwrap german / Arial @ 537-557px: Kapitän: widest line: DOM 535.8333435058594px (wants 536), Pretext 536.1333336830139px (gave 537)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 231px: Kapitän: widest line: DOM 230.9166717529297px (wants 231), Pretext 217.00000429153442px (gave 217)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 395-418px: Kapitän: widest line: DOM 393.98333740234375px (wants 394), Pretext 394.2833333015442px (gave 395)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 419px: Kapitän: widest line: DOM 418.8666687011719px (wants 419), Pretext 394.2833333015442px (gave 395)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 420-446px: Kapitän: widest line: DOM 418.8666687011719px (wants 419), Pretext 419.1666669845581px (gave 420)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 448-464px: Kapitän: widest line: DOM 446.8500061035156px (wants 447), Pretext 447.15000009536743px (gave 448)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 182px: Förderung: widest line: DOM 181.86666870117188px (wants 182), Pretext 164.40000009536743px (gave 165)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 206-209px: Förderung: widest line: DOM 205px (wants 205), Pretext 205.29999780654907px (gave 206)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 243-252px: Förderung: widest line: DOM 241.71665954589844px (wants 242), Pretext 242.16666746139526px (gave 243)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 317-333px: Förderung: widest line: DOM 315.8999938964844px (wants 316), Pretext 316.19999742507935px (gave 317)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 340-361px: Förderung: widest line: DOM 339px (wants 339), Pretext 339.2999987602234px (gave 340)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 363-371px: Förderung: widest line: DOM 361.96665954589844px (wants 362), Pretext 362.41666555404663px (gave 363)
-- firefox@1,1.25,2 shrinkwrap german / Times New Roman @ 577-588px: Förderung: widest line: DOM 575.9166564941406px (wants 576), Pretext 576.2166628837585px (gave 577)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 121px: Synchroniser: baseline: DOM 7 lines, Pretext 6
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 122-125px: Synchroniser: at returned 121px: DOM 7 lines, Pretext 6
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 140px: Synchroniser: baseline: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 141-142px: Synchroniser: at returned 140px: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 231px: Synchroniser: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 232-254px: Synchroniser: at returned 231px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 285px: Synchroniser: widest line: DOM 272.1000061035156px (wants 273), Pretext 284.83333110809326px (gave 285)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 286-302px: Synchroniser: widest line: DOM 285.1000061035156px (wants 286), Pretext 284.83333110809326px (gave 285)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 303px: Synchroniser: widest line: DOM 285.1000061035156px (wants 286), Pretext 302.91666412353516px (gave 303)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 304-310px: Synchroniser: widest line: DOM 303.1833190917969px (wants 304), Pretext 302.91666412353516px (gave 303)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 569px: Synchroniser: widest line: DOM 550.9833374023438px (wants 551), Pretext 568.799994468689px (gave 569)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 570-593px: Synchroniser: widest line: DOM 569.0666809082031px (wants 570), Pretext 568.799994468689px (gave 569)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 130-148px: Justificatifs: widest line: DOM 128.78334045410156px (wants 129), Pretext 129.233332157135px (gave 130)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 153-158px: Justificatifs: widest line: DOM 151.89999389648438px (wants 152), Pretext 152.34999895095825px (gave 153)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 160px: Justificatifs: widest line: DOM 159px (wants 159), Pretext 159.44999885559082px (gave 160)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 197px: Justificatifs: widest line: DOM 196.9499969482422px (wants 197), Pretext 192.0500020980835px (gave 193)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 198-199px: Justificatifs: widest line: DOM 196.9499969482422px (wants 197), Pretext 197.39999914169312px (gave 198)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 289-296px: Justificatifs: widest line: DOM 287.93333435058594px (wants 288), Pretext 288.3833312988281px (gave 289)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 363px: Justificatifs: widest line: DOM 362.9166564941406px (wants 363), Pretext 340.83333349227905px (gave 341)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 364-400px: Justificatifs: widest line: DOM 362.9166564941406px (wants 363), Pretext 363.3666672706604px (gave 364)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 402-433px: Justificatifs: widest line: DOM 400.8666687011719px (wants 401), Pretext 401.3166666030884px (gave 402)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 435-450px: Justificatifs: widest line: DOM 433.76666259765625px (wants 434), Pretext 434.2166681289673px (gave 435)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 178px: Responsabilité: baseline: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 179-184px: Responsabilité: at returned 178px: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 196px: Responsabilité: widest line: DOM 188.5500030517578px (wants 189), Pretext 195.95000171661377px (gave 196)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 197-199px: Responsabilité: widest line: DOM 196.21665954589844px (wants 197), Pretext 195.95000171661377px (gave 196)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 286px: Responsabilité: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 287-302px: Responsabilité: at returned 286px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 313-329px: Responsabilité: widest line: DOM 312.1000061035156px (wants 313), Pretext 311.83333349227905px (gave 312)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 355px: Responsabilité: widest line: DOM 329.9333190917969px (wants 330), Pretext 354.5333366394043px (gave 355)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 356-366px: Responsabilité: widest line: DOM 355.06666564941406px (wants 356), Pretext 354.5333366394043px (gave 355)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 547px: Responsabilité: widest line: DOM 530.5666656494141px (wants 531), Pretext 546.9000024795532px (gave 547)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 548-567px: Responsabilité: widest line: DOM 547.1666717529297px (wants 548), Pretext 546.9000024795532px (gave 547)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 271-278px: Récit: widest line: DOM 269.76666259765625px (wants 270), Pretext 270.0666642189026px (gave 271)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 302px: Récit: baseline: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 303-340px: Récit: widest line: DOM 301.78334045410156px (wants 302), Pretext 302.08333110809326px (gave 303)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 379px: Récit: widest line: DOM 378.84999084472656px (wants 379), Pretext 375.6166639328003px (gave 376)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 380-405px: Récit: widest line: DOM 378.84999084472656px (wants 379), Pretext 379.14999866485596px (gave 380)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 470px: Récit: widest line: DOM 469.8666534423828px (wants 470), Pretext 455.39999771118164px (gave 456)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 471-487px: Récit: widest line: DOM 469.8666534423828px (wants 470), Pretext 470.16666412353516px (gave 471)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 488px: Récit: widest line: DOM 487.9499816894531px (wants 488), Pretext 470.16666412353516px (gave 471)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 489-541px: Récit: widest line: DOM 487.9499816894531px (wants 488), Pretext 488.24999713897705px (gave 489)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 542px: Récit: widest line: DOM 541.8999938964844px (wants 542), Pretext 488.24999713897705px (gave 489)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 543-564px: Récit: widest line: DOM 541.8999938964844px (wants 542), Pretext 542.1999969482422px (gave 543)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 565px: Récit: widest line: DOM 564.7333068847656px (wants 565), Pretext 542.1999969482422px (gave 543)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 566-599px: Récit: widest line: DOM 564.7333068847656px (wants 565), Pretext 565.0333299636841px (gave 566)
-- firefox@1,1.25,2 shrinkwrap french / Helvetica Neue @ 600px: Récit: widest line: DOM 599.7166748046875px (wants 600), Pretext 565.0333299636841px (gave 566)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 155px: Justificatifs: widest line: DOM 154.75px (wants 155), Pretext 152.88333415985107px (gave 153)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 156-170px: Justificatifs: widest line: DOM 154.75px (wants 155), Pretext 155.04999828338623px (gave 156)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 262-270px: Justificatifs: widest line: DOM 260.98333740234375px (wants 261), Pretext 261.28333139419556px (gave 262)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 272-284px: Justificatifs: widest line: DOM 270.76666259765625px (wants 271), Pretext 271.0666651725769px (gave 272)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 286-309px: Justificatifs: widest line: DOM 284.96665954589844px (wants 285), Pretext 285.26666498184204px (gave 286)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 310px: Justificatifs: widest line: DOM 309.8666687011719px (wants 310), Pretext 285.26666498184204px (gave 286)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 311-328px: Justificatifs: widest line: DOM 309.8666687011719px (wants 310), Pretext 310.1666650772095px (gave 311)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 329px: Justificatifs: widest line: DOM 328.96665954589844px (wants 329), Pretext 310.1666650772095px (gave 311)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 330-363px: Justificatifs: widest line: DOM 328.96665954589844px (wants 329), Pretext 329.2666654586792px (gave 330)
-- firefox@1,1.25,2 shrinkwrap french / Times New Roman @ 407-432px: Justificatifs: widest line: DOM 405.8500213623047px (wants 406), Pretext 406.1499991416931px (gave 407)
-- firefox@1,1.25,2 balance urls / Helvetica Neue @ 347px: Data URI: baseline: DOM 4 lines, Pretext 5
-- firefox@1,1.25,2 balance urls / Helvetica Neue @ 348-520px: Data URI: at 347px: DOM 4 lines, Pretext 5
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 262px: Kapitän: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 263-403px: Kapitän: at returned 262px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 128px: Fehlermeldung: baseline: DOM 5 lines, Pretext 6
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 129-157px: Fehlermeldung: at 128px: DOM 5 lines, Pretext 6
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 212px: Fehlermeldung: baseline: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 213-300px: Fehlermeldung: at 212px: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 594px: Fehlermeldung: baseline: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 595-600px: Fehlermeldung: at 594px: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 538px: One word: baseline: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 balance german / Helvetica Neue @ 539-600px: One word: at 538px: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 121px: Synchroniser: baseline: DOM 7 lines, Pretext 6
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 122-139px: Synchroniser: at returned 121px: DOM 7 lines, Pretext 6
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 140px: Synchroniser: baseline: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 141-168px: Synchroniser: at returned 140px: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 231px: Synchroniser: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 232-325px: Synchroniser: at returned 231px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 178px: Responsabilité: baseline: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 179-230px: Responsabilité: at returned 178px: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 286px: Responsabilité: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 287-437px: Responsabilité: at returned 286px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 120-125px: Récit: at 113px: DOM 9 lines, Pretext 10
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 302px: Récit: baseline: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 balance french / Helvetica Neue @ 303-455px: Récit: at 302px: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 fitFontSize urls / Helvetica Neue @ 347px: Data URI: baseline: DOM 4 lines, Pretext 5
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 262px: Kapitän: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 278px: Kapitän: returned 17px, at 17px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 311px: Kapitän: returned 19px, at 19px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 327px: Kapitän: returned 20px, at 20px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 360px: Kapitän: returned 21px, at 22px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 128px: Fehlermeldung: baseline: DOM 5 lines, Pretext 6
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 212px: Fehlermeldung: baseline: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 265px: Fehlermeldung: returned 19px, at 20px: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 594px: Fehlermeldung: baseline: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 367px: One word: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 402px: One word: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 437px: One word: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 454px: One word: returned 25px, at 26px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 472px: One word: returned 26px, at 27px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 489px: One word: returned 27px, at 28px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 524px: One word: returned 29px, at 30px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 538px: One word: baseline: DOM 1 lines, Pretext 2
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 542px: One word: returned 30px, at 31px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 559px: One word: returned 31px, at 32px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize german / Helvetica Neue @ 577px: One word: returned 32px, at 33px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 121px: Synchroniser: baseline: DOM 7 lines, Pretext 6
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 140px: Synchroniser: baseline: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 231px: Synchroniser: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 448px: Synchroniser: returned 22px, at 22px: DOM 3 lines, Pretext 2
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 509px: Synchroniser: returned 25px, at 25px: DOM 3 lines, Pretext 2
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 570px: Synchroniser: returned 28px, at 28px: DOM 3 lines, Pretext 2
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 326px: Justificatifs: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 357px: Justificatifs: returned 22px, at 23px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 388px: Justificatifs: returned 24px, at 25px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 419px: Justificatifs: returned 26px, at 27px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 450px: Justificatifs: returned 28px, at 29px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 466px: Justificatifs: returned 29px, at 30px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 481px: Justificatifs: returned 30px, at 31px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 497px: Justificatifs: returned 31px, at 32px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 512px: Justificatifs: returned 32px, at 33px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 173px: Responsabilité: returned 12px, at 12px: DOM 5 lines, Pretext 4
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 178px: Responsabilité: baseline: DOM 6 lines, Pretext 5
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 202px: Responsabilité: returned 14px, at 14px: DOM 5 lines, Pretext 4
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 286px: Responsabilité: baseline: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 393px: Responsabilité: returned 21px, at 22px: DOM 4 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 574px: Responsabilité: returned 21px, at 21px: DOM 3 lines, Pretext 2
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 501px: Syndicats: returned 21px, at 22px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 592px: Syndicats: returned 25px, at 26px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 302px: Récit: baseline: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 fitFontSize french / Helvetica Neue @ 415px: Récit: returned 21px, at 22px: DOM 3 lines, Pretext 4
-- firefox@1,1.25,2 fitFontSize french / Times New Roman @ 294px: Justificatifs: returned 21px, at 21px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Times New Roman @ 364px: Justificatifs: returned 25px, at 26px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Times New Roman @ 378px: Justificatifs: returned 26px, at 27px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Times New Roman @ 406px: Justificatifs: returned 28px, at 29px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 fitFontSize french / Times New Roman @ 448px: Justificatifs: returned 31px, at 32px: DOM 2 lines, Pretext 3
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 142px: Arabic: line 2 "لاختبار دعم الاتجاه من…" paints 142.3000030517578px, Pretext 141.80000162124634px, box 142px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 231px: Mixed report: line 1 "According to the report by محم…" paints 231.43333435058594px, Pretext 230.4499979019165px, box 231px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 237px: Mixed report: line 1 "According to the report by محمد…" paints 238.4499969482422px, Pretext 236.96666479110718px, box 237px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 238px: Mixed report: line 1 "According to the report by محمد…" paints 238.4499969482422px, Pretext 236.96666479110718px, box 238px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 517px: Long mixed: line 2 "modern cafés. The city's history spans millennia. كل شارع يحكي قصة مخت…" paints 517.3333129882812px, Pretext 516.3333382606506px, box 517px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 336px: Bukhala opening: line 1 "تولاك الله بحفظه وأعانك على شكره ووفقك لطاعته وجعلك من…" paints 336.23333740234375px, Pretext 335.7333312034607px, box 336px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 296px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حي…" paints 296.48333740234375px, Pretext 295.0666651725769px, box 296px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 472px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حيل لصوص النهار وفي تفصيل حي…" paints 473.183349609375px, Pretext 471.76666498184204px, box 472px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 473px: Bukhala book: line 1 "ذكرت - حفظك الله أنك قرأت كتابي في تصنيف حيل لصوص النهار وفي تفصيل حي…" paints 473.183349609375px, Pretext 471.76666498184204px, box 473px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 224px: Bukhala book: line 3 "حيل سراق الليل وأنك سددت به كل خل…" paints 224.35000610351562px, Pretext 223.86666440963745px, box 224px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 331px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هار…" paints 332.433349609375px, Pretext 329.6999969482422px, box 331px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 332px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هار…" paints 332.433349609375px, Pretext 329.6999969482422px, box 332px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 336px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 338.1333312988281px, Pretext 335.9833302497864px, box 336px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 337px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 338.1333312988281px, Pretext 335.9833302497864px, box 337px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 338px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 338.1333312988281px, Pretext 335.9833302497864px, box 338px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 345px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 346.66668701171875px, Pretext 344.5166640281677px, box 345px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 346px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 346.66668701171875px, Pretext 344.5166640281677px, box 346px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 165px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 166.48333740234375px, Pretext 163.74999809265137px, box 165px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 166px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 166.48333740234375px, Pretext 163.74999809265137px, box 166px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 171px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 172.18333435058594px, Pretext 170.03333139419556px, box 171px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 172px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 172.18333435058594px, Pretext 170.03333139419556px, box 172px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 179px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 180.71665954589844px, Pretext 178.5666651725769px, box 179px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 180px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 180.71665954589844px, Pretext 178.5666651725769px, box 180px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 124px: Bukhala names: line 3 "ورسالة سهل بن هار…" paints 124.93333435058594px, Pretext 122.19999980926514px, box 124px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 129px: Bukhala names: line 3 "ورسالة سهل بن هارو…" paints 130.63333129882812px, Pretext 128.48333311080933px, box 129px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 130px: Bukhala names: line 3 "ورسالة سهل بن هارو…" paints 130.63333129882812px, Pretext 128.48333311080933px, box 130px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 251px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من…" paints 251.25px, Pretext 250.75000524520874px, box 251px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 357px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 357.41668701171875px, Pretext 356.8999972343445px, box 357px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 413px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مثلاً كلمّة طيّ…" paints 413.8999938964844px, Pretext 412.9666633605957px, box 413px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 486px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مثلاً كلمّة طيّبةً كشجرةً طيّ…" paints 486.41668701171875px, Pretext 485.48333168029785px, box 486px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 185px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 185.39999389648438px, Pretext 184.88333177566528px, box 185px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 208px: Ghufran tree: line 2 "ألم تر كيف ضرب الله مثلاً كلمّة طيّ…" paints 208.5px, Pretext 207.56666564941406px, box 208px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 245px: Ghufran tree: line 2 "كيف ضرب الله مثلاً كلمّة طيّبةً كشجرةً طيّ…" paints 245.9166717529297px, Pretext 244.9833345413208px, box 245px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 398px: Ghufran tree: line 2 "طيّبةً كشجرةً طيّبةٍ، أصلها ثابت وفرعها في السّمّاء، تؤتي أكلها كلّ حي…" paints 398.75px, Pretext 397.3333339691162px, box 398px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Helvetica Neue @ 144px: Ghufran tree: line 3 "ضرب الله مثلاً كلمّة طيّ…" paints 144.56666564941406px, Pretext 143.63333320617676px, box 144px
-- firefox@1,1.25,2 clamp maxLines 5 arabic / Helvetica Neue @ 164px: Ghufran tree: line 5 "السّمّاء، تؤتي أكلها كلّ حي…" paints 164.14999389648438px, Pretext 162.73333072662354px, box 164px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 265px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 267.683349609375px, Pretext 264.95000076293945px, box 265px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 266px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 267.683349609375px, Pretext 264.95000076293945px, box 266px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 267px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 267.683349609375px, Pretext 264.95000076293945px, box 267px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 270px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 272.3666687011719px, Pretext 269.6333341598511px, box 270px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 271px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 272.3666687011719px, Pretext 269.6333341598511px, box 271px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 272px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 272.3666687011719px, Pretext 269.6333341598511px, box 272px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 297px: Support thread: line 1 "The Arabic support thread said: \"هذا جي…" paints 297.83331298828125px, Pretext 296.4166679382324px, box 297px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Helvetica Neue @ 580px: Support thread: line 1 "The Arabic support thread said: \"هذا جيد، ولكن لا تكسر العبارة «فيقول: وعليك السلام» داخل…" paints 580.3333129882812px, Pretext 579.8499994277954px, box 580px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 156px: Support thread: line 2 "thread said: \"هذا جي…" paints 156.4499969482422px, Pretext 155.03333377838135px, box 156px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Helvetica Neue @ 289px: Support thread: line 2 "ولكن لا تكسر العبارة «فيقول: وعليك السلام» داخل…" paints 289.2833251953125px, Pretext 288.79999923706055px, box 289px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 255px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من…" paints 255.1999969482422px, Pretext 254.2999987602234px, box 255px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 382px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار في مك…" paints 382.7833251953125px, Pretext 381.88332891464233px, box 382px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 132px: Arabic: line 2 "لاختبار دعم الاتجاه من…" paints 132.3333282470703px, Pretext 131.43333292007446px, box 132px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 195px: Arabic: line 2 "الاتجاه من اليمين إلى اليسار في مك…" paints 195.3333282470703px, Pretext 194.4333291053772px, box 195px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Arial @ 139px: Arabic: line 3 "اليمين إلى اليسار في مك…" paints 139.13333129882812px, Pretext 138.2333312034607px, box 139px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 229px: Mixed report: line 1 "According to the report by محمد…" paints 230.1999969482422px, Pretext 228.91666650772095px, box 229px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 230px: Mixed report: line 1 "According to the report by محمد…" paints 230.1999969482422px, Pretext 228.91666650772095px, box 230px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 503px: Long mixed: line 2 "modern cafés. The city's history spans millennia. كل شارع يحكي قصة مخت…" paints 503.1499938964844px, Pretext 502.76667070388794px, box 503px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 329px: Bukhala opening: line 1 "تولاك الله بحفظه وأعانك على شكره ووفقك لطاعته وجعلك من…" paints 329.75px, Pretext 328.8499960899353px, box 329px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 176px: Bukhala opening: line 2 "شكره ووفقك لطاعته وجعلك من…" paints 176.81666564941406px, Pretext 175.91666555404663px, box 176px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 320px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 322.70001220703125px, Pretext 319.66666412353516px, box 320px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 321px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 322.70001220703125px, Pretext 319.66666412353516px, box 321px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 322px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 322.70001220703125px, Pretext 319.66666412353516px, box 322px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 329px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 331.1166687011719px, Pretext 328.08333110809326px, box 329px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 330px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 331.1166687011719px, Pretext 328.08333110809326px, box 330px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 331px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 331.1166687011719px, Pretext 328.08333110809326px, box 331px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 546px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 546.816650390625px, Pretext 545.5666651725769px, box 546px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 156px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 156.36666870117188px, Pretext 153.33333349227905px, box 156px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 161px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 163.28334045410156px, Pretext 160.25px, box 161px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 162px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 163.28334045410156px, Pretext 160.25px, box 162px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 163px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 163.28334045410156px, Pretext 160.25px, box 163px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 169px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 171.6999969482422px, Pretext 168.6666669845581px, box 169px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 170px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 171.6999969482422px, Pretext 168.6666669845581px, box 170px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 171px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 171.6999969482422px, Pretext 168.6666669845581px, box 171px
-- firefox@1,1.25,2 clamp maxLines 4 arabic / Arial @ 162px: Bukhala names: line 4 "الحارثي وكل ما حضرني من…" paints 162.86666870117188px, Pretext 161.96666955947876px, box 162px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 249px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من…" paints 249.31666564941406px, Pretext 248.41666650772095px, box 249px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 396px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من اتسِّاق عقودها الفاخرة، ومث…" paints 396.6499938964844px, Pretext 395.74999809265137px, box 396px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 342px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 342.6499938964844px, Pretext 341.7499976158142px, box 342px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Arial @ 181px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 181.21665954589844px, Pretext 180.31666612625122px, box 181px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 260px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 262.01666259765625px, Pretext 259.3333349227905px, box 260px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 261px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 262.01666259765625px, Pretext 259.3333349227905px, box 261px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 262px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 262.01666259765625px, Pretext 259.3333349227905px, box 262px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 263px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 265.33331298828125px, Pretext 262.6500015258789px, box 263px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 264px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 265.33331298828125px, Pretext 262.6500015258789px, box 264px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Arial @ 265px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 265.33331298828125px, Pretext 262.6500015258789px, box 265px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 248px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من…" paints 248.03334045410156px, Pretext 247.13333296775818px, box 248px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 372px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار في مك…" paints 372.70001220703125px, Pretext 371.79999685287476px, box 372px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 127px: Arabic: line 2 "لاختبار دعم الاتجاه من…" paints 127.5px, Pretext 126.60000014305115px, box 127px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 188px: Arabic: line 2 "الاتجاه من اليمين إلى اليسار في مك…" paints 188.75px, Pretext 187.84999656677246px, box 188px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 133px: Arabic: line 3 "اليمين إلى اليسار في مك…" paints 133.71665954589844px, Pretext 132.8166651725769px, box 133px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 222px: Mixed report: line 1 "According to the report by محم…" paints 222.03334045410156px, Pretext 221.64999651908875px, box 222px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 228px: Mixed report: line 1 "According to the report by محمد…" paints 228.3333282470703px, Pretext 227.04999661445618px, box 228px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 496px: Long mixed: line 2 "modern cafés. The city's history spans millennia. كل شارع يحكي قصة مخت…" paints 496.1000061035156px, Pretext 495.71667075157166px, box 496px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 321px: Bukhala opening: line 1 "تولاك الله بحفظه وأعانك على شكره ووفقك لطاعته وجعلك من…" paints 321.41668701171875px, Pretext 320.51666378974915px, box 321px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 171px: Bukhala opening: line 2 "شكره ووفقك لطاعته وجعلك من…" paints 171.39999389648438px, Pretext 170.49999952316284px, box 171px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 312px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 314.95001220703125px, Pretext 311.9166650772095px, box 312px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 313px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 314.95001220703125px, Pretext 311.9166650772095px, box 313px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 314px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 314.95001220703125px, Pretext 311.9166650772095px, box 314px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 321px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 323.3666687011719px, Pretext 320.3333320617676px, box 321px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 322px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 323.3666687011719px, Pretext 320.3333320617676px, box 322px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 323px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 323.3666687011719px, Pretext 320.3333320617676px, box 323px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 534px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 534.9833374023438px, Pretext 533.7333333492279px, box 534px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 600px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما حضرني من…" paints 600.5833129882812px, Pretext 599.6833345890045px, box 600px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 155px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 157.86666870117188px, Pretext 154.8333339691162px, box 155px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 156px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 157.86666870117188px, Pretext 154.8333339691162px, box 156px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 157px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 157.86666870117188px, Pretext 154.8333339691162px, box 157px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 164px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 166.28334045410156px, Pretext 163.25000095367432px, box 164px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 165px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 166.28334045410156px, Pretext 163.25000095367432px, box 165px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 166px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 166.28334045410156px, Pretext 163.25000095367432px, box 166px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 120px: Bukhala names: line 3 "ورسالة سهل بن هارو…" paints 121.55000305175781px, Pretext 118.5166666507721px, box 120px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Georgia @ 188px: Bukhala names: line 3 "ابن غزوان وخطبة الحارثي وكل ما…" paints 188.56666564941406px, Pretext 187.3166687488556px, box 188px
-- firefox@1,1.25,2 clamp maxLines 4 arabic / Georgia @ 157px: Bukhala names: line 4 "الحارثي وكل ما حضرني من…" paints 157.4499969482422px, Pretext 156.55000352859497px, box 157px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 242px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من…" paints 242.73333740234375px, Pretext 241.8333339691162px, box 242px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 387px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من اتسِّاق عقودها الفاخرة، ومث…" paints 387.73333740234375px, Pretext 386.83333253860474px, box 387px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 333px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 333.70001220703125px, Pretext 332.7999999523163px, box 333px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Georgia @ 175px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 175.18333435058594px, Pretext 174.28333473205566px, box 175px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 258px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 259.95001220703125px, Pretext 257.26666283607483px, box 258px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 259px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 259.95001220703125px, Pretext 257.26666283607483px, box 259px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 261px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 263.26666259765625px, Pretext 260.5833294391632px, box 261px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 262px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 263.26666259765625px, Pretext 260.5833294391632px, box 262px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Georgia @ 263px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 263.26666259765625px, Pretext 260.5833294391632px, box 263px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 252px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من…" paints 252.0500030517578px, Pretext 251.15000009536743px, box 252px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 377px: Arabic: line 1 "هذا النص باللغة العربية لاختبار دعم الاتجاه من اليمين إلى اليسار في مك…" paints 377.3833312988281px, Pretext 376.4833312034607px, box 377px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 192px: Arabic: line 2 "الاتجاه من اليمين إلى اليسار في مك…" paints 192.63333129882812px, Pretext 191.73333024978638px, box 192px
-- firefox@1,1.25,2 clamp maxLines 3 arabic / Times New Roman @ 137px: Arabic: line 3 "اليمين إلى اليسار في مك…" paints 137.3333282470703px, Pretext 136.43333196640015px, box 137px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 215px: Mixed report: line 1 "According to the report by محمد…" paints 216.23333740234375px, Pretext 214.94999933242798px, box 215px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 216px: Mixed report: line 1 "According to the report by محمد…" paints 216.23333740234375px, Pretext 214.94999933242798px, box 216px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 124px: Bukhala opening: line 1 "تولاك الله بحفظه وأعا…" paints 124.01666259765625px, Pretext 123.94999933242798px, box 124px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 325px: Bukhala opening: line 1 "تولاك الله بحفظه وأعانك على شكره ووفقك لطاعته وجعلك من…" paints 325.70001220703125px, Pretext 324.7999978065491px, box 325px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 175px: Bukhala opening: line 2 "شكره ووفقك لطاعته وجعلك من…" paints 175.01666259765625px, Pretext 174.11666631698608px, box 175px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 312px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هار…" paints 312.183349609375px, Pretext 309.1499991416931px, box 312px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 317px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 319.1000061035156px, Pretext 316.06666564941406px, box 317px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 318px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 319.1000061035156px, Pretext 316.06666564941406px, box 318px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 319px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارو…" paints 319.1000061035156px, Pretext 316.06666564941406px, box 319px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 325px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 327.51666259765625px, Pretext 324.48333263397217px, box 325px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 326px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 327.51666259765625px, Pretext 324.48333263397217px, box 326px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 327px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون…" paints 327.51666259765625px, Pretext 324.48333263397217px, box 327px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 539px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 540.066650390625px, Pretext 538.8166680335999px, box 539px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 540px: Bukhala names: line 1 "وذكرت ملح الحزامي واحتجاج الكندي ورسالة سهل بن هارون وكلام ابن غزوان وخطبة الحارثي وكل ما…" paints 540.066650390625px, Pretext 538.8166680335999px, box 540px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 154px: Bukhala names: line 2 "الكندي ورسالة سهل بن هار…" paints 154.56666564941406px, Pretext 151.5333342552185px, box 154px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 159px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 161.48333740234375px, Pretext 158.45000076293945px, box 159px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 160px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 161.48333740234375px, Pretext 158.45000076293945px, box 160px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 161px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارو…" paints 161.48333740234375px, Pretext 158.45000076293945px, box 161px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 167px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 169.89999389648438px, Pretext 166.86666774749756px, box 167px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 168px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 169.89999389648438px, Pretext 166.86666774749756px, box 168px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 169px: Bukhala names: line 2 "الكندي ورسالة سهل بن هارون…" paints 169.89999389648438px, Pretext 166.86666774749756px, box 169px
-- firefox@1,1.25,2 clamp maxLines 4 arabic / Times New Roman @ 161px: Bukhala names: line 4 "الحارثي وكل ما حضرني من…" paints 161.06666564941406px, Pretext 160.1666703224182px, box 161px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 246px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من…" paints 246.61666870117188px, Pretext 245.71666765213013px, box 246px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 392px: Ghufran waves: line 1 "وغرقت في أمواج بدعها الزاخرة، وعجبت من اتسِّاق عقودها الفاخرة، ومث…" paints 392.1499938964844px, Pretext 391.25px, box 392px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 337px: Ghufran tree: line 1 "وهذه الكلمة الطيبة كأنّها المعنيّة بقوله: ألم تر كيف ضرب الله مث…" paints 337.70001220703125px, Pretext 336.7999997138977px, box 337px
-- firefox@1,1.25,2 clamp maxLines 2 arabic / Times New Roman @ 178px: Ghufran tree: line 2 "بقوله: ألم تر كيف ضرب الله مث…" paints 178.51666259765625px, Pretext 177.6166672706604px, box 178px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 240px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 241.76666259765625px, Pretext 239.08333349227905px, box 240px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 241px: Support thread: line 1 "The Arabic support thread said: \"هذ…" paints 241.76666259765625px, Pretext 239.08333349227905px, box 241px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 243px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 245.0833282470703px, Pretext 242.40000009536743px, box 243px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 244px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 245.0833282470703px, Pretext 242.40000009536743px, box 244px
-- firefox@1,1.25,2 clamp maxLines 1 arabic / Times New Roman @ 245px: Support thread: line 1 "The Arabic support thread said: \"هذا…" paints 245.0833282470703px, Pretext 242.40000009536743px, box 245px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 213px: Query string: line 4 "elevance&page=3&utm_sourc" paints 213.28334045410156px, Pretext 212.9833221435547px, box 213px
-- firefox@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 302px: Windows path: line 3 "osoft\\Windows\\INetCache\\IE\\settings.in…" paints 302.25px, Pretext 301.95001220703125px, box 302px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 153px: Windows path: line 4 "osoft\\Windows\\INe…" paints 153.1666717529297px, Pretext 152.86666870117188px, box 153px
-- firefox@1,1.25,2 clamp maxLines 3 urls / Helvetica Neue @ 445px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kg…" paints 445.70001220703125px, Pretext 444.53333592414856px, box 445px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 227px: Data URI: line 4 "YAAAAfFcSJAAAADUlEQVR4…" paints 227.28334045410156px, Pretext 226.1166694164276px, box 227px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 347px: Data URI: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 4 (truncated true; 5 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 439px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 440.066650390625px, Pretext 438.9000017642975px, box 439px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 440px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 440.066650390625px, Pretext 438.9000017642975px, box 440px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Helvetica Neue @ 451px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 451.6000061035156px, Pretext 450.4333345890045px, box 451px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 149px: Data URI: line 5 "YAAAAfFcSJAAAA…" paints 149.31666564941406px, Pretext 148.15000104904175px, box 149px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 220px: Data URI: line 4 "YAAAAfFcSJAAAADUlEQVR42" paints 220.18333435058594px, Pretext 219.01666903495789px, box 220px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 347px: Data URI: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 439px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 440.066650390625px, Pretext 438.9000017642975px, box 439px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 440px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 440.066650390625px, Pretext 438.9000017642975px, box 440px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 451px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 451.6000061035156px, Pretext 450.4333345890045px, box 451px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Helvetica Neue @ 182px: Snake case: line 4 "TION_JOBS_PER_WORK" paints 182.5833282470703px, Pretext 181.11669921875px, box 182px
-- firefox@1,1.25,2 clamp maxLines 3 urls / Arial @ 450px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kg…" paints 450.433349609375px, Pretext 449.2500011920929px, box 450px
-- firefox@1,1.25,2 clamp maxLines 3 urls / Arial @ 462px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAA…" paints 462.2833251953125px, Pretext 461.10000348091125px, box 462px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Arial @ 231px: Data URI: line 4 "AAAAfFcSJAAAADUlEQVR42…" paints 232px, Pretext 230.81666588783264px, box 231px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Arial @ 444px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 445.1000061035156px, Pretext 443.9166691303253px, box 444px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Arial @ 445px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 445.1000061035156px, Pretext 443.9166691303253px, box 445px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Arial @ 456px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 456.95001220703125px, Pretext 455.76667046546936px, box 456px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Arial @ 151px: Data URI: line 5 "YAAAAfFcSJAAAA…" paints 151.6999969482422px, Pretext 150.51666450500488px, box 151px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Arial @ 225px: Data URI: line 4 "YAAAAfFcSJAAAADUlEQVR42" paints 225.48333740234375px, Pretext 224.2999985218048px, box 225px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Arial @ 444px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 445.1000061035156px, Pretext 443.9166691303253px, box 444px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Arial @ 445px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 445.1000061035156px, Pretext 443.9166691303253px, box 445px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Arial @ 456px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 456.95001220703125px, Pretext 455.76667046546936px, box 456px
-- firefox@1,1.25,2 clamp maxLines 3 urls / Times New Roman @ 442px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kg…" paints 442.58331298828125px, Pretext 441.1166672706604px, box 442px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 225px: Data URI: line 4 "YAAAAfFcSJAAAADUlEQVR…" paints 225.73333740234375px, Pretext 224.26666975021362px, box 225px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 437px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 438.1333312988281px, Pretext 436.66666650772095px, box 437px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 438px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 438.1333312988281px, Pretext 436.66666650772095px, box 438px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 450px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 451.45001220703125px, Pretext 449.6833338737488px, box 450px
-- firefox@1,1.25,2 clamp maxLines 4 urls / Times New Roman @ 451px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 451.45001220703125px, Pretext 449.6833338737488px, box 451px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 225px: Data URI: line 4 "YAAAAfFcSJAAAADUlEQVR42" paints 225.73333740234375px, Pretext 224.2666687965393px, box 225px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 227px: Data URI: line 4 "AAAAfFcSJAAAADUlEQVR42m" paints 228.39999389648438px, Pretext 226.63333654403687px, box 227px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 228px: Data URI: line 4 "AAAAfFcSJAAAADUlEQVR42m" paints 228.39999389648438px, Pretext 226.63333654403687px, box 228px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 437px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 438.1333312988281px, Pretext 436.66666650772095px, box 437px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 438px: Data URI: line 3 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgA" paints 438.1333312988281px, Pretext 436.66666650772095px, box 438px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 450px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 451.45001220703125px, Pretext 449.6833338737488px, box 450px
-- firefox@1,1.25,2 clamp maxLines 5 urls / Times New Roman @ 451px: Data URI: line 3 "AAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAA" paints 451.45001220703125px, Pretext 449.6833338737488px, box 451px
-- firefox@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 262px: Kapitän: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 262px: Kapitän: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 262px: Kapitän: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 1 german / Helvetica Neue @ 594px: Fehlermeldung: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 594px: Fehlermeldung: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 212px: Fehlermeldung: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- firefox@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 594px: Fehlermeldung: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 212px: Fehlermeldung: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 594px: Fehlermeldung: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 128px: Fehlermeldung: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 212px: Fehlermeldung: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 594px: Fehlermeldung: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 265px: Förderung: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 265.1000061035156px, Pretext 265.54999589920044px, box 265px
-- firefox@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 265px: Förderung: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 265.1000061035156px, Pretext 265.54999589920044px, box 265px
-- firefox@1,1.25,2 clamp maxLines 1 german / Helvetica Neue @ 538px: One word: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 2 german / Helvetica Neue @ 538px: One word: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 3 german / Helvetica Neue @ 538px: One word: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 german / Helvetica Neue @ 538px: One word: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 german / Helvetica Neue @ 538px: One word: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
-- firefox@1,1.25,2 clamp maxLines 2 german / Arial @ 164px: Kapitän: line 1 "Der Donaudampfschiff-" paints 164.25px, Pretext 164.25000047683716px, box 164px
-- firefox@1,1.25,2 clamp maxLines 3 german / Arial @ 164px: Kapitän: line 1 "Der Donaudampfschiff-" paints 164.25px, Pretext 164.25000047683716px, box 164px
-- firefox@1,1.25,2 clamp maxLines 4 german / Arial @ 164px: Kapitän: line 1 "Der Donaudampfschiff-" paints 164.25px, Pretext 164.25000047683716px, box 164px
-- firefox@1,1.25,2 clamp maxLines 5 german / Arial @ 164px: Kapitän: line 1 "Der Donaudampfschiff-" paints 164.25px, Pretext 164.25000047683716px, box 164px
-- firefox@1,1.25,2 clamp maxLines 3 german / Times New Roman @ 362px: Förderung: line 2 "Wintersemester in Kraft, Übergangsregelungen inbegrif-" paints 362.1166687011719px, Pretext 362.41666555404663px, box 362px
-- firefox@1,1.25,2 clamp maxLines 4 german / Times New Roman @ 362px: Förderung: line 2 "Wintersemester in Kraft, Übergangsregelungen inbegrif-" paints 362.1166687011719px, Pretext 362.41666555404663px, box 362px
-- firefox@1,1.25,2 clamp maxLines 5 german / Times New Roman @ 362px: Förderung: line 2 "Wintersemester in Kraft, Übergangsregelungen inbegrif-" paints 362.1166687011719px, Pretext 362.41666555404663px, box 362px
-- firefox@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 580px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion internet e…" paints 580.0333251953125px, Pretext 579.7666616439819px, box 580px
-- firefox@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 585px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion internet et…" paints 585.066650390625px, Pretext 584.799994468689px, box 585px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 296px: Synchroniser: line 2 "ments : vérifiez votre connexion interne…" paints 296.066650390625px, Pretext 295.79999828338623px, box 296px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 301px: Synchroniser: line 2 "ments : vérifiez votre connexion internet…" paints 301.1000061035156px, Pretext 300.83333110809326px, box 301px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 569px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion internet et" paints 569.066650390625px, Pretext 568.799994468689px, box 569px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 202px: Synchroniser: line 3 "votre connexion internet e…" paints 202.11666870117188px, Pretext 201.84999656677246px, box 202px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 207px: Synchroniser: line 3 "votre connexion internet et…" paints 207.14999389648438px, Pretext 206.8833293914795px, box 207px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 231px: Synchroniser: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.1000061035156px, Pretext 284.83333110809326px, box 285px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.183349609375px, Pretext 302.91666412353516px, box 303px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 569px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion internet et" paints 569.066650390625px, Pretext 568.799994468689px, box 569px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 153px: Synchroniser: line 4 "connexion internet …" paints 153.21665954589844px, Pretext 152.9499979019165px, box 153px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 231px: Synchroniser: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.1000061035156px, Pretext 284.83333110809326px, box 285px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.183349609375px, Pretext 302.91666412353516px, box 303px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 569px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion internet et" paints 569.066650390625px, Pretext 568.799994468689px, box 569px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 135px: Synchroniser: line 5 "connexion intern…" paints 135.13333129882812px, Pretext 134.8666648864746px, box 135px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 140px: Synchroniser: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 231px: Synchroniser: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 285px: Synchroniser: line 2 "ments : vérifiez votre connexion internet" paints 285.1000061035156px, Pretext 284.83333110809326px, box 285px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 303px: Synchroniser: line 2 "ments : vérifiez votre connexion internet et" paints 303.183349609375px, Pretext 302.91666412353516px, box 303px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 569px: Synchroniser: line 1 "Impossible de synchroniser vos documents : vérifiez votre connexion internet et" paints 569.066650390625px, Pretext 568.799994468689px, box 569px
-- firefox@1,1.25,2 clamp maxLines 1 french / Helvetica Neue @ 563px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-…" paints 563.1666870117188px, Pretext 562.9000024795532px, box 563px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 232px: Responsabilité: line 2 "mentale des entreprises intern…" paints 232.0833282470703px, Pretext 231.81666564941406px, box 232px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 287px: Responsabilité: line 2 "entreprises internationales est devenu…" paints 287.20001220703125px, Pretext 286.93333435058594px, box 287px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 328px: Responsabilité: line 2 "treprises internationales est devenue incon-…" paints 328.1000061035156px, Pretext 327.83333349227905px, box 328px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 362px: Responsabilité: line 2 "prises internationales est devenue incontournabl…" paints 362.4666748046875px, Pretext 361.9333350658417px, box 362px
-- firefox@1,1.25,2 clamp maxLines 2 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.1666870117188px, Pretext 546.9000024795532px, box 547px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 181px: Responsabilité: line 3 "prises internationales e…" paints 181.06666564941406px, Pretext 180.8000020980835px, box 181px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 192px: Responsabilité: line 3 "internationales est deve-…" paints 192.03334045410156px, Pretext 191.7666687965393px, box 192px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 248px: Responsabilité: line 3 "nales est devenue incontournabl…" paints 248.10000610351562px, Pretext 247.83333468437195px, box 248px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 275px: Responsabilité: line 3 "venue incontournable dans les appe…" paints 275.08331298828125px, Pretext 274.816668510437px, box 275px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 286px: Responsabilité: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.1000061035156px, Pretext 311.83333349227905px, box 312px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 355px: Responsabilité: line 2 "prises internationales est devenue incontournable" paints 355.066650390625px, Pretext 354.5333366394043px, box 355px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.1666870117188px, Pretext 546.9000024795532px, box 547px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 134px: Responsabilité: line 4 "ternationales est…" paints 134.23333740234375px, Pretext 133.96666812896729px, box 134px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 148px: Responsabilité: line 4 "ternationales est d…" paints 148.1666717529297px, Pretext 147.9000015258789px, box 148px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 178px: Responsabilité: line 3 "prises internationales est" paints 178.10000610351562px, Pretext 177.83333492279053px, box 178px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 193px: Responsabilité: line 4 "nue incontournable dans…" paints 193.26666259765625px, Pretext 193.00000095367432px, box 193px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 196px: Responsabilité: line 3 "internationales est devenue" paints 196.21665954589844px, Pretext 195.95000171661377px, box 196px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 200px: Responsabilité: line 4 "incontournable dans les a…" paints 200.06666564941406px, Pretext 199.80000114440918px, box 200px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 286px: Responsabilité: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.1000061035156px, Pretext 311.83333349227905px, box 312px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 355px: Responsabilité: line 2 "prises internationales est devenue incontournable" paints 355.066650390625px, Pretext 354.5333366394043px, box 355px
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.1666870117188px, Pretext 546.9000024795532px, box 547px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 178px: Responsabilité: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 196px: Responsabilité: line 3 "internationales est devenue" paints 196.21665954589844px, Pretext 195.95000171661377px, box 196px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 286px: Responsabilité: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 312px: Responsabilité: line 2 "treprises internationales est devenue incon-" paints 312.1000061035156px, Pretext 311.83333349227905px, box 312px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 355px: Responsabilité: line 2 "prises internationales est devenue incontournable" paints 355.066650390625px, Pretext 354.5333366394043px, box 355px
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 547px: Responsabilité: line 1 "La responsabilité environnementale des entreprises internationales est deve-" paints 547.1666870117188px, Pretext 546.9000024795532px, box 547px
-- firefox@1,1.25,2 clamp maxLines 3 french / Helvetica Neue @ 302px: Récit: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
-- firefox@1,1.25,2 clamp maxLines 4 french / Helvetica Neue @ 302px: Récit: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- firefox@1,1.25,2 clamp maxLines 5 french / Helvetica Neue @ 302px: Récit: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
+- shrinkwrap latin "Gatsby decencies": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Helvetica Neue; 375-375px). E.g. chromium@1 Helvetica Neue @ 375px: widest line: DOM 375.0078125px (wants 375), Pretext 367.6477355957031px (gave 368)
+- shrinkwrap latin "Latin compatibility": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Arial; 317-317px). E.g. chromium@1 Arial @ 317px: widest line: DOM 317.0078125px (wants 317), Pretext 283.6875px (gave 284)
+- shrinkwrap latin "Latin punctuation": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Arial; 394-394px). E.g. chromium@1 Arial @ 394px: widest line: DOM 394.0078125px (wants 394), Pretext 369.8359375px (gave 370)
+- shrinkwrap latin "Gatsby reserve": baseline: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1; Georgia; 142-592px). E.g. chromium@1 Georgia @ 142px: baseline: DOM 9 lines, Pretext 10
+- shrinkwrap cjk "Japanese": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 400, chromium@1.25 100, chromium@2 100; Georgia; 127-600px). E.g. chromium@1 Georgia @ 127px: widest line: DOM 126.7265625px (wants 127), Pretext 125.91999816894531px (gave 126)
+- shrinkwrap cjk "Japanese": baseline: DOM N lines, Pretext N (chromium@1 4; Georgia; 159-381px). E.g. chromium@1 Georgia @ 159px: baseline: DOM 5 lines, Pretext 6
+- shrinkwrap cjk "Japanese short": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 253, chromium@1.25 63, chromium@2 63; Georgia; 143-600px). E.g. chromium@1 Georgia @ 143px: widest line: DOM 142.2421875px (wants 143), Pretext 141.9199981689453px (gave 142)
+- shrinkwrap cjk "Japanese short": baseline: DOM N lines, Pretext N (chromium@1 2; Georgia; 191-381px). E.g. chromium@1 Georgia @ 191px: baseline: DOM 4 lines, Pretext 5
+- shrinkwrap cjk "Kumo no ito": baseline: DOM N lines, Pretext N (chromium@1 6; Georgia; 127-415px). E.g. chromium@1 Georgia @ 127px: baseline: DOM 7 lines, Pretext 8
+- shrinkwrap cjk "Kumo no ito": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 376, chromium@1.25 99, chromium@2 99; Georgia; 159-600px). E.g. chromium@1 Georgia @ 159px: widest line: DOM 158.8828125px (wants 159), Pretext 157.9199981689453px (gave 158)
+- shrinkwrap arabic "Ghufran tree": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 4, chromium@1.25 1, chromium@2 1; Helvetica Neue, Arial, Times New Roman; 131-490px). E.g. chromium@1 Helvetica Neue @ 131px: widest line: DOM 131.0078125px (wants 131), Pretext 128.79415893554688px (gave 129)
+- shrinkwrap arabic "Numbers+RTL": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 251-251px). E.g. chromium@1 Arial @ 251px: baseline: DOM 2 lines, Pretext 3
+- shrinkwrap arabic "Long mixed": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 54, chromium@1.25 13, chromium@2 13; Arial, Times New Roman; 151-526px). E.g. chromium@1 Arial @ 493px: widest line: DOM 492.796875px (wants 493), Pretext 467.625px (gave 468)
+- shrinkwrap arabic "Support thread": baseline: DOM N lines, Pretext N (chromium@1 5, chromium@1.25 3, chromium@2 3; Arial, Times New Roman; 124-590px). E.g. chromium@1 Arial @ 135px: baseline: DOM 5 lines, Pretext 6
+- shrinkwrap arabic "Support thread": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 618, chromium@1.25 156, chromium@2 156; Arial, Times New Roman; 125-600px). E.g. chromium@1 Arial @ 136px: widest line: DOM 134.296875px (wants 135), Pretext 135.1796875px (gave 136)
+- shrinkwrap arabic "Long mixed": baseline: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 294-294px). E.g. chromium@1 Times New Roman @ 294px: baseline: DOM 4 lines, Pretext 5
+- shrinkwrap emoji-chat "Emoji mixed": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Arial; 450-450px). E.g. chromium@1 Arial @ 450px: widest line: DOM 450.0078125px (wants 450), Pretext 432.21875px (gave 433)
+- shrinkwrap emoji-chat "Flags": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Arial; 198-198px). E.g. chromium@1 Arial @ 198px: widest line: DOM 198.0078125px (wants 198), Pretext 177.5625px (gave 178)
+- shrinkwrap emoji-chat "Flags": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 535-535px). E.g. chromium@1 Arial @ 535px: baseline: DOM 1 lines, Pretext 2
+- shrinkwrap emoji-chat "Keycaps": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 41, chromium@1.25 10, chromium@2 10; Arial, Times New Roman; 345-385px). E.g. chromium@1 Arial @ 365px: widest line: DOM 364.8828125px (wants 365), Pretext 338.203125px (gave 339)
+- shrinkwrap emoji-chat "ZWJ family": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 257-257px). E.g. chromium@1 Arial @ 257px: baseline: DOM 2 lines, Pretext 3
+- shrinkwrap emoji-chat "Weather report": baseline: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 206-206px). E.g. chromium@1 Times New Roman @ 206px: baseline: DOM 2 lines, Pretext 3
+- shrinkwrap urls "Backup URL": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 11, chromium@1.25 4, chromium@2 4; Helvetica Neue, Georgia; 140-236px). E.g. chromium@1 Helvetica Neue @ 186px: widest line: DOM 185.828125px (wants 186), Pretext 176.92784118652344px (gave 177)
+- shrinkwrap urls "Bare URL": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 57, chromium@1.25 13, chromium@2 13; Helvetica Neue, Georgia; 126-399px). E.g. chromium@1 Helvetica Neue @ 126px: widest line: DOM 125.9375px (wants 126), Pretext 118.84788513183594px (gave 119)
+- shrinkwrap urls "Bare URL": baseline: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue, Arial; 177-274px). E.g. chromium@1 Helvetica Neue @ 274px: baseline: DOM 2 lines, Pretext 3
+- shrinkwrap urls "Query string": baseline: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue; 125-246px). E.g. chromium@1 Helvetica Neue @ 125px: baseline: DOM 10 lines, Pretext 11
+- shrinkwrap urls "Query string": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 269, chromium@1.25 68, chromium@2 68, webkit@1 1, firefox@1 1; Helvetica Neue, Arial, Times New Roman; 125-600px). E.g. chromium@1 Helvetica Neue @ 130px: widest line: DOM 128.7265625px (wants 129), Pretext 129.00787353515625px (gave 130)
+- shrinkwrap urls "Unix path": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Helvetica Neue; 355-355px). E.g. chromium@1 Helvetica Neue @ 355px: widest line: DOM 355.0078125px (wants 355), Pretext 346.1116638183594px (gave 347)
+- shrinkwrap urls "Windows path": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 277, chromium@1.25 70, chromium@2 70, firefox@1 6, firefox@1.25 1, firefox@2 1; Helvetica Neue, Arial, Times New Roman; 134-565px). E.g. chromium@1 Helvetica Neue @ 151px: widest line: DOM 150.7890625px (wants 151), Pretext 149.63185119628906px (gave 150)
+- shrinkwrap urls "Data URI": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 692, chromium@1.25 181, chromium@2 181, webkit@1 42, webkit@1.25 11, webkit@2 11, firefox@1 83, firefox@1.25 21, firefox@2 21; Helvetica Neue, Arial, Georgia, Times New Roman; 120-600px). E.g. chromium@1 Helvetica Neue @ 121px: widest line: DOM 118.5625px (wants 119), Pretext 120.5599365234375px (gave 121)
+- shrinkwrap urls "Data URI": baseline: DOM N lines, Pretext N (chromium@1 24, chromium@1.25 7, chromium@2 7, firefox@1 1; Helvetica Neue, Arial, Times New Roman; 127-570px). E.g. chromium@1 Helvetica Neue @ 144px: baseline: DOM 8 lines, Pretext 9
+- shrinkwrap urls "npm scope": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 46, chromium@1.25 13, chromium@2 13; Helvetica Neue, Times New Roman; 129-568px). E.g. chromium@1 Helvetica Neue @ 129px: widest line: DOM 128.9609375px (wants 129), Pretext 126.81587219238281px (gave 127)
+- shrinkwrap urls "npm scope": baseline: DOM N lines, Pretext N (chromium@1 1; Helvetica Neue; 245-245px). E.g. chromium@1 Helvetica Neue @ 245px: baseline: DOM 3 lines, Pretext 4
+- shrinkwrap urls "Snake case": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 791, chromium@1.25 198, chromium@2 198, firefox@1 31, firefox@1.25 7, firefox@2 7; Helvetica Neue, Arial, Georgia, Times New Roman; 120-590px). E.g. chromium@1 Helvetica Neue @ 126px: widest line: DOM 125.6484375px (wants 126), Pretext 124.76789855957031px (gave 125)
+- shrinkwrap urls "Path with spaces": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 10, chromium@1.25 2, chromium@2 2; Helvetica Neue; 162-171px). E.g. chromium@1 Helvetica Neue @ 162px: widest line: DOM 161.84375px (wants 162), Pretext 160.01583862304688px (gave 161)
+- shrinkwrap urls "Unix path": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 153-153px). E.g. chromium@1 Arial @ 153px: baseline: DOM 5 lines, Pretext 6
+- shrinkwrap urls "macOS path": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Arial; 145-145px). E.g. chromium@1 Arial @ 145px: widest line: DOM 145.0078125px (wants 145), Pretext 142.2890625px (gave 143)
+- shrinkwrap urls "Hash": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Arial; 234-234px). E.g. chromium@1 Arial @ 234px: widest line: DOM 234.0078125px (wants 234), Pretext 225.109375px (gave 226)
+- shrinkwrap urls "Snake case": baseline: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1; Arial, Times New Roman; 129-303px). E.g. chromium@1 Arial @ 129px: baseline: DOM 9 lines, Pretext 10
+- shrinkwrap german "Nebenrollen": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 26, chromium@1.25 8, chromium@2 8; Helvetica Neue, Arial, Georgia, Times New Roman; 159-265px). E.g. chromium@1 Helvetica Neue @ 172px: widest line: DOM 170.453125px (wants 171), Pretext 178.0958251953125px (gave 172)
+- shrinkwrap german "Datenschutz": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 15, chromium@1.25 2, chromium@2 2, webkit@1 42, webkit@1.25 10, webkit@2 10, firefox@1 75, firefox@1.25 19, firefox@2 19; Helvetica Neue, Arial, Times New Roman; 170-585px). E.g. chromium@1 Helvetica Neue @ 177px: widest line: DOM 176.9296875px (wants 177), Pretext 170.9278106689453px (gave 171)
+- shrinkwrap german "Fehlermeldung": baseline: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 2, firefox@2 2; Helvetica Neue; 128-594px). E.g. chromium@1 Helvetica Neue @ 212px: baseline: DOM 3 lines, Pretext 4
+- shrinkwrap german "Fehlermeldung": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1, webkit@1 1, firefox@1 17, firefox@1.25 4, firefox@2 4; Helvetica Neue; 129-600px). E.g. chromium@1 Helvetica Neue @ 213px: widest line: DOM 211.890625px (wants 212), Pretext 212.1758270263672px (gave 213)
+- shrinkwrap german "Förderung": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 163, chromium@1.25 40, chromium@2 40, webkit@1 203, webkit@1.25 51, webkit@2 51, firefox@1 178, firefox@1.25 44, firefox@2 44; Helvetica Neue, Arial, Times New Roman; 142-600px). E.g. chromium@1 Helvetica Neue @ 158px: widest line: DOM 157.796875px (wants 158), Pretext 152.31985473632812px (gave 153)
+- shrinkwrap german "One word": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 30, chromium@1.25 7, chromium@2 7, firefox@1 62, firefox@1.25 16, firefox@2 16; Helvetica Neue, Georgia; 329-600px). E.g. chromium@1 Helvetica Neue @ 509px: widest line: DOM 507.9609375px (wants 508), Pretext 508.2395935058594px (gave 509)
+- shrinkwrap german "Umfrage": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 3; Arial, Georgia, Times New Roman; 201-363px). E.g. chromium@1 Arial @ 201px: widest line: DOM 201.0078125px (wants 201), Pretext 195.671875px (gave 196)
+- shrinkwrap german "Kapitän": baseline: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 1; Arial, Helvetica Neue; 164-262px). E.g. chromium@1 Arial @ 164px: baseline: DOM 6 lines, Pretext 5
+- shrinkwrap german "Kapitän": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 179, chromium@1.25 47, chromium@2 47, webkit@1 202, webkit@1.25 54, webkit@2 54, firefox@1 201, firefox@1.25 52, firefox@2 52; Arial, Times New Roman; 148-557px). E.g. chromium@1 Arial @ 222px: widest line: DOM 220.8515625px (wants 221), Pretext 221.140625px (gave 222)
+- shrinkwrap german "Baustellen": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 3, chromium@1.25 1, chromium@2 1; Arial, Georgia; 153-427px). E.g. chromium@1 Arial @ 153px: widest line: DOM 153.0078125px (wants 153), Pretext 147.625px (gave 148)
+- shrinkwrap german "Tagesabschluss": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 1; Georgia; 453-453px). E.g. chromium@1 Georgia @ 453px: widest line: DOM 453.0078125px (wants 453), Pretext 424.2890625px (gave 425)
+- shrinkwrap french "Synchroniser": baseline: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 1, firefox@2 1; Helvetica Neue; 121-231px). E.g. chromium@1 Helvetica Neue @ 140px: baseline: DOM 6 lines, Pretext 5
+- shrinkwrap french "Synchroniser": at returned Npx: DOM N lines, Pretext N (chromium@1 25, chromium@1.25 6, chromium@2 6, firefox@1 29, firefox@1.25 7, firefox@2 7; Helvetica Neue; 122-254px). E.g. chromium@1 Helvetica Neue @ 141px: at returned 140px: DOM 6 lines, Pretext 5
+- shrinkwrap french "Synchroniser": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 26, chromium@1.25 6, chromium@2 6, webkit@1 19, webkit@1.25 5, webkit@2 5, firefox@1 51, firefox@1.25 12, firefox@2 12; Helvetica Neue, Times New Roman; 171-593px). E.g. chromium@1 Helvetica Neue @ 285px: widest line: DOM 272.0703125px (wants 273), Pretext 284.7677764892578px (gave 285)
+- shrinkwrap french "Justificatifs": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 252, chromium@1.25 63, chromium@2 63, webkit@1 237, webkit@1.25 59, webkit@2 59, firefox@1 265, firefox@1.25 67, firefox@2 67; Helvetica Neue, Times New Roman; 130-450px). E.g. chromium@1 Helvetica Neue @ 130px: widest line: DOM 128.7421875px (wants 129), Pretext 129.18386840820312px (gave 130)
+- shrinkwrap french "Responsabilité": baseline: DOM N lines, Pretext N (chromium@1 2, firefox@1 2; Helvetica Neue; 178-286px). E.g. chromium@1 Helvetica Neue @ 178px: baseline: DOM 6 lines, Pretext 5
+- shrinkwrap french "Responsabilité": at returned Npx: DOM N lines, Pretext N (chromium@1 22, chromium@1.25 6, chromium@2 6, firefox@1 22, firefox@1.25 6, firefox@2 6; Helvetica Neue; 179-302px). E.g. chromium@1 Helvetica Neue @ 179px: at returned 178px: DOM 6 lines, Pretext 5
+- shrinkwrap french "Responsabilité": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 106, chromium@1.25 26, chromium@2 26, webkit@1 1, firefox@1 54, firefox@1.25 13, firefox@2 13; Helvetica Neue, Times New Roman; 134-590px). E.g. chromium@1 Helvetica Neue @ 196px: widest line: DOM 188.5px (wants 189), Pretext 195.88784790039062px (gave 196)
+- shrinkwrap french "Syndicats": baseline: DOM N lines, Pretext N (chromium@1 16, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 134-155px). E.g. chromium@1 Helvetica Neue @ 150px: baseline: DOM 6 lines, Pretext 5
+- shrinkwrap french "Syndicats": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 30, chromium@1.25 7, chromium@2 7, webkit@1 8, webkit@1.25 2, webkit@2 2; Helvetica Neue, Arial, Georgia, Times New Roman; 131-458px). E.g. chromium@1 Helvetica Neue @ 422px: widest line: DOM 397.734375px (wants 398), Pretext 427.66371154785156px (gave 422)
+- shrinkwrap french "Récit": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 169, chromium@1.25 43, chromium@2 43, webkit@1 166, webkit@1.25 43, webkit@2 43, firefox@1 204, firefox@1.25 52, firefox@2 52; Helvetica Neue, Times New Roman; 219-600px). E.g. chromium@1 Helvetica Neue @ 271px: widest line: DOM 269.734375px (wants 270), Pretext 270.0157928466797px (gave 271)
+- shrinkwrap french "Récit": baseline: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 302-302px). E.g. chromium@1 Helvetica Neue @ 302px: baseline: DOM 3 lines, Pretext 4
+- shrinkwrap french "Anticonstitutionnalité": widest line: DOM Npx (wants N), Pretext Npx (gave N) (chromium@1 2, webkit@1 11, webkit@1.25 3, webkit@2 3; Arial, Georgia, Times New Roman; 361-595px). E.g. chromium@1 Arial @ 595px: widest line: DOM 595.0078125px (wants 595), Pretext 568.3359375px (gave 569)
+- balance latin "Gatsby reserve": baseline: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1; Georgia; 142-592px). E.g. chromium@1 Georgia @ 142px: baseline: DOM 9 lines, Pretext 10
+- balance latin "Gatsby reserve": at Npx: DOM N lines, Pretext N (chromium@1 19, chromium@1.25 5, chromium@2 5; Georgia; 143-600px). E.g. chromium@1 Georgia @ 143px: at 142px: DOM 9 lines, Pretext 10
+- balance cjk "Japanese": baseline: DOM N lines, Pretext N (chromium@1 4; Georgia; 159-381px). E.g. chromium@1 Georgia @ 159px: baseline: DOM 5 lines, Pretext 6
+- balance cjk "Japanese": at Npx: DOM N lines, Pretext N (chromium@1 438, chromium@1.25 111, chromium@2 111; Georgia; 160-600px). E.g. chromium@1 Georgia @ 160px: at 159px: DOM 5 lines, Pretext 6
+- balance cjk "Japanese short": baseline: DOM N lines, Pretext N (chromium@1 2; Georgia; 191-381px). E.g. chromium@1 Georgia @ 191px: baseline: DOM 4 lines, Pretext 5
+- balance cjk "Japanese short": at Npx: DOM N lines, Pretext N (chromium@1 281, chromium@1.25 71, chromium@2 71; Georgia; 192-600px). E.g. chromium@1 Georgia @ 192px: at 191px: DOM 4 lines, Pretext 5
+- balance cjk "Kumo no ito": at Npx: DOM N lines, Pretext N (chromium@1 442, chromium@1.25 113, chromium@2 113; Georgia; 120-600px). E.g. chromium@1 Georgia @ 120px: at 111px: DOM 8 lines, Pretext 9
+- balance cjk "Kumo no ito": baseline: DOM N lines, Pretext N (chromium@1 6; Georgia; 127-415px). E.g. chromium@1 Georgia @ 127px: baseline: DOM 7 lines, Pretext 8
+- balance arabic "Numbers+RTL": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 251-251px). E.g. chromium@1 Arial @ 251px: baseline: DOM 2 lines, Pretext 3
+- balance arabic "Numbers+RTL": at Npx: DOM N lines, Pretext N (chromium@1 249, chromium@1.25 63, chromium@2 63; Arial; 252-500px). E.g. chromium@1 Arial @ 252px: at 251px: DOM 2 lines, Pretext 3
+- balance arabic "Support thread": baseline: DOM N lines, Pretext N (chromium@1 5, chromium@1.25 3, chromium@2 3; Arial, Times New Roman; 124-590px). E.g. chromium@1 Arial @ 135px: baseline: DOM 5 lines, Pretext 6
+- balance arabic "Support thread": at Npx: DOM N lines, Pretext N (chromium@1 370, chromium@1.25 92, chromium@2 92; Arial, Times New Roman; 125-600px). E.g. chromium@1 Arial @ 136px: at 135px: DOM 5 lines, Pretext 6
+- balance arabic "Long mixed": baseline: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 294-294px). E.g. chromium@1 Times New Roman @ 294px: baseline: DOM 4 lines, Pretext 5
+- balance arabic "Long mixed": at Npx: DOM N lines, Pretext N (chromium@1 83, chromium@1.25 21, chromium@2 21; Times New Roman; 295-377px). E.g. chromium@1 Times New Roman @ 295px: at 294px: DOM 4 lines, Pretext 5
+- balance emoji-chat "Flags": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 535-535px). E.g. chromium@1 Arial @ 535px: baseline: DOM 1 lines, Pretext 2
+- balance emoji-chat "Flags": at Npx: DOM N lines, Pretext N (chromium@1 65, chromium@1.25 17, chromium@2 17; Arial; 536-600px). E.g. chromium@1 Arial @ 536px: at 535px: DOM 1 lines, Pretext 2
+- balance emoji-chat "ZWJ family": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 257-257px). E.g. chromium@1 Arial @ 257px: baseline: DOM 2 lines, Pretext 3
+- balance emoji-chat "ZWJ family": at Npx: DOM N lines, Pretext N (chromium@1 240, chromium@1.25 60, chromium@2 60; Arial; 258-497px). E.g. chromium@1 Arial @ 258px: at 257px: DOM 2 lines, Pretext 3
+- balance emoji-chat "Weather report": baseline: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 206-206px). E.g. chromium@1 Times New Roman @ 206px: baseline: DOM 2 lines, Pretext 3
+- balance emoji-chat "Weather report": at Npx: DOM N lines, Pretext N (chromium@1 206, chromium@1.25 52, chromium@2 52; Times New Roman; 207-412px). E.g. chromium@1 Times New Roman @ 207px: at 206px: DOM 2 lines, Pretext 3
+- balance urls "Bare URL": baseline: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue, Arial; 177-274px). E.g. chromium@1 Helvetica Neue @ 274px: baseline: DOM 2 lines, Pretext 3
+- balance urls "Bare URL": at Npx: DOM N lines, Pretext N (chromium@1 354, chromium@1.25 88, chromium@2 88; Helvetica Neue, Arial; 178-542px). E.g. chromium@1 Helvetica Neue @ 275px: at 274px: DOM 2 lines, Pretext 3
+- balance urls "Query string": baseline: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue; 125-246px). E.g. chromium@1 Helvetica Neue @ 125px: baseline: DOM 10 lines, Pretext 11
+- balance urls "Query string": at Npx: DOM N lines, Pretext N (chromium@1 30, chromium@1.25 8, chromium@2 8; Helvetica Neue; 126-273px). E.g. chromium@1 Helvetica Neue @ 126px: at 125px: DOM 10 lines, Pretext 11
+- balance urls "Data URI": baseline: DOM N lines, Pretext N (chromium@1 24, chromium@1.25 7, chromium@2 7, firefox@1 1; Helvetica Neue, Arial, Times New Roman; 127-570px). E.g. chromium@1 Helvetica Neue @ 144px: baseline: DOM 8 lines, Pretext 9
+- balance urls "Data URI": at Npx: DOM N lines, Pretext N (chromium@1 697, chromium@1.25 175, chromium@2 175, firefox@1 173, firefox@1.25 44, firefox@2 44; Helvetica Neue, Arial, Times New Roman; 128-600px). E.g. chromium@1 Helvetica Neue @ 146px: at 145px: DOM 8 lines, Pretext 9
+- balance urls "npm scope": baseline: DOM N lines, Pretext N (chromium@1 1; Helvetica Neue; 245-245px). E.g. chromium@1 Helvetica Neue @ 245px: baseline: DOM 3 lines, Pretext 4
+- balance urls "npm scope": at Npx: DOM N lines, Pretext N (chromium@1 242, chromium@1.25 60, chromium@2 60; Helvetica Neue; 246-487px). E.g. chromium@1 Helvetica Neue @ 246px: at 245px: DOM 3 lines, Pretext 4
+- balance urls "Unix path": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 153-153px). E.g. chromium@1 Arial @ 153px: baseline: DOM 5 lines, Pretext 6
+- balance urls "Unix path": at Npx: DOM N lines, Pretext N (chromium@1 42, chromium@1.25 10, chromium@2 10; Arial; 154-195px). E.g. chromium@1 Arial @ 154px: at 153px: DOM 5 lines, Pretext 6
+- balance urls "Snake case": baseline: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1; Arial, Times New Roman; 129-303px). E.g. chromium@1 Arial @ 129px: baseline: DOM 9 lines, Pretext 10
+- balance urls "Snake case": at Npx: DOM N lines, Pretext N (chromium@1 73, chromium@1.25 18, chromium@2 18; Arial, Times New Roman; 130-330px). E.g. chromium@1 Arial @ 130px: at 129px: DOM 9 lines, Pretext 10
+- balance german "Fehlermeldung": baseline: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 2, firefox@2 2; Helvetica Neue; 128-594px). E.g. chromium@1 Helvetica Neue @ 212px: baseline: DOM 3 lines, Pretext 4
+- balance german "Fehlermeldung": at Npx: DOM N lines, Pretext N (chromium@1 88, chromium@1.25 22, chromium@2 22, firefox@1 123, firefox@1.25 31, firefox@2 31; Helvetica Neue; 129-600px). E.g. chromium@1 Helvetica Neue @ 213px: at 212px: DOM 3 lines, Pretext 4
+- balance german "Kapitän": baseline: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 1; Arial, Helvetica Neue; 164-262px). E.g. chromium@1 Arial @ 164px: baseline: DOM 6 lines, Pretext 5
+- balance german "Kapitän": at returned Npx: DOM N lines, Pretext N (chromium@1 39, chromium@1.25 9, chromium@2 9, firefox@1 141, firefox@1.25 35, firefox@2 35; Arial, Helvetica Neue; 165-403px). E.g. chromium@1 Arial @ 165px: at returned 164px: DOM 6 lines, Pretext 5
+- balance french "Synchroniser": baseline: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 1, firefox@2 1; Helvetica Neue; 121-231px). E.g. chromium@1 Helvetica Neue @ 140px: baseline: DOM 6 lines, Pretext 5
+- balance french "Synchroniser": at returned Npx: DOM N lines, Pretext N (chromium@1 122, chromium@1.25 31, chromium@2 31, firefox@1 140, firefox@1.25 35, firefox@2 35; Helvetica Neue; 122-325px). E.g. chromium@1 Helvetica Neue @ 141px: at returned 140px: DOM 6 lines, Pretext 5
+- balance french "Responsabilité": baseline: DOM N lines, Pretext N (chromium@1 2, firefox@1 2; Helvetica Neue; 178-286px). E.g. chromium@1 Helvetica Neue @ 178px: baseline: DOM 6 lines, Pretext 5
+- balance french "Responsabilité": at returned Npx: DOM N lines, Pretext N (chromium@1 203, chromium@1.25 51, chromium@2 51, firefox@1 203, firefox@1.25 51, firefox@2 51; Helvetica Neue; 179-437px). E.g. chromium@1 Helvetica Neue @ 179px: at returned 178px: DOM 6 lines, Pretext 5
+- balance french "Syndicats": baseline: DOM N lines, Pretext N (chromium@1 16, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 134-155px). E.g. chromium@1 Helvetica Neue @ 150px: baseline: DOM 6 lines, Pretext 5
+- balance french "Syndicats": at returned Npx: DOM N lines, Pretext N (chromium@1 147, chromium@1.25 37, chromium@2 37; Helvetica Neue, Arial, Georgia, Times New Roman; 136-193px). E.g. chromium@1 Helvetica Neue @ 156px: at returned 150px: DOM 6 lines, Pretext 5
+- balance french "Récit": at Npx: DOM N lines, Pretext N (chromium@1 159, chromium@1.25 40, chromium@2 40, firefox@1 159, firefox@1.25 40, firefox@2 40; Helvetica Neue; 120-455px). E.g. chromium@1 Helvetica Neue @ 120px: at 113px: DOM 9 lines, Pretext 10
+- balance french "Récit": baseline: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 302-302px). E.g. chromium@1 Helvetica Neue @ 302px: baseline: DOM 3 lines, Pretext 4
+- fitFontSize latin "Gatsby reserve": baseline: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1; Georgia; 142-592px). E.g. chromium@1 Georgia @ 142px: baseline: DOM 9 lines, Pretext 10
+- fitFontSize latin "Gatsby reserve": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 143-143px). E.g. chromium@1 Times New Roman @ 143px: returned 10px, at 10px: DOM 5 lines, Pretext 6
+- fitFontSize latin "Gatsby decencies": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1; Times New Roman; 516-516px). E.g. chromium@1 Times New Roman @ 516px: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- fitFontSize cjk "Japanese": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 26, chromium@1.25 5, chromium@2 5; Georgia; 129-596px). E.g. chromium@1 Georgia @ 129px: returned 12px, at 13px: DOM 5 lines, Pretext 6
+- fitFontSize cjk "Japanese": baseline: DOM N lines, Pretext N (chromium@1 4; Georgia; 159-381px). E.g. chromium@1 Georgia @ 159px: baseline: DOM 5 lines, Pretext 6
+- fitFontSize cjk "Japanese short": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 19, chromium@1.25 5, chromium@2 5; Georgia; 143-596px). E.g. chromium@1 Georgia @ 143px: returned 12px, at 12px: DOM 4 lines, Pretext 5
+- fitFontSize cjk "Japanese short": baseline: DOM N lines, Pretext N (chromium@1 2; Georgia; 191-381px). E.g. chromium@1 Georgia @ 191px: baseline: DOM 4 lines, Pretext 5
+- fitFontSize cjk "Kumo no ito": baseline: DOM N lines, Pretext N (chromium@1 6; Georgia; 127-415px). E.g. chromium@1 Georgia @ 127px: baseline: DOM 7 lines, Pretext 8
+- fitFontSize cjk "Kumo no ito": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 17, chromium@1.25 5, chromium@2 5; Georgia; 194-597px). E.g. chromium@1 Georgia @ 194px: returned 14px, at 15px: DOM 4 lines, Pretext 5
+- fitFontSize arabic "Bukhala names": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1; Helvetica Neue; 305-305px). E.g. chromium@1 Helvetica Neue @ 305px: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- fitFontSize arabic "Numbers+RTL": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 251-251px). E.g. chromium@1 Arial @ 251px: baseline: DOM 2 lines, Pretext 3
+- fitFontSize arabic "Support thread": baseline: DOM N lines, Pretext N (chromium@1 5, chromium@1.25 3, chromium@2 3; Arial, Times New Roman; 124-590px). E.g. chromium@1 Arial @ 135px: baseline: DOM 5 lines, Pretext 6
+- fitFontSize arabic "Support thread": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 35, chromium@1.25 8, chromium@2 8; Arial, Times New Roman; 373-592px). E.g. chromium@1 Arial @ 401px: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- fitFontSize arabic "Long mixed": baseline: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 294-294px). E.g. chromium@1 Times New Roman @ 294px: baseline: DOM 4 lines, Pretext 5
+- fitFontSize arabic "Long mixed": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 3, chromium@1.25 1, chromium@2 1; Times New Roman; 401-519px). E.g. chromium@1 Times New Roman @ 401px: returned 16px, at 17px: DOM 3 lines, Pretext 4
+- fitFontSize emoji-chat "Flags": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 535-535px). E.g. chromium@1 Arial @ 535px: baseline: DOM 1 lines, Pretext 2
+- fitFontSize emoji-chat "ZWJ family": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 257-257px). E.g. chromium@1 Arial @ 257px: baseline: DOM 2 lines, Pretext 3
+- fitFontSize emoji-chat "Weather report": baseline: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 206-206px). E.g. chromium@1 Times New Roman @ 206px: baseline: DOM 2 lines, Pretext 3
+- fitFontSize urls "Bare URL": baseline: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue, Arial; 177-274px). E.g. chromium@1 Helvetica Neue @ 274px: baseline: DOM 2 lines, Pretext 3
+- fitFontSize urls "Bare URL": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 7, chromium@1.25 2, chromium@2 2; Helvetica Neue; 394-565px). E.g. chromium@1 Helvetica Neue @ 394px: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- fitFontSize urls "Query string": baseline: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue; 125-246px). E.g. chromium@1 Helvetica Neue @ 125px: baseline: DOM 10 lines, Pretext 11
+- fitFontSize urls "Query string": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 5; Helvetica Neue, Arial; 169-467px). E.g. chromium@1 Helvetica Neue @ 169px: returned 10px, at 11px: DOM 5 lines, Pretext 6
+- fitFontSize urls "Data URI": baseline: DOM N lines, Pretext N (chromium@1 24, chromium@1.25 7, chromium@2 7, firefox@1 1; Helvetica Neue, Arial, Times New Roman; 127-570px). E.g. chromium@1 Helvetica Neue @ 144px: baseline: DOM 8 lines, Pretext 9
+- fitFontSize urls "Data URI": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 49, chromium@1.25 12, chromium@2 12; Helvetica Neue, Arial, Georgia, Times New Roman; 158-522px). E.g. chromium@1 Helvetica Neue @ 158px: returned 10px, at 11px: DOM 5 lines, Pretext 6
+- fitFontSize urls "npm scope": baseline: DOM N lines, Pretext N (chromium@1 1; Helvetica Neue; 245-245px). E.g. chromium@1 Helvetica Neue @ 245px: baseline: DOM 3 lines, Pretext 4
+- fitFontSize urls "npm scope": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 3; Helvetica Neue, Times New Roman; 145-337px). E.g. chromium@1 Helvetica Neue @ 291px: returned 18px, at 19px: DOM 3 lines, Pretext 4
+- fitFontSize urls "Unix path": baseline: DOM N lines, Pretext N (chromium@1 1; Arial; 153-153px). E.g. chromium@1 Arial @ 153px: baseline: DOM 5 lines, Pretext 6
+- fitFontSize urls "Snake case": baseline: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1; Arial, Times New Roman; 129-303px). E.g. chromium@1 Arial @ 129px: baseline: DOM 9 lines, Pretext 10
+- fitFontSize urls "Snake case": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1; Times New Roman; 189-246px). E.g. chromium@1 Times New Roman @ 189px: returned 10px, at 10px: DOM 5 lines, Pretext 6
+- fitFontSize urls "Path with spaces": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1; Times New Roman; 490-490px). E.g. chromium@1 Times New Roman @ 490px: returned 23px, at 24px: DOM 2 lines, Pretext 3
+- fitFontSize german "Datenschutz": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1; Helvetica Neue, Arial; 368-589px). E.g. chromium@1 Helvetica Neue @ 589px: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- fitFontSize german "Kapitän": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1, firefox@1 4, firefox@1.25 1, firefox@2 1; Helvetica Neue, Arial; 123-360px). E.g. chromium@1 Helvetica Neue @ 278px: returned 17px, at 17px: DOM 4 lines, Pretext 3
+- fitFontSize german "Fehlermeldung": baseline: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 2, firefox@2 2; Helvetica Neue; 128-594px). E.g. chromium@1 Helvetica Neue @ 212px: baseline: DOM 3 lines, Pretext 4
+- fitFontSize german "Fehlermeldung": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 265-265px). E.g. chromium@1 Helvetica Neue @ 265px: returned 19px, at 20px: DOM 3 lines, Pretext 4
+- fitFontSize german "One word": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 7, chromium@1.25 2, chromium@2 2, firefox@1 10, firefox@1.25 2, firefox@2 2; Helvetica Neue; 367-577px). E.g. chromium@1 Helvetica Neue @ 367px: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- fitFontSize german "Kapitän": baseline: DOM N lines, Pretext N (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 1; Arial, Helvetica Neue; 164-262px). E.g. chromium@1 Arial @ 164px: baseline: DOM 6 lines, Pretext 5
+- fitFontSize french "Enregistrer": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 2; Helvetica Neue, Georgia; 311-322px). E.g. chromium@1 Helvetica Neue @ 311px: returned 22px, at 23px: DOM 2 lines, Pretext 3
+- fitFontSize french "Synchroniser": baseline: DOM N lines, Pretext N (chromium@1 2, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 1, firefox@2 1; Helvetica Neue; 121-231px). E.g. chromium@1 Helvetica Neue @ 140px: baseline: DOM 6 lines, Pretext 5
+- fitFontSize french "Synchroniser": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 4, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 1, firefox@2 1; Helvetica Neue; 303-570px). E.g. chromium@1 Helvetica Neue @ 303px: returned 21px, at 21px: DOM 4 lines, Pretext 3
+- fitFontSize french "Justificatifs": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 10, chromium@1.25 2, chromium@2 2, firefox@1 14, firefox@1.25 4, firefox@2 4; Helvetica Neue, Times New Roman; 294-512px). E.g. chromium@1 Helvetica Neue @ 326px: returned 21px, at 21px: DOM 2 lines, Pretext 3
+- fitFontSize french "Responsabilité": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 5, firefox@1 4; Helvetica Neue; 173-574px). E.g. chromium@1 Helvetica Neue @ 173px: returned 12px, at 12px: DOM 5 lines, Pretext 4
+- fitFontSize french "Responsabilité": baseline: DOM N lines, Pretext N (chromium@1 2, firefox@1 2; Helvetica Neue; 178-286px). E.g. chromium@1 Helvetica Neue @ 178px: baseline: DOM 6 lines, Pretext 5
+- fitFontSize french "Syndicats": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 15, chromium@1.25 5, chromium@2 5, firefox@1 2, firefox@1.25 1, firefox@2 1; Helvetica Neue, Arial, Georgia; 120-592px). E.g. chromium@1 Helvetica Neue @ 122px: returned 12px, at 13px: DOM 6 lines, Pretext 5
+- fitFontSize french "Syndicats": baseline: DOM N lines, Pretext N (chromium@1 16, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 134-155px). E.g. chromium@1 Helvetica Neue @ 150px: baseline: DOM 6 lines, Pretext 5
+- fitFontSize french "Récit": baseline: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 302-302px). E.g. chromium@1 Helvetica Neue @ 302px: baseline: DOM 3 lines, Pretext 4
+- fitFontSize french "Récit": returned Npx, at Npx: DOM N lines, Pretext N (chromium@1 1, firefox@1 1; Helvetica Neue; 415-415px). E.g. chromium@1 Helvetica Neue @ 415px: returned 21px, at 22px: DOM 3 lines, Pretext 4
+- clamp latin "Latin update": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1; Helvetica Neue; 462-462px). E.g. chromium@1 Helvetica Neue @ 462px maxLines 2: line 2 "performance improvements are really noticeable, especially on…" paints 462.0234375px, Pretext 462.015625px, box 462px
+- clamp latin "Latin hyphenation": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1, chromium@1.25 1, chromium@2 1; Helvetica Neue; 492-492px). E.g. chromium@1 Helvetica Neue @ 492px maxLines 1: line 1 "One thing I noticed is that the line breaking algorithm doesn't hand…" paints 492.0234375px, Pretext 492.0155792236328px, box 492px
+- clamp latin "Gatsby reserve": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1, chromium@1.25 1, chromium@2 1; Georgia; 592-592px). E.g. chromium@1 Georgia @ 592px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp latin "Gatsby reserve": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 3, chromium@1.25 3, chromium@2 3; Georgia; 592-592px). E.g. chromium@1 Georgia @ 592px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp cjk "Zhufu quotes": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 144, chromium@1.25 36, chromium@2 36; Helvetica Neue, Arial, Georgia; 128-375px). E.g. chromium@1 Helvetica Neue @ 368px maxLines 2: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 376px, box 368px
+- clamp cjk "Japanese": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 4; Georgia; 159-381px). E.g. chromium@1 Georgia @ 381px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp cjk "Japanese": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 6; Georgia; 191-381px). E.g. chromium@1 Georgia @ 381px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp cjk "Japanese short": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 2; Georgia; 191-381px). E.g. chromium@1 Georgia @ 381px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp cjk "Japanese short": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 4; Georgia; 191-381px). E.g. chromium@1 Georgia @ 381px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp cjk "Kumo no ito": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 4; Georgia; 207-415px). E.g. chromium@1 Georgia @ 414px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp cjk "Kumo no ito": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 9; Georgia; 207-415px). E.g. chromium@1 Georgia @ 414px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp arabic "Support thread": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1; Helvetica Neue; 183-183px). E.g. chromium@1 Helvetica Neue @ 183px maxLines 2: line 2 "thread said: \"هذا جيد، ولك…" paints 183.0234375px, Pretext 183.01214599609375px, box 183px
+- clamp arabic "Numbers+RTL": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Arial; 251-251px). E.g. chromium@1 Arial @ 251px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp arabic "Numbers+RTL": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 3; Arial; 251-251px). E.g. chromium@1 Arial @ 251px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp arabic "Support thread": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 5, chromium@1.25 3, chromium@2 3; Arial, Times New Roman; 124-590px). E.g. chromium@1 Arial @ 590px maxLines 1: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
+- clamp arabic "Support thread": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 11, chromium@1.25 7, chromium@2 7; Arial, Times New Roman; 284-590px). E.g. chromium@1 Arial @ 590px maxLines 2: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
+- clamp arabic "Long mixed": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Times New Roman; 294-294px). E.g. chromium@1 Times New Roman @ 294px maxLines 4: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 4 (truncated true; 5 unclamped)
+- clamp arabic "Long mixed": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 1; Times New Roman; 294-294px). E.g. chromium@1 Times New Roman @ 294px maxLines 5: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 5 (truncated false; 5 unclamped)
+- clamp emoji-chat "Flags": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Arial; 535-535px). E.g. chromium@1 Arial @ 535px maxLines 1: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
+- clamp emoji-chat "Flags": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 4; Arial; 535-535px). E.g. chromium@1 Arial @ 535px maxLines 2: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
+- clamp emoji-chat "ZWJ family": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Arial; 257-257px). E.g. chromium@1 Arial @ 257px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp emoji-chat "ZWJ family": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 3; Arial; 257-257px). E.g. chromium@1 Arial @ 257px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp emoji-chat "Weather report": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Times New Roman; 206-206px). E.g. chromium@1 Times New Roman @ 206px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp emoji-chat "Weather report": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 3; Times New Roman; 206-206px). E.g. chromium@1 Times New Roman @ 206px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp urls "Bare URL": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 2; Helvetica Neue, Arial; 177-274px). E.g. chromium@1 Helvetica Neue @ 274px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp urls "Bare URL": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 5; Helvetica Neue, Arial; 177-274px). E.g. chromium@1 Helvetica Neue @ 274px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp urls "Query string": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Helvetica Neue; 246-246px). E.g. chromium@1 Helvetica Neue @ 246px maxLines 5: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
+- clamp urls "Data URI": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 19, chromium@1.25 5, chromium@2 5, firefox@1 1; Helvetica Neue, Arial, Times New Roman; 230-570px). E.g. chromium@1 Helvetica Neue @ 563px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
+- clamp urls "Data URI": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 40, chromium@1.25 11, chromium@2 11, firefox@1 1; Helvetica Neue, Arial, Times New Roman; 286-570px). E.g. chromium@1 Helvetica Neue @ 563px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp urls "npm scope": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Helvetica Neue; 245-245px). E.g. chromium@1 Helvetica Neue @ 245px maxLines 3: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
+- clamp urls "npm scope": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2; Helvetica Neue; 245-245px). E.g. chromium@1 Helvetica Neue @ 245px maxLines 4: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
+- clamp urls "Unix path": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1; Arial; 153-153px). E.g. chromium@1 Arial @ 153px maxLines 5: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
+- clamp urls "Snake case": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 2; Times New Roman; 302-303px). E.g. chromium@1 Times New Roman @ 302px maxLines 5: DOM clamps to 5 lines (truncated false: scrollHeight 120, clientHeight 120; 5 unclamped), Pretext 5 (truncated true; 6 unclamped)
+- clamp german "Nebenrollen": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 100, chromium@1.25 32, chromium@2 32; Helvetica Neue, Arial, Georgia, Times New Roman; 159-180px). E.g. chromium@1 Helvetica Neue @ 172px maxLines 2: line 1 "Bitte die Nebenrollen-Ta-" paints 178.1015625px, Pretext 178.0958251953125px, box 172px
+- clamp german "Datenschutz": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1; Helvetica Neue; 402-402px). E.g. chromium@1 Helvetica Neue @ 402px maxLines 2: line 2 "vollziehbare Einwilligungsverwaltung für alle Benutzer-…" paints 402.0234375px, Pretext 402.0155944824219px, box 402px
+- clamp german "Fehlermeldung": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 2, firefox@2 2; Helvetica Neue; 128-594px). E.g. chromium@1 Helvetica Neue @ 212px maxLines 3: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
+- clamp german "Fehlermeldung": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, chromium@1.25 2, chromium@2 2, firefox@1 6, firefox@1.25 2, firefox@2 2; Helvetica Neue; 212-594px). E.g. chromium@1 Helvetica Neue @ 212px maxLines 4: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
+- clamp german "Förderung": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 7, firefox@1 5; Helvetica Neue, Arial, Times New Roman; 263-362px). E.g. chromium@1 Helvetica Neue @ 265px maxLines 4: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 265.0625px, Pretext 265.0557556152344px, box 265px
+- clamp german "Kapitän": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 3, chromium@1.25 3, chromium@2 3, firefox@1 4, firefox@1.25 4, firefox@2 4; Arial; 164-164px). E.g. chromium@1 Arial @ 164px maxLines 2: line 1 "Der Donaudampfschiff-" paints 164.2265625px, Pretext 164.2265625px, box 164px
+- clamp german "Kapitän": DOM clamps to N lines (truncated true: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 1; Arial, Helvetica Neue; 164-262px). E.g. chromium@1 Arial @ 164px maxLines 5: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
+- clamp french "Synchroniser": DOM clamps to N lines (truncated true: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, chromium@1.25 1, chromium@2 1, firefox@1 2, firefox@1.25 1, firefox@2 1; Helvetica Neue; 140-231px). E.g. chromium@1 Helvetica Neue @ 231px maxLines 3: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp french "Synchroniser": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 6, webkit@1 10, webkit@1.25 1, webkit@2 1, firefox@1 10; Helvetica Neue; 140-569px). E.g. chromium@1 Helvetica Neue @ 285px maxLines 3: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 285.05577087402344px, box 285px
+- clamp french "Synchroniser": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, firefox@1 2; Helvetica Neue; 231-231px). E.g. chromium@1 Helvetica Neue @ 231px maxLines 4: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp french "Responsabilité": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 21, chromium@1.25 9, chromium@2 9, webkit@1 24, webkit@1.25 9, webkit@2 9, firefox@1 13, firefox@1.25 5, firefox@2 5; Helvetica Neue; 178-567px). E.g. chromium@1 Helvetica Neue @ 454px maxLines 1: line 1 "La responsabilité environnementale des entreprises internatio…" paints 454.0234375px, Pretext 454.015625px, box 454px
+- clamp french "Responsabilité": DOM clamps to N lines (truncated true: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, firefox@1 2; Helvetica Neue; 178-286px). E.g. chromium@1 Helvetica Neue @ 286px maxLines 3: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp french "Responsabilité": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, firefox@1 2; Helvetica Neue; 286-286px). E.g. chromium@1 Helvetica Neue @ 286px maxLines 4: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp french "Syndicats": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 120, chromium@1.25 28, chromium@2 28; Helvetica Neue, Arial, Georgia, Times New Roman; 131-427px). E.g. chromium@1 Helvetica Neue @ 422px maxLines 2: line 1 "Les représentantes syndicales ont présenté une contre-pro-" paints 427.6640625px, Pretext 427.66371154785156px, box 422px
+- clamp french "Syndicats": DOM clamps to N lines (truncated true: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 16, chromium@1.25 4, chromium@2 4; Helvetica Neue, Arial, Georgia, Times New Roman; 134-155px). E.g. chromium@1 Helvetica Neue @ 150px maxLines 5: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
+- clamp french "Récit": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1, firefox@1 1; Helvetica Neue; 302-302px). E.g. chromium@1 Helvetica Neue @ 302px maxLines 3: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
+- clamp french "Récit": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, firefox@1 2; Helvetica Neue; 302-302px). E.g. chromium@1 Helvetica Neue @ 302px maxLines 4: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
+- truncateMiddle labels "Deep": returned "…" paints Npx, Pretext Npx, box Npx (chromium@1 2; Helvetica Neue; 354-362px). E.g. chromium@1 Helvetica Neue @ 354px: returned "a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/…/index.ts" paints 354.0234375px, Pretext 354.0155029296875px, box 354px
+- truncateMiddle german "Portal": returned "…" paints Npx, Pretext Npx, box Npx (chromium@1 1, chromium@1.25 1, chromium@2 1; Helvetica Neue; 376-376px). E.g. chromium@1 Helvetica Neue @ 376px: returned "Arbeitszeiterfassung, Urla…t du im Mitarbeiterportal." paints 376.0234375px, Pretext 376.015625px, box 376px
+- shrinkwrap german "Versicherung": widest line: DOM Npx (wants N), Pretext Npx (gave N) (webkit@1 15, webkit@1.25 4, webkit@2 4; Times New Roman; 139-496px). E.g. webkit@1 Times New Roman @ 139px: widest line: DOM 138px (wants 138), Pretext 138.1796875px (gave 139)
+- shrinkwrap german "Portal": widest line: DOM Npx (wants N), Pretext Npx (gave N) (webkit@1 7, webkit@1.25 2, webkit@2 2; Times New Roman; 188-194px). E.g. webkit@1 Times New Roman @ 188px: widest line: DOM 187px (wants 187), Pretext 187.0625px (gave 188)
+- shrinkwrap french "Autorisations": widest line: DOM Npx (wants N), Pretext Npx (gave N) (webkit@1 41, webkit@1.25 11, webkit@2 11; Times New Roman; 315-385px). E.g. webkit@1 Times New Roman @ 315px: widest line: DOM 314px (wants 314), Pretext 314.09375px (gave 315)
+- shrinkwrap french "Mot de passe": widest line: DOM Npx (wants N), Pretext Npx (gave N) (webkit@1 19, webkit@1.25 5, webkit@2 5; Times New Roman; 354-372px). E.g. webkit@1 Times New Roman @ 354px: widest line: DOM 353px (wants 353), Pretext 353.2421875px (gave 354)
+- clamp emoji-chat "Keycaps": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 11, webkit@1.25 8, webkit@2 8; Arial, Times New Roman; 193-380px). E.g. webkit@1 Arial @ 380px maxLines 2: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 380.765625px, Pretext 380.765625px, box 380px
+- clamp urls "Windows path": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 2; Helvetica Neue; 321-321px). E.g. webkit@1 Helvetica Neue @ 321px maxLines 4: line 3 "osoft\\Windows\\INetCache\\IE\\settings.ini and" paints 321.171875px, Pretext 321.16795349121094px, box 321px
+- clamp urls "Data URI": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 35, webkit@1.25 7, webkit@2 7, firefox@1 25, firefox@1.25 8, firefox@2 8; Helvetica Neue, Arial, Times New Roman; 175-542px). E.g. webkit@1 Helvetica Neue @ 531px maxLines 3: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E" paints 531.5625px, Pretext 531.552001953125px, box 531px
+- clamp urls "Snake case": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 1, firefox@1 1; Helvetica Neue; 182-182px). E.g. webkit@1 Helvetica Neue @ 182px maxLines 5: line 4 "TION_JOBS_PER_WORK" paints 182.546875px, Pretext 182.54400634765625px, box 182px
+- shrinkwrap german "Kapitän": at returned Npx: DOM N lines, Pretext N (firefox@1 22, firefox@1.25 6, firefox@2 6; Helvetica Neue; 263-284px). E.g. firefox@1 Helvetica Neue @ 263px: at returned 262px: DOM 4 lines, Pretext 3
+- shrinkwrap german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
+- balance german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
+- balance german "One word": at Npx: DOM N lines, Pretext N (firefox@1 62, firefox@1.25 16, firefox@2 16; Helvetica Neue; 539-600px). E.g. firefox@1 Helvetica Neue @ 539px: at 538px: DOM 1 lines, Pretext 2
+- fitFontSize german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
+- clamp urls "Query string": line N "…" paints Npx, Pretext Npx, box Npx (firefox@1 1; Helvetica Neue; 213-213px). E.g. firefox@1 Helvetica Neue @ 213px maxLines 5: line 4 "elevance&page=3&utm_sourc" paints 213.28334045410156px, Pretext 213.28334045410156px, box 213px
+- clamp german "Kapitän": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (firefox@1 2; Helvetica Neue; 262-262px). E.g. firefox@1 Helvetica Neue @ 262px maxLines 4: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
+- clamp german "One word": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px maxLines 1: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
+- clamp german "One word": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (firefox@1 4; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px maxLines 2: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)

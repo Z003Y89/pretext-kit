@@ -60,7 +60,7 @@ test('an infinite width never constrains', () =>
 // syllables measure narrower joined than apart (here 'ts' kerns) and reports its width apart, past
 // the box, so the size was refused though the line fits; the browser paints it fitting.
 test('a soft-hyphen line Pretext fits counts as fitting though its width apart is wider', () => {
-  const sizes = prepareSizes('aat­saa­bb cc', px => `${px}px Kern`, { min: 10, max: 20 })
+  const sizes = prepareSizes('aat\u00ADsaa\u00ADbb cc', px => `${px}px Kern`, { min: 10, max: 20 })
   const fit = fitFontSize(sizes, { width: 65, height: 60 }, () => 30)
   assert.equal(fit?.px, 20)
   assert.equal(fit?.lineCount, 2)

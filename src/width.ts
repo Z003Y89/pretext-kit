@@ -42,12 +42,12 @@ function balanceWith<P>(stats: StatsFn<P>, prepared: P, maxWidth: number): Width
     else lo = mid + 1
   }
   // A line Pretext fitted at lo may measure past lo, and lo still holds it: by up to its fit
-  // tolerance, or by more where it ends at a soft hyphen whose syllables measure narrower joined
-  // than apart (Pretext reports the width apart). Rounding that up would answer wider than needed.
-  // Only a grapheme wider than lo, which lines hold one each at any width (so the search bottoms
-  // out at 1px), needs the wider result, capped at maxWidth where a browser would overflow it.
-  const widest = stats(prepared, lo).maxLineWidth
-  const width = Math.min(maxWidth, lo > 1 || widest <= lo + FIT_TOLERANCE ? lo : Math.ceil(widest))
+  // tolerance, or by more where Pretext keeps a line it reports wider than it paints (one ending at
+  // a soft hyphen whose syllables measure narrower joined than apart). Rounding that up would answer
+  // wider than needed. Only a piece no width breaks (a grapheme) that is wider than lo overflows
+  // there, and needs the wider result, capped at maxWidth where a browser would overflow it.
+  const unit = stats(prepared, 0).maxLineWidth
+  const width = unit > lo + FIT_TOLERANCE ? Math.min(maxWidth, Math.ceil(unit)) : lo
   // Line counts are not monotone in width, so the search result is not guaranteed to reproduce the
   // target at the width actually returned; verify it and fall back to the always-correct shrinkwrap.
   const check = stats(prepared, width)
