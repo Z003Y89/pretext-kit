@@ -20,6 +20,9 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "node --test --import ./test/setup.ts test/*.test.ts && npm run test:headless",
     "test:headless": "node --test test/headless/*.test.ts examples/*.test.ts",
@@ -35,9 +38,9 @@
     "bench": "node verify/bench-run.ts"
   },
   "peerDependencies": {
-    "@chenglou/pretext": ">=0.0.10",
-    "harfbuzzjs": "1.6.2",
-    "wawoff2": "2.0.1"
+    "@chenglou/pretext": ">=0.0.10 <0.0.11",
+    "harfbuzzjs": "^1.6.2",
+    "wawoff2": "^2.0.1"
   },
   "peerDependenciesMeta": {
     "harfbuzzjs": {
