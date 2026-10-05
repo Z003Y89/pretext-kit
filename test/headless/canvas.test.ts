@@ -3,10 +3,18 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
+import { layoutWithLines, measureLineStats, prepareWithSegments } from '@chenglou/pretext'
 import { HeadlessCoverageError, install, registerFont } from '../../src/headless/index.ts'
+import { instanceWeight } from '../../src/headless/canvas.ts'
+import type { FontFace } from '../../src/headless/fonts.ts'
 
-await registerFont('Inter', new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.ttf', import.meta.url))))
+const font = (name: string) => new Uint8Array(readFileSync(new URL(`../fonts/${name}`, import.meta.url)))
+await registerFont('Inter', font('Inter-Regular.ttf'))
+// Roboto (Apache 2.0) kerns T with the space glyph, which Inter does with nothing.
+await registerFont('Roboto', font('Roboto-Regular.ttf'))
+// Inter subset to U+0020-007E and U+00A0 (pyftsubset, all layout features kept): a font
+// without U+2010, for the soft hyphen's '-' path.
+await registerFont('NoHyphen', font('Inter-Latin-NoU2010.ttf'))
 install()
 
 function context(font = '16px Inter'): OffscreenCanvasRenderingContext2D {
@@ -37,6 +45,20 @@ test('no kerning across a space', () => {
   assert.equal(width('A V'), width('A') + width(' ') + width('V'))
 })
 
+test('Canvas words are cut at U+0020, so kerning with the space glyph is lost', () => {
+  const roboto = context('16px Roboto')
+  const cut = width('x T x', roboto)
+  assert.equal(cut, width('x', roboto) * 2 + width(' ', roboto) * 2 + width('T', roboto))
+  // U+2028, which Roboto lacks, draws the space glyph without a cut, so there T kerns with it.
+  assert.equal(width('\u2028', roboto), width(' ', roboto))
+  assert.ok(width('x\u2028T\u2028x', roboto) < cut)
+})
+
+test('ZWSP and TAB cut a word too', () => {
+  assert.equal(width('A\u200BV'), width('A') + width('V'))
+  assert.equal(width('A\tV'), width('A V'))
+})
+
 test('fontKerning "none" turns kerning off', () => {
   const ctx = context()
   ctx.fontKerning = 'none'
@@ -60,6 +82,13 @@ test('letter spacing is added per grapheme, with ligatures off', () => {
   assert.equal(width('fi', ctx), width('f') + width('i') + 2 * 0.5)
   // A combining mark is part of its base's grapheme and takes no spacing of its own.
   assert.equal(width('é', ctx), width('é') + 0.5)
+})
+
+test('any letter spacing turns contextual alternates off', () => {
+  const ctx = context()
+  assert.equal(width('->', ctx), 15.265625)
+  ctx.letterSpacing = '0.000001px'
+  assert.equal(width('->', ctx), 17.9453125)
 })
 
 test('letter spacing round-trips as a string', () => {
@@ -113,6 +142,22 @@ test('default ignorables a font lacks are zero-width, not a coverage error', () 
   assert.equal(width('a️'), width('a'))
 })
 
+test('generic families measure only Pretext\'s hyphen probes, differently from each other', () => {
+  for (const probe of [' ', '\u2010']) {
+    assert.notEqual(width(probe, context('16px monospace')), width(probe, context('16px serif')))
+  }
+  // A registered family that covers the probe measures it for real.
+  assert.equal(width(' ', context('16px Inter, monospace')), width(' '))
+  // Real text never reaches a generic stand-in.
+  assert.throws(() => width('a', context('16px monospace')), HeadlessCoverageError)
+  assert.throws(() => width('a中', context('16px Inter, sans-serif')), HeadlessCoverageError)
+})
+
+test('a lone U+2010 a font lacks measures as .notdef instead of throwing', () => {
+  assert.equal(typeof width('\u2010', context('16px NoHyphen')), 'number')
+  assert.throws(() => width('a\u2010', context('16px NoHyphen')), HeadlessCoverageError)
+})
+
 test('a code point no registered font covers throws HeadlessCoverageError', () => {
   assert.throws(() => width('a中'), (error: unknown) => {
     assert.ok(error instanceof HeadlessCoverageError)
@@ -158,6 +203,47 @@ test('install() twice is idempotent', () => {
 test('install() rejects unknown options', () => {
   assert.throws(() => install({ onMissingGlyph: 'skip' as 'throw' }), RangeError)
   assert.throws(() => install({ rounding: 'half-px' as 'none' }), RangeError)
+})
+
+test('a variable face is shaped at its registered weight range, then its axis', () => {
+  const face = (weightMin: number, weightMax: number, axis: [number, number] | null) =>
+    ({ weightMin, weightMax, axes: axis === null ? [] : [{ tag: 'wght', min: axis[0], default: 400, max: axis[1] }] }) as unknown as FontFace
+  assert.equal(instanceWeight(face(400, 500, [100, 900]), 700), 500)
+  assert.equal(instanceWeight(face(400, 500, [100, 900]), 300), 400)
+  assert.equal(instanceWeight(face(100, 900, [300, 700]), 800), 700)
+  assert.equal(instanceWeight(face(100, 900, [100, 900]), 650), 650)
+  assert.equal(instanceWeight(face(400, 400, null), 700), null)
+})
+
+test('a second copy of the module installs without throwing and shares the options', async () => {
+  const copy = (await import(new URL('../../src/headless/canvas.ts?copy', import.meta.url).href)) as { install: typeof install }
+  const before = OffscreenCanvas
+  copy.install({ onMissingGlyph: 'notdef' })
+  try {
+    assert.equal(OffscreenCanvas, before)
+    assert.equal(typeof width('中'), 'number')
+  } finally {
+    copy.install()
+  }
+  assert.throws(() => width('中'), HeadlessCoverageError)
+})
+
+test('Pretext breaks at a soft hyphen with the font\'s own U+2010', () => {
+  const prepared = prepareWithSegments('Zahlungs\u00ADpflichtig abonnieren', '16px Inter')
+  // Only "Zahlungs" and a hyphen fit on the first line.
+  const lines = layoutWithLines(prepared, 100, 20).lines
+  assert.equal(lines[0]!.text, 'Zahlungs-')
+  assert.equal(lines[0]!.width, width('Zahlungs\u2010'))
+  assert.notEqual(width('Zahlungs\u2010'), width('Zahlungs-'))
+  assert.equal(lines.length, 3)
+})
+
+test('Pretext breaks at a soft hyphen with "-" in a font without U+2010', () => {
+  const prepared = prepareWithSegments('Zahlungs\u00ADpflichtig abonnieren', '16px NoHyphen')
+  const lines = layoutWithLines(prepared, 100, 20).lines
+  assert.equal(lines[0]!.text, 'Zahlungs-')
+  assert.equal(lines[0]!.width, width('Zahlungs-', context('16px NoHyphen')))
+  assert.equal(lines.length, 3)
 })
 
 test('Pretext lays out on the stand-in', () => {

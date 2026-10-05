@@ -1,6 +1,7 @@
 import { inflateSync } from 'node:zlib'
 import { Blob, Face } from 'harfbuzzjs'
 import * as wawoff2 from 'wawoff2'
+import { sharedState } from './shared.ts'
 
 export type FontStyle = 'normal' | 'italic'
 
@@ -20,10 +21,25 @@ export type FontFace = {
   style: FontStyle
   upem: number
   axes: FaceAxis[]
+  // The HarfBuzz face of the copy of this module that registered it; read others through hbFace().
   face: Face
+  // The sfnt bytes and collection index, so another copy of this module (with its own HarfBuzz
+  // instance, whose pointers this face's are not) can make its own face.
+  data: Uint8Array
+  index: number
 }
 
-const faces: FontFace[] = []
+// This copy's HarfBuzz face for each registered face.
+const hbFaces = new WeakMap<FontFace, Face>()
+
+export function hbFace(face: FontFace): Face {
+  let hb = hbFaces.get(face)
+  if (hb === undefined) {
+    hb = new Face(new Blob(face.data), face.index)
+    hbFaces.set(face, hb)
+  }
+  return hb
+}
 
 function tagAt(data: Uint8Array, offset: number): string {
   return String.fromCharCode(data[offset]!, data[offset + 1]!, data[offset + 2]!, data[offset + 3]!)
@@ -100,8 +116,9 @@ function sameSlot(a: FontFace, family: string, min: number, max: number, style: 
 
 export async function registerFont(family: string, data: Uint8Array, face?: FaceOptions): Promise<void> {
   const sfnt = await toSfnt(data)
-  const hbFace = new Face(new Blob(sfnt), face?.index ?? 0)
-  const infos = hbFace.getAxisInfos()
+  const index = face?.index ?? 0
+  const hb = new Face(new Blob(sfnt), index)
+  const infos = hb.getAxisInfos()
   const axes: FaceAxis[] = []
   const tags = Object.keys(infos)
   for (let i = 0; i < tags.length; i++) {
@@ -118,7 +135,7 @@ export async function registerFont(family: string, data: Uint8Array, face?: Face
   } else {
     let wght: FaceAxis | undefined
     for (let i = 0; i < axes.length; i++) if (axes[i]!.tag === 'wght') wght = axes[i]
-    const os2 = hbFace.referenceTable('OS/2')
+    const os2 = hb.referenceTable('OS/2')
     if (wght !== undefined) {
       weightMin = wght.min
       weightMax = wght.max
@@ -130,17 +147,20 @@ export async function registerFont(family: string, data: Uint8Array, face?: Face
 
   let style = face?.style
   if (style === undefined) {
-    const os2 = hbFace.referenceTable('OS/2')
+    const os2 = hb.referenceTable('OS/2')
     // fsSelection bit 0 is italic.
     style = os2 !== undefined && os2.length >= 64 && (os2[63]! & 1) === 1 ? 'italic' : 'normal'
   }
 
+  const faces = sharedState().faces
   for (let i = 0; i < faces.length; i++) {
     if (sameSlot(faces[i]!, family, weightMin, weightMax, style)) {
       throw new Error(`registerFont: "${family}" ${weightMin}-${weightMax} ${style} is already registered`)
     }
   }
-  faces.push({ family, weightMin, weightMax, style, upem: hbFace.upem, axes, face: hbFace })
+  const entry: FontFace = { family, weightMin, weightMax, style, upem: hb.upem, axes, face: hb, data: sfnt, index }
+  hbFaces.set(entry, hb)
+  faces.push(entry)
 }
 
 // CSS font matching preference order as a sortable rank: lower wins. Weights are compared by
@@ -163,6 +183,7 @@ export function findFace(family: string, weight: number, style: FontStyle): Font
   const key = familyKey(family)
   let best: FontFace | undefined
   let bestScore = Infinity
+  const faces = sharedState().faces
   for (let i = 0; i < faces.length; i++) {
     const candidate = faces[i]!
     if (familyKey(candidate.family) !== key) continue
@@ -177,5 +198,5 @@ export function findFace(family: string, weight: number, style: FontStyle): Font
 }
 
 export function clearFonts(): void {
-  faces.length = 0
+  sharedState().faces.length = 0
 }

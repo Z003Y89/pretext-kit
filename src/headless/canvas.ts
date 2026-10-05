@@ -1,5 +1,6 @@
 import { Buffer, Feature, Font, Variation, shape } from 'harfbuzzjs'
-import { findFace, type FontFace } from './fonts.ts'
+import { findFace, hbFace, type FontFace } from './fonts.ts'
+import { HEADLESS, sharedState } from './shared.ts'
 import { parseFont, type ParsedFont } from './shorthand.ts'
 
 // Pretext picks its engine profile from the user agent; Node's and jsdom's pick Blink but not
@@ -9,16 +10,12 @@ export const CHROME_USER_AGENT =
 
 export type InstallOptions = {
   // 'throw' (default): a code point no registered family covers throws HeadlessCoverageError.
-  // 'notdef': it measures as the .notdef glyph of the first registered family in the list.
+  // 'notdef': it measures as .notdef, from the face of the run it is in, or else from the first
+  // registered family in the list.
   onMissingGlyph?: 'throw' | 'notdef'
   // 'whole-px' rounds each glyph advance to a whole px before summing, as Linux Chrome
   // (FreeType without subpixel positioning) is expected to; 'none' (default) keeps them exact.
   rounding?: 'none' | 'whole-px'
-}
-
-const options: { onMissingGlyph: 'throw' | 'notdef'; rounding: 'none' | 'whole-px' } = {
-  onMissingGlyph: 'throw',
-  rounding: 'none',
 }
 
 // A class so `instanceof` tells it from other errors; it carries what was missing.
@@ -48,8 +45,13 @@ export type HeadlessTextMetrics = {
 const DEFAULT_FONT = '10px sans-serif'
 const LINE_SEPARATOR = 0x2028
 const PARAGRAPH_SEPARATOR = 0x2029
+const ZWSP = 0x200b
+const HYPHEN = '\u2010'
 // Canvas replaces ASCII white space with U+0020 before measuring (HTML, "text preparation algorithm").
 const asciiWhiteSpaceRe = /[\t\n\f\r]/g
+// Chrome's Canvas turns SHY, ZWSP, LRM, RLM, U+202A-U+202E, U+FEFF and U+FFFC into U+200B, which
+// ends a Canvas word (plain_text_node.cc:47-62, character.h:167-175; Pretext RESEARCH.md).
+const zwspLikeRe = /[\u00AD\u200B\u200E\u200F\u202A-\u202E\uFEFF\uFFFC]/g
 const defaultIgnorableRe = /\p{Default_Ignorable_Code_Point}/u
 const markRe = /\p{M}/u
 const lengthRe = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(px|pt|em|rem)\s*$/i
@@ -63,7 +65,7 @@ const fonts = new WeakMap<FontFace, Map<string, Font>>()
 function covers(face: FontFace, codePoint: number): boolean {
   let set = coverage.get(face)
   if (set === undefined) {
-    set = new Set(face.face.collectUnicodes())
+    set = new Set(hbFace(face).collectUnicodes())
     coverage.set(face, set)
   }
   return set.has(codePoint)
@@ -77,10 +79,16 @@ function axisValue(face: FontFace, tag: string, wanted: number): number | null {
   return null
 }
 
-// A registered weight only picks the face; on a variable face the weight, optical size
-// (Chrome applies font-optical-sizing: auto to Canvas) and stretch are set on its axes.
+// The wght a variable face is shaped at: as Chrome does, the requested weight clamped to the
+// weight range the face was registered with (its @font-face descriptor), then to the axis.
+export function instanceWeight(face: FontFace, weight: number): number | null {
+  return axisValue(face, 'wght', Math.min(face.weightMax, Math.max(face.weightMin, weight)))
+}
+
+// A registered weight picks the face; on a variable face the weight, optical size (Chrome
+// applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes.
 function fontFor(face: FontFace, parsed: ParsedFont): Font {
-  const wght = axisValue(face, 'wght', parsed.weight)
+  const wght = instanceWeight(face, parsed.weight)
   const opsz = axisValue(face, 'opsz', parsed.sizePx)
   const wdth = axisValue(face, 'wdth', parsed.stretch)
   const key = `${parsed.sizePx}|${wght}|${opsz}|${wdth}`
@@ -91,7 +99,7 @@ function fontFor(face: FontFace, parsed: ParsedFont): Font {
   }
   let font = bySize.get(key)
   if (font === undefined) {
-    font = new Font(face.face)
+    font = new Font(hbFace(face))
     const scale = Math.round(parsed.sizePx * 65536)
     font.setScale(scale, scale)
     const variations: Variation[] = []
@@ -121,7 +129,7 @@ function resolveFaces(parsed: ParsedFont): FontFace[] {
 // invisible character, so a missing one is no coverage error. A combining mark stays with its
 // base's face when that face has it. Blink draws U+2028 and U+2029 with the space glyph
 // where the font has none (harfbuzz_face.cc), so a face with a space covers them.
-function faceFor(codePoint: number, faces: FontFace[], current: FontFace | null, families: readonly string[]): FontFace {
+function faceFor(codePoint: number, faces: FontFace[], current: FontFace | null, families: readonly string[], notdef: boolean): FontFace {
   const char = String.fromCodePoint(codePoint)
   if (defaultIgnorableRe.test(char)) {
     if (current !== null) return current
@@ -134,22 +142,26 @@ function faceFor(codePoint: number, faces: FontFace[], current: FontFace | null,
       const face = faces[i]!
       if (covers(face, codePoint) || (separator && covers(face, 0x20))) return face
     }
-    if (options.onMissingGlyph === 'notdef' && faces.length > 0) return current ?? faces[0]!
+    if (notdef && faces.length > 0) return current ?? faces[0]!
   }
   throw new HeadlessCoverageError(codePoint, families)
 }
 
-// Blink's Canvas shapes text word by word (CachingWordShaper): each U+0020 is a word of its
-// own, so nothing kerns across a space, and so is each CJK ideograph and kana
-// (NextWordEndIndex, plain_text_node.cc; the letter ranges Pretext's takesNoSpaceKerning lists).
+// Blink's Canvas shapes text word by word (NextWordEndIndex, plain_text_node.cc:84-155): each
+// U+0020 (TAB has become one) and U+200B is a word of its own, so nothing kerns across them,
+// and so is each CJK ideograph and kana: here the letter ranges Pretext's takesNoSpaceKerning
+// lists. Blink's set (IsCJKIdeographOrSymbol) also cuts around CJK symbols and punctuation;
+// that is not implemented, being outside the registered-Latin-fonts claim.
 function isWordOfItsOwn(codePoint: number): boolean {
-  return codePoint === 0x20 ||
+  return codePoint === 0x20 || codePoint === ZWSP ||
     (codePoint >= 0x3041 && codePoint <= 0x3096) || (codePoint >= 0x30a1 && codePoint <= 0x30fa) ||
     (codePoint >= 0x3400 && codePoint <= 0x9fff) || (codePoint >= 0xf900 && codePoint <= 0xfaff)
 }
 
 type Shaping = {
   parsed: ParsedFont
+  notdef: boolean // Measure what no face covers as .notdef instead of throwing
+  rounding: 'none' | 'whole-px'
   faces: FontFace[]
   features: Feature[]
   spacing: number
@@ -159,9 +171,9 @@ type Shaping = {
 // Where each glyph was put, for the ink bounds, which only Pretext's Han kerning asks for.
 type Placed = { fonts: Font[]; glyphs: number[]; xs: number[] }
 
-function advancePx(xAdvance: number): number {
+function advancePx(xAdvance: number, rounding: Shaping['rounding']): number {
   const px = Math.fround(xAdvance / 65536)
-  return options.rounding === 'whole-px' ? Math.round(px) : px
+  return rounding === 'whole-px' ? Math.round(px) : px
 }
 
 // Shapes one word in runs of one face each and returns the width so far, accumulated as
@@ -190,7 +202,7 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
       placed.fonts.push(font)
       placed.glyphs.push(infos[i]!.codepoint)
       placed.xs.push(width + positions[i]!.xOffset / 65536)
-      width = Math.fround(width + advancePx(positions[i]!.xAdvance))
+      width = Math.fround(width + advancePx(positions[i]!.xAdvance, shaping.rounding))
       // Spacing goes after the last glyph of a grapheme's cluster.
       const next = i + 1 < infos.length ? start + infos[i + 1]!.cluster : runEnd
       if (shaping.spacing !== 0 && next !== cluster) {
@@ -200,7 +212,7 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
     runStart = runEnd
   }
   for (let i = start; i < end; i++) {
-    const face = faceFor(codePoints[i]!, shaping.faces, runFace, shaping.parsed.families)
+    const face = faceFor(codePoints[i]!, shaping.faces, runFace, shaping.parsed.families, shaping.notdef)
     if (face !== runFace) {
       flush(i)
       runFace = face
@@ -212,7 +224,7 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
 }
 
 function measure(text: string, shaping: Shaping): HeadlessTextMetrics {
-  const normalized = text.replace(asciiWhiteSpaceRe, ' ')
+  const normalized = text.replace(asciiWhiteSpaceRe, ' ').replace(zwspLikeRe, '\u200B')
   const codePoints: number[] = []
   const graphemeEnds: number[] = []
   for (const { segment } of graphemes.segment(normalized)) {
@@ -268,6 +280,57 @@ function measure(text: string, shaping: Shaping): HeadlessTextMetrics {
   }
 }
 
+// Why generic families get stand-in widths. Before Pretext breaks at a soft hyphen it asks which
+// hyphen Chrome draws (getHyphenText, Pretext's measurement.ts): where U+2010 and '-' measure
+// differently in the font, it measures ' ' and U+2010 in bare `16px monospace` and `16px serif`,
+// and then in `<family>, monospace` against `<family>, serif`. A family whose font draws the
+// character measures it alike in both; one that lacks it falls through to the two generics,
+// which measure it differently. So Chrome's decision (the font's own U+2010 where it has one,
+// else '-') needs the generics to measure, and to measure differently from each other, though
+// nothing registers them. Each unregistered generic therefore measures every code point at a
+// fixed fraction of the size, different per generic, but only for those probes: the text ' ' or
+// U+2010 alone, where no registered family before the generic covers it. Any other text never
+// reaches a generic stand-in: it is shaped with registered faces or throws HeadlessCoverageError.
+// U+2010 alone is also lenient where no registered family has it and no generic follows: it
+// measures as .notdef instead of throwing, which is what lets Pretext go on to the probes.
+const GENERIC_STAND_IN_EM = new Map<string, number>([
+  ['serif', 0.25],
+  ['sans-serif', 0.3],
+  ['monospace', 0.6],
+  ['cursive', 0.35],
+  ['fantasy', 0.4],
+  ['system-ui', 0.45],
+  ['ui-serif', 0.26],
+  ['ui-sans-serif', 0.31],
+  ['ui-monospace', 0.61],
+  ['ui-rounded', 0.36],
+  ['math', 0.27],
+  ['emoji', 0.5],
+  ['fangsong', 0.55],
+])
+
+function isHyphenProbe(text: string): boolean {
+  return text === ' ' || text === HYPHEN
+}
+
+// The stand-in width of a probe in the first unregistered generic of the list, or null where a
+// registered family before it covers the probe (or no generic is listed) and real shaping measures.
+function genericProbeWidth(text: string, parsed: ParsedFont, spacing: number): number | null {
+  const codePoint = text.charCodeAt(0)
+  const style = parsed.style === 'normal' ? 'normal' : 'italic'
+  for (let i = 0; i < parsed.families.length; i++) {
+    const family = parsed.families[i]!
+    const face = findFace(family, parsed.weight, style)
+    if (face !== undefined) {
+      if (covers(face, codePoint)) return null
+      continue
+    }
+    const em = GENERIC_STAND_IN_EM.get(family.toLowerCase())
+    if (em !== undefined) return Math.fround(Math.fround(em * parsed.sizePx) + spacing)
+  }
+  return null
+}
+
 // Canvas keeps letterSpacing as the CSS length it was given and ignores what doesn't parse.
 function parseLength(value: string, sizePx: number): { text: string; px: number } | null {
   const match = lengthRe.exec(value)
@@ -317,6 +380,9 @@ function createContext(): HeadlessContext {
     get fontKerning() {
       return fontKerning
     },
+    // 'normal' is treated as 'auto'. In Chrome it can also make Canvas shape whole strings for
+    // fonts whose GPOS involves the space glyph (Pretext RESEARCH.md, How Canvas shapes); Pretext
+    // only sets 'none' and 'auto'.
     set fontKerning(value: HeadlessContext['fontKerning']) {
       if (value === 'auto' || value === 'normal' || value === 'none') fontKerning = value
     },
@@ -333,21 +399,31 @@ function createContext(): HeadlessContext {
       // Under any non-zero letter spacing Blink turns optional ligatures off, even spacing
       // too small to add width (Pretext's LETTER_SPACED_SHAPING relies on this).
       if (spacingPx !== 0) features.push(new Feature('liga', 0), new Feature('clig', 0), new Feature('calt', 0))
-      const faces = resolveFaces(parsed)
-      return measure(String(text), {
+      const content = String(text)
+      // Blink adds spacing in units of 1/65536 px (ShapeResultSpacing::SetSpacing).
+      const spacing = Math.fround(Math.round(spacingPx * 65536) / 65536)
+      if (isHyphenProbe(content)) {
+        const width = genericProbeWidth(content, parsed, spacing)
+        if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
+      }
+      const { options } = sharedState()
+      return measure(content, {
         parsed,
-        faces,
+        notdef: options.onMissingGlyph === 'notdef' || content === HYPHEN,
+        rounding: options.rounding,
+        faces: resolveFaces(parsed),
         features,
-        // Blink adds spacing in units of 1/65536 px (ShapeResultSpacing::SetSpacing).
-        spacing: Math.fround(Math.round(spacingPx * 65536) / 65536),
+        spacing,
         language: lang === 'inherit' || lang === '' ? null : lang,
       })
     },
   }
 }
 
-// A class because Pretext constructs it: `new OffscreenCanvas(1, 1).getContext('2d')`.
+// A class because Pretext constructs it: `new OffscreenCanvas(1, 1).getContext('2d')`. Branded
+// with a Symbol.for() key so every copy of this package knows a stand-in from another copy.
 export class HeadlessOffscreenCanvas {
+  static readonly [HEADLESS] = true
   width: number
   height: number
 
@@ -361,35 +437,12 @@ export class HeadlessOffscreenCanvas {
   }
 }
 
-// Until install(), a lookup of OffscreenCanvas is recorded: Pretext looks for one when it first
-// prepares text, right after fixing its engine profile from the user agent, so a lookup before
-// install() means the profile may already be Node's. Assigning a value replaces the trap.
-let lookedUpBeforeInstall = false
-
-function lookupTrap(): undefined {
-  lookedUpBeforeInstall = true
-  return undefined
-}
-
 function defineGlobal(name: string, value: unknown): void {
   Object.defineProperty(globalThis, name, { value, writable: true, configurable: true, enumerable: false })
 }
 
-if (!('OffscreenCanvas' in globalThis)) {
-  Object.defineProperty(globalThis, 'OffscreenCanvas', {
-    configurable: true,
-    enumerable: false,
-    get: lookupTrap,
-    set(value: unknown) {
-      defineGlobal('OffscreenCanvas', value)
-    },
-  })
-}
-
-function currentOffscreenCanvas(): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'OffscreenCanvas')
-  if (descriptor?.get === lookupTrap) return undefined
-  return descriptor === undefined ? Reflect.get(globalThis, 'OffscreenCanvas') : descriptor.value ?? descriptor.get?.call(globalThis)
+function isHeadless(implementation: unknown): boolean {
+  return typeof implementation === 'function' && Reflect.get(implementation, HEADLESS) === true
 }
 
 function setUserAgent(): void {
@@ -401,9 +454,20 @@ function setUserAgent(): void {
   }
 }
 
-// Installs the stand-in as globalThis.OffscreenCanvas and a desktop Chrome user agent. Call it
-// before Pretext first prepares text. Calling it again only changes the options; clear Pretext's
-// caches (clearCache()) if widths it already measured should follow them.
+/**
+ * Installs the HarfBuzz stand-in as `globalThis.OffscreenCanvas` and sets a desktop Chrome
+ * `navigator.userAgent`.
+ *
+ * Call it before Pretext first prepares text (before the first `prepare()` or
+ * `prepareWithSegments()`): Pretext fixes its engine profile from the user agent on its first
+ * preparation and keeps it for the process, so a later install() cannot correct it. It is not
+ * detected.
+ *
+ * Calling it again, from this or another copy of the package, keeps the installed stand-in and
+ * only changes the options, which all copies share; call Pretext's `clearCache()` if widths it
+ * already measured should follow them. It throws if `globalThis.OffscreenCanvas` is another
+ * implementation.
+ */
 export function install(installOptions: InstallOptions = {}): void {
   const onMissingGlyph = installOptions.onMissingGlyph ?? 'throw'
   const rounding = installOptions.rounding ?? 'none'
@@ -413,21 +477,16 @@ export function install(installOptions: InstallOptions = {}): void {
   if (rounding !== 'none' && rounding !== 'whole-px') {
     throw new RangeError(`install: rounding must be 'none' or 'whole-px', not ${JSON.stringify(rounding)}`)
   }
-  const existing = currentOffscreenCanvas()
-  if (existing !== undefined && existing !== HeadlessOffscreenCanvas) {
+  const existing: unknown = Reflect.get(globalThis, 'OffscreenCanvas')
+  if (existing !== undefined && !isHeadless(existing)) {
     throw new Error(
       'install: globalThis.OffscreenCanvas is already another implementation; remove it (or the test setup ' +
-        'that sets it) so the headless stand-in measures.',
+        'that sets it) so the headless stand-in measures. Call install() before Pretext first prepares text.',
     )
   }
-  if (lookedUpBeforeInstall) {
-    throw new Error(
-      'install: Pretext already looked for a canvas, so its engine profile is fixed from the old user agent. ' +
-        'Call install() before Pretext first prepares text, at the top of the test setup.',
-    )
-  }
+  const { options } = sharedState()
   options.onMissingGlyph = onMissingGlyph
   options.rounding = rounding
   setUserAgent()
-  defineGlobal('OffscreenCanvas', HeadlessOffscreenCanvas)
+  if (existing === undefined) defineGlobal('OffscreenCanvas', HeadlessOffscreenCanvas)
 }
