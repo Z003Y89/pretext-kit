@@ -3,6 +3,7 @@
 // the other. Options: --sessions=<n> (default 3), --rounds=<n> timed rounds per session (default 20), --warmup=<n>
 // discarded rounds (default 3, the first of which calibrates), --only=<browser>[,...]. A run with --only writes
 // verify/results/BENCH-partial.md and bench-partial.json instead, so BENCH.md only ever holds a run of all three.
+// --report re-renders BENCH.md from verify/results/bench.json, measuring nothing.
 import { build } from 'esbuild'
 import type { Plugin } from 'esbuild'
 import { execSync } from 'node:child_process'
@@ -28,13 +29,22 @@ const sh = (cmd: string, cwd = here): string => {
   }
 }
 const pretextCommit = sh('git log -1 --format="%h %cs"', join(here, '../node_modules/@chenglou/pretext'))
-const kitCommit = sh('git log -1 --format="%h %cs"')
+const kitCommitNow = sh('git log -1 --format="%h %cs"')
 
 const args = process.argv.slice(2)
 const arg = (name: string): string | undefined => args.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
-const SESSIONS = Number(arg('sessions') ?? 3)
-const ROUNDS = Number(arg('rounds') ?? 20)
-const WARMUP = Math.max(1, Number(arg('warmup') ?? 3))
+// --report re-renders BENCH.md from verify/results/bench.json without measuring anything.
+const reportOnly = args.includes('--report')
+type Saved = { date: string, playwrightVersion: string, pretextVersion: string, pretextCommit: string, kitCommit: string, dirty: boolean, results: BrowserResult[], config?: { sessions: number, rounds: number, warmup: number } }
+const saved: Saved | undefined = reportOnly ? JSON.parse(readFileSync(join(here, 'results/bench.json'), 'utf8')) : undefined
+const kitCommit = saved?.kitCommit ?? kitCommitNow
+const pretextAt = saved?.pretextCommit ?? pretextCommit
+const playwrightAt = saved?.playwrightVersion ?? playwrightVersion
+const pretextVersionAt = saved?.pretextVersion ?? pretextVersion
+const runDate = saved?.date ?? new Date().toISOString()
+const SESSIONS = saved?.config?.sessions ?? saved?.results[0]?.sessions.length ?? Number(arg('sessions') ?? 3)
+const ROUNDS = saved?.config?.rounds ?? Number(arg('rounds') ?? 20)
+const WARMUP = saved?.config?.warmup ?? Math.max(1, Number(arg('warmup') ?? 3))
 const only = arg('only')?.split(',')
 
 // The timed bundle, and the count bundle in which Pretext's entries resolve to counting wrappers for every importer
@@ -49,8 +59,10 @@ const counting: Plugin = {
   },
 }
 const common = { entryPoints: [join(here, 'bench.ts')], bundle: true, format: 'iife' as const, logLevel: 'warning' as const }
-await build({ ...common, outfile: join(here, 'dist/bench.js') })
-await build({ ...common, outfile: join(here, 'dist/bench-count.js'), plugins: [counting] })
+if (!reportOnly) {
+  await build({ ...common, outfile: join(here, 'dist/bench.js') })
+  await build({ ...common, outfile: join(here, 'dist/bench-count.js'), plugins: [counting] })
+}
 
 // Served cross-origin isolated (COOP and COEP) from 127.0.0.1, which gives every engine its finest performance.now();
 // a file:// page gets a coarser one.
@@ -71,8 +83,8 @@ const server = createServer((req, res) => {
     res.writeHead(404).end()
   }
 })
-await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+if (!reportOnly) await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+const origin = reportOnly ? '' : `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 
 type Probe = { minMs: number, medianMs: number }
 type SessionResult = {
@@ -96,7 +108,8 @@ const WAIT_POLL_MS = 60_000
 const WAIT_MAX_MS = 30 * 60_000
 const sysLoad = (): string => sh('sysctl -n vm.loadavg').replace(/[{}]/g, '').trim()
 // The working tree's state, outside what the bench itself writes.
-const dirty = sh('git status --porcelain').split('\n').filter(l => l.trim() !== '' && !/verify\/(BENCH|results\/)/.test(l)).length > 0
+const dirtyNow = sh('git status --porcelain').split('\n').filter(l => l.trim() !== '' && !/verify\/(BENCH|results\/)/.test(l)).length > 0
+const dirty = saved?.dirty ?? dirtyNow
 
 // A fixed arithmetic loop timed in this process before and after each session, as a control for machine speed:
 // Pretext's RESEARCH.md (Evaluation Traps, Timing) used such a probe to show a loaded machine (60.7 ms against
@@ -163,7 +176,8 @@ async function waitForQuiet(name: string): Promise<number> {
 
 async function openPage(type: BrowserType, name: string, query = ''): Promise<{ close: () => Promise<void>, page: Page, version: string }> {
   const browser = await type.launch({ headless: false })
-  const page = await (await browser.newContext()).newPage()
+  // DPR 1 in every engine: unpinned, Firefox took the display's 2 while Chromium and WebKit took 1.
+  const page = await (await browser.newContext({ deviceScaleFactor: 1 })).newPage()
   page.on('pageerror', e => console.error(`[${name}] page error: ${e.message}`))
   await page.goto(`${origin}/bench.html${query}`)
   await page.waitForFunction(() => typeof window.benchSetup === 'function')
@@ -208,7 +222,8 @@ async function runSessions(name: string, type: BrowserType): Promise<{ version: 
   return { version, ops, sessions }
 }
 
-for (const [name, type] of BROWSERS) {
+if (saved !== undefined) results.push(...saved.results)
+for (const [name, type] of reportOnly ? [] : BROWSERS) {
   if (only !== undefined && !only.includes(name)) continue
   const buildDir = type.executablePath().split('ms-playwright/')[1]?.split('/')[0]
   let run: { version: string, ops: OpInfo[], sessions: SessionResult[] } | undefined
@@ -246,7 +261,7 @@ for (const [name, type] of BROWSERS) {
   const version = buildDir === undefined ? run!.version : `${run!.version} (${buildDir})`
   results.push({ name, version, ops: run!.ops, sessions: run!.sessions, counts, quiet: quiet!, seconds: (performance.now() - tb) / 1000 })
 }
-server.close()
+if (!reportOnly) server.close()
 
 // --- Statistics: µs per unit. Each sample is a mean over its repetitions; the tables give the median and p95 of those
 // sample means across sessions, so the spread is sample to sample, not call to call (the per-call table is that). ---
@@ -268,15 +283,23 @@ function rows(b: BrowserResult): Row[] {
     return { op, median: quantile(ok, 0.5), p95: quantile(ok, 0.95), sessionMedians, n: ok.length, disagree }
   })
 }
-const fmt = (us: number): string => !Number.isFinite(us) ? '–' : us >= 100 ? us.toFixed(0) : us >= 10 ? us.toFixed(1) : us >= 1 ? us.toFixed(2) : us.toFixed(3)
-const sig2 = (x: number): string => String(Number(x.toPrecision(2)))
+// Three significant figures, decided after rounding (9.996 is "10.0", not "10.00").
+function fmt(us: number): string {
+  if (!Number.isFinite(us)) return '–'
+  const r = Number(us.toPrecision(3))
+  return r >= 100 ? r.toFixed(0) : r >= 10 ? r.toFixed(1) : r >= 1 ? r.toFixed(2) : r.toFixed(3)
+}
+// Two significant figures, zeros kept ("2.0", not "2").
+const sig2 = (x: number): string => { const r = Number(x.toPrecision(2)); return r >= 10 ? r.toFixed(0) : r.toFixed(1) }
 const sum = (c: CountSummary): string => `${c.mean.toFixed(2)} (${c.min}–${c.max})`
 const range = (xs: number[]): string => `${fmt(Math.min(...xs))}–${fmt(Math.max(...xs))}`
 
 const partial = only !== undefined
-const json = { date: new Date().toISOString(), playwrightVersion, pretextVersion, pretextCommit, kitCommit, dirty, results }
-mkdirSync(join(here, 'results'), { recursive: true })
-writeFileSync(join(here, partial ? 'results/bench-partial.json' : 'results/bench.json'), JSON.stringify(json) + '\n')
+if (!reportOnly) {
+  const json = { date: runDate, playwrightVersion, pretextVersion, pretextCommit, kitCommit, dirty, config: { sessions: SESSIONS, rounds: ROUNDS, warmup: WARMUP }, results }
+  mkdirSync(join(here, 'results'), { recursive: true })
+  writeFileSync(join(here, partial ? 'results/bench-partial.json' : 'results/bench.json'), JSON.stringify(json) + '\n')
+}
 
 const table = new Map(results.map(b => [b.name, rows(b)]))
 for (const b of results) {
@@ -293,6 +316,13 @@ const snapAll = results.flatMap(b => b.quiet.snapshot).join('\n')
 const loaders: string[] = []
 if (/replayd/.test(snapAll)) loaders.push('screen recording (replayd)')
 if (/ComputerUse|computer-use/i.test(snapAll)) loaders.push('a UI-driving agent service (computer use)')
+const fronts = results.map(b => {
+  const total = Object.values(b.quiet.frontmost).reduce((a, c) => a + c, 0)
+  const own = Object.entries(b.quiet.frontmost).filter(([k]) => /Chrom|Testing|WebKit|Playwright|Nightly|Firefox|MiniBrowser/i.test(k)).reduce((a, [, c]) => a + c, 0)
+  return { name: b.name, own, total }
+})
+const frontNote = fronts.every(f => f.total > 0 && f.own === f.total) ? ''
+  : `The browser was frontmost at only ${fronts.map(f => `${f.own}/${f.total}`).join(', ')} polls (${fronts.map(f => f.name).join(', ')}${fronts.some(f => f.own === 0) ? `; ${fronts.filter(f => f.own === 0).map(f => f.name).join(' and ')} never` : ''});\n> OS background throttling cannot be ruled out. `
 const minutes = results.reduce((t, b) => t + b.seconds, 0) / 60
 const med = (b: string, id: string): number => table.get(b)!.find(r => r.op.id === id)!.median
 const val = (b: string, id: string): string => {
@@ -306,12 +336,12 @@ const md: string[] = [
   `> **Measured on a loaded machine; every timing here is an upper bound.** ${loaders.length > 0 ? `${loaders.join(' and ').replace(/^./, c => c.toUpperCase())} ${loaders.length > 1 ? 'were' : 'was'} running, ` : ''}other agents' sessions were`,
   `> active (their Playwright browsers were waited out and polled for; see Machine state), and the 1-min load average`,
   `> ran ${Math.min(...loads1).toFixed(1)}-${Math.max(...loads1).toFixed(1)} on ${cpu.length} cores across the sessions. A fixed arithmetic probe took ${Math.min(...probes).toFixed(1)}-${Math.max(...probes).toFixed(1)} ms`,
-  '> (fastest of 7) before and after the sessions. To reproduce on a quiet machine: quit other apps, stop screen',
+  `> (fastest of 7) before and after the sessions. ${frontNote}To reproduce on a quiet machine: quit other apps, stop screen`,
   `> recording, run \`npm install && npx playwright install chromium webkit firefox && npm run bench\` from the`,
   `> repository root, and leave the Mac untouched for about ${Math.ceil(minutes)} minutes (this run's length).`,
   '',
-  `Run on ${new Date().toISOString().slice(0, 10)} by \`npm run bench\` (verify/bench-run.ts, verify/bench.ts), kit at ${kitCommit}${dirty ? ' with uncommitted changes' : ''},`,
-  `Pretext ${pretextVersion} at ${pretextCommit}, Playwright ${playwrightVersion}.`,
+  `Run on ${runDate.slice(0, 10)} by \`npm run bench\` (verify/bench-run.ts, verify/bench.ts), kit at ${kitCommit}${dirty ? ' with uncommitted changes' : ''},`,
+  `Pretext ${pretextVersionAt} at ${pretextAt}, Playwright ${playwrightAt}.`,
   `Machine: ${cpu[0]?.model ?? 'unknown CPU'}, ${cpu.length} cores, ${(totalmem() / 2 ** 30).toFixed(0)} GB RAM; ${os}.`,
   '',
   `Each browser ran ${SESSIONS} sessions, one after another and never side by side, each in a newly launched headed`,
@@ -447,17 +477,21 @@ md.push('## First pass in a fresh browser', '', 'µs per message, one value per 
   'loading, shaping caches); this bench does not take it apart.', '')
 md.push('| browser | kit: first prepare | kit: first layout | kit: second prepare (control) | DOM: first pass | DOM: second pass (control) |', '|---|---|---|---|---|---|')
 for (const b of results) {
-  const per = (f: (s: SessionResult) => number, n: (s: SessionResult) => number): string => b.sessions.map(s => fmt(f(s) * 1000 / n(s))).join(', ')
+  const per = (f: (s: SessionResult) => number, n: (s: SessionResult) => number): string => {
+    const v = b.sessions.map(s => f(s) * 1000 / n(s))
+    const cell = v.map(fmt).join(', ')
+    return Math.max(...v) / Math.min(...v) > DISAGREE ? `${cell} (**sessions disagree**, ${sig2(Math.max(...v) / Math.min(...v))}×)` : cell
+  }
   md.push(`| ${b.name} | ${per(s => s.first.prepareMs, s => s.first.n)} | ${per(s => s.first.layoutMs, s => s.first.n)} | ${per(s => s.first.secondPrepareMs, s => s.first.n)} | ${per(s => s.domFirst.firstMs, s => s.domFirst.n)} | ${per(s => s.domFirst.secondMs, s => s.domFirst.n)} |`)
 }
 md.push('')
 
 // The structural bounds, from src/width.ts and src/font-size.ts: balance walks once for its target, once at
 // floor(maxWidth), ceil(log2(floor(maxWidth))) times in its bisection, once for the widest piece and once to check, so
-// ceil(log2 W) + 4 (its shrinkwrap fallback adds up to 2 when the check fails). A cold fitFontSize prepares min, then at
+// ceil(log2 W) + 4, and its shrinkwrap fallback adds up to 2 when the check fails: ceil(log2 W) + 6 in all. A cold fitFontSize prepares min, then at
 // most ceil(log2(max - min + 1)) more sizes; each probe is a walk, plus one walk for the answer and one per size whose
 // widest line is past the width (the widest piece).
-const balanceBound = Math.ceil(Math.log2(399)) + 4
+const balanceBound = Math.ceil(Math.log2(399)) + 6
 const fitPrep = 1 + Math.ceil(Math.log2(48 - 8 + 1))
 const richPrep = 1 + Math.ceil(Math.log2(32 - 8 + 1))
 const verdict = (ok: boolean): string => ok ? 'within' : '**over**'
@@ -472,7 +506,7 @@ for (const b of results) {
 md.push('', 'Against the bounds the code gives (the spec\'s "about log2(maxWidth)" and "about log2(max − min) + 1"):', '')
 for (const b of results) {
   const c = b.counts
-  md.push(`- ${b.name}: balance at most ${c.balanceWalks.max} walks, ${verdict(c.balanceWalks.max <= balanceBound)} ceil(log2 399) + 4 = ${balanceBound}` +
+  md.push(`- ${b.name}: balance at most ${c.balanceWalks.max} walks, ${verdict(c.balanceWalks.max <= balanceBound)} ceil(log2 399) + 6 = ${balanceBound}, and ${verdict(c.balanceWalks.max <= balanceBound - 2)} ${balanceBound - 2}, the bound when the shrinkwrap fallback is not taken` +
     ` (mean ${c.balanceWalks.mean.toFixed(2)} against log2 399 = ${Math.log2(399).toFixed(2)}); fitFontSize cold at most ${c.fitColdPrepares.max} prepares,` +
     ` ${verdict(c.fitColdPrepares.max <= fitPrep)} 1 + ceil(log2 41) = ${fitPrep}; fitFontSizeRich cold at most ${c.richColdPrepares.max},` +
     ` ${verdict(c.richColdPrepares.max <= richPrep)} 1 + ceil(log2 25) = ${richPrep}.`)
@@ -492,6 +526,11 @@ for (const b of results) {
   md.push(`| ${b.name} | ${c.heightsAgree}/${c.heightsN} | ${c.fitAgree}/${c.fitN} | ${c.fitWarmAgree}/${c.fitN} | ${c.fitWarmDomAgree}/${c.fitN} (${c.domWarmSteps}) | ${c.fitLoopAgree}/${c.fitN} | ${c.clampTruncated}/${c.heightsN} | ${c.middleTruncated399}/${c.labelsN} / ${c.middleTruncated200}/${c.labelsN} |`)
 }
 md.push('')
+
+const dprs = results.map(b => ({ name: b.name, dpr: [...new Set(b.sessions.map(s => s.setup.dpr))].join('/') }))
+const dprCaveat = new Set(dprs.map(d => d.dpr)).size > 1
+  ? ` This run's devicePixelRatio differed between browsers (${dprs.map(d => `${d.name} ${d.dpr}`).join(', ')}; later runs pin 1), so the DOM rows, which lay out at that ratio, should not be compared across browsers.`
+  : ''
 
 // The interpretation is computed from this run's medians, so it stays true when the bench is run again.
 md.push('## Reading the numbers', '')
@@ -558,8 +597,8 @@ md.push('',
   '',
   '**Caveats.** One machine, one OS, one font stack; Windows and Linux text stacks were not timed. Sessions differ',
   '(see the session medians); compare rows within a run, never across machines. On a loaded machine the numbers are',
-  'upper bounds.',
+  'upper bounds.' + dprCaveat,
   '')
 const out = partial ? 'results/BENCH-partial.md' : 'BENCH.md'
 writeFileSync(join(here, out), md.join('\n'))
-console.log(`wrote verify/${out} and verify/results/${partial ? 'bench-partial.json' : 'bench.json'}`)
+console.log(reportOnly ? `wrote verify/${out} from verify/results/bench.json` : `wrote verify/${out} and verify/results/${partial ? 'bench-partial.json' : 'bench.json'}`)

@@ -3,7 +3,8 @@
 > **Measured on a loaded machine; every timing here is an upper bound.** Screen recording (replayd) and a UI-driving agent service (computer use) were running, other agents' sessions were
 > active (their Playwright browsers were waited out and polled for; see Machine state), and the 1-min load average
 > ran 3.0-4.1 on 8 cores across the sessions. A fixed arithmetic probe took 21.0-23.6 ms
-> (fastest of 7) before and after the sessions. To reproduce on a quiet machine: quit other apps, stop screen
+> (fastest of 7) before and after the sessions. The browser was frontmost at only 8/22, 0/32, 14/26 polls (chromium, webkit, firefox; webkit never);
+> OS background throttling cannot be ruled out. To reproduce on a quiet machine: quit other apps, stop screen
 > recording, run `npm install && npx playwright install chromium webkit firefox && npm run bench` from the
 > repository root, and leave the Mac untouched for about 15 minutes (this run's length).
 
@@ -200,7 +201,7 @@ Browsers coarsen the timer and add jitter, so the sample length, not the step, s
 | fitFontSizeRich, warm: second call, 400 then 399 | row | 3.40 | 4.53 | 3.48, 3.41, 3.21 | 60 |
 | **d) list helpers** | | | | | |
 | stack over 10,000 heights | call | 10.5 | 10.8 | 10.7, 10.5, 10.3 | 60 |
-| findIndexAt over 10,000 tops | call | 0.076 | 0.082 | 0.073, 0.080, 0.077 | 60 |
+| findIndexAt over 10,000 tops | call | 0.076 | 0.083 | 0.073, 0.080, 0.077 | 60 |
 | **e) DOM baselines** | | | | | |
 | DOM: create and append new message divs at 399, read every height | message | 20.0 | 21.4 | 20.2, 20.2, 19.5 | 60 |
 | DOM: resize the box 400↔399, read every height (one reflow, batched reads) | message | 6.40 | 6.85 | 6.48, 6.45, 6.15 | 60 |
@@ -219,11 +220,11 @@ tails (p95, max), which show the calls that pay prepares or a GC, not the typica
 
 | browser | call | calls | p50 | p95 | max |
 |---|---|---:|---:|---:|---:|
-| chromium | clamp | 3000 | < 5 (below the timer) | 45.0 | 95.0 |
-| chromium | truncateMiddle ≈399 | 1000 | < 5 (below the timer) | 50.0 | 80.0 |
+| chromium | clamp | 3000 | < 5.0 (below the timer) | 45.0 | 95.0 |
+| chromium | truncateMiddle ≈399 | 1000 | < 5.0 (below the timer) | 50.0 | 80.0 |
 | chromium | truncateMiddle ≈200 | 1000 | 25.0 | 45.0 | 565 |
-| chromium | fitFontSize, new PreparedSizes (Pretext caches warm) | 1000 | 50.0 | 255 | 1035 |
-| chromium | fitFontSize, second call 400 then 399 | 1000 | < 5 (below the timer) | 10.00 | 85.0 |
+| chromium | fitFontSize, new PreparedSizes (Pretext caches warm) | 1000 | 50.0 | 255 | 1030 |
+| chromium | fitFontSize, second call 400 then 399 | 1000 | < 5.0 (below the timer) | 10.0 | 85.0 |
 | webkit | clamp | 3000 | < 20 (below the timer) | 40.0 | 280 |
 | webkit | truncateMiddle ≈399 | 1000 | < 20 (below the timer) | 40.0 | 260 |
 | webkit | truncateMiddle ≈200 | 1000 | 20.0 | 40.0 | 140 |
@@ -232,7 +233,7 @@ tails (p95, max), which show the calls that pay prepares or a GC, not the typica
 | firefox | clamp | 3000 | < 20 (below the timer) | 80.0 | 520 |
 | firefox | truncateMiddle ≈399 | 1000 | < 20 (below the timer) | 100 | 1040 |
 | firefox | truncateMiddle ≈200 | 1000 | 60.0 | 100 | 220 |
-| firefox | fitFontSize, new PreparedSizes (Pretext caches warm) | 1000 | 100.0 | 380 | 1260 |
+| firefox | fitFontSize, new PreparedSizes (Pretext caches warm) | 1000 | 100 | 380 | 1260 |
 | firefox | fitFontSize, second call 400 then 399 | 1000 | < 20 (below the timer) | 20.0 | 120 |
 
 ## First pass in a fresh browser
@@ -245,9 +246,9 @@ loading, shaping caches); this bench does not take it apart.
 
 | browser | kit: first prepare | kit: first layout | kit: second prepare (control) | DOM: first pass | DOM: second pass (control) |
 |---|---|---|---|---|---|
-| chromium | 53.1, 46.6, 48.2 | 3.37, 2.78, 3.38 | 21.6, 16.5, 17.4 | 43.9, 45.5, 43.0 | 29.9, 29.2, 29.5 |
-| webkit | 67.3, 65.9, 75.7 | 3.82, 3.30, 4.70 | 25.6, 26.0, 31.0 | 80.9, 103, 78.1 | 72.5, 71.5, 65.0 |
-| firefox | 74.9, 84.3, 98.4 | 5.14, 5.32, 5.32 | 41.7, 50.9, 52.9 | 53.7, 53.2, 47.2 | 31.4, 29.0, 26.8 |
+| chromium | 53.1, 46.6, 48.2 | 3.37, 2.78, 3.38 | 21.6, 16.5, 17.4 (**sessions disagree**, 1.3×) | 43.9, 45.5, 43.0 | 29.9, 29.2, 29.5 |
+| webkit | 67.3, 65.9, 75.7 | 3.82, 3.30, 4.70 (**sessions disagree**, 1.4×) | 25.6, 26.0, 31.0 | 80.9, 103, 78.1 (**sessions disagree**, 1.3×) | 72.5, 71.5, 65.0 |
+| firefox | 74.9, 84.3, 98.4 (**sessions disagree**, 1.3×) | 5.14, 5.32, 5.32 | 41.7, 50.9, 52.9 (**sessions disagree**, 1.3×) | 53.7, 53.2, 47.2 | 31.4, 29.0, 26.8 |
 
 ## Structural counts
 
@@ -263,9 +264,9 @@ not touched and the counted bundle is never timed. Mean (min–max) over the wor
 
 Against the bounds the code gives (the spec's "about log2(maxWidth)" and "about log2(max − min) + 1"):
 
-- chromium: balance at most 13 walks, within ceil(log2 399) + 4 = 13 (mean 8.09 against log2 399 = 8.64); fitFontSize cold at most 7 prepares, within 1 + ceil(log2 41) = 7; fitFontSizeRich cold at most 6, within 1 + ceil(log2 25) = 6.
-- webkit: balance at most 13 walks, within ceil(log2 399) + 4 = 13 (mean 8.09 against log2 399 = 8.64); fitFontSize cold at most 7 prepares, within 1 + ceil(log2 41) = 7; fitFontSizeRich cold at most 6, within 1 + ceil(log2 25) = 6.
-- firefox: balance at most 13 walks, within ceil(log2 399) + 4 = 13 (mean 8.12 against log2 399 = 8.64); fitFontSize cold at most 7 prepares, within 1 + ceil(log2 41) = 7; fitFontSizeRich cold at most 6, within 1 + ceil(log2 25) = 6.
+- chromium: balance at most 13 walks, within ceil(log2 399) + 6 = 15, and within 13, the bound when the shrinkwrap fallback is not taken (mean 8.09 against log2 399 = 8.64); fitFontSize cold at most 7 prepares, within 1 + ceil(log2 41) = 7; fitFontSizeRich cold at most 6, within 1 + ceil(log2 25) = 6.
+- webkit: balance at most 13 walks, within ceil(log2 399) + 6 = 15, and within 13, the bound when the shrinkwrap fallback is not taken (mean 8.09 against log2 399 = 8.64); fitFontSize cold at most 7 prepares, within 1 + ceil(log2 41) = 7; fitFontSizeRich cold at most 6, within 1 + ceil(log2 25) = 6.
+- firefox: balance at most 13 walks, within ceil(log2 399) + 6 = 15, and within 13, the bound when the shrinkwrap fallback is not taken (mean 8.12 against log2 399 = 8.64); fitFontSize cold at most 7 prepares, within 1 + ceil(log2 41) = 7; fitFontSizeRich cold at most 6, within 1 + ceil(log2 25) = 6.
 
 Prepares per call at resize time, where the kit measures a cut text joined to its ellipsis as one prepared text (src/cut.ts):
 
@@ -291,7 +292,7 @@ timed DOM baselines did the same job.
 - **chromium.** On a resize, Pretext's layout() (what a kit-built list uses for its heights) is 15× faster than the batched
   DOM read of the same heights (0.233 µs against 3.56 µs per message); shrinkwrap costs 0.243 µs, balance
   4.22 µs (18× layout()), clamp 9.16 µs. At first sight, Pretext's cold prepare plus layout
-  (14.8 µs per message) is 2× faster than creating, appending and reading as many new DOM messages
+  (14.8 µs per message) is 2.0× faster than creating, appending and reading as many new DOM messages
   (29.6 µs); with Pretext's caches warm, new strings cost 12.3 µs. On a resize, fitFontSize's second call at
   the new width (3.43 µs) is 16× faster than the warm-started DOM search (55.9 µs).
   For a new text, fitFontSize with a new PreparedSizes (82.9 µs) is 2.5× faster than the DOM lockstep search
@@ -348,4 +349,4 @@ within what Pretext models; see RESULTS.md).
 
 **Caveats.** One machine, one OS, one font stack; Windows and Linux text stacks were not timed. Sessions differ
 (see the session medians); compare rows within a run, never across machines. On a loaded machine the numbers are
-upper bounds.
+upper bounds. This run's devicePixelRatio differed between browsers (chromium 1, webkit 1, firefox 2; later runs pin 1), so the DOM rows, which lay out at that ratio, should not be compared across browsers.
