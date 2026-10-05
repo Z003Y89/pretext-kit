@@ -6,23 +6,45 @@
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./headless": {
+      "types": "./dist/headless/index.d.ts",
+      "default": "./dist/headless/index.js"
+    }
+  },
   "files": [
     "dist"
   ],
   "scripts": {
-    "test": "node --test --import ./test/setup.ts test/*.test.ts",
+    "test": "node --test --import ./test/setup.ts test/*.test.ts test/headless/*.test.ts",
     "check": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "verify": "node verify/run.ts"
   },
   "peerDependencies": {
-    "@chenglou/pretext": ">=0.0.10"
+    "@chenglou/pretext": ">=0.0.10",
+    "harfbuzzjs": "1.6.2",
+    "wawoff2": "2.0.1"
+  },
+  "peerDependenciesMeta": {
+    "harfbuzzjs": {
+      "optional": true
+    },
+    "wawoff2": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@chenglou/pretext": "file:../pretext",
     "@types/node": "^26.6.4",
     "esbuild": "^0.28.2",
+    "harfbuzzjs": "1.6.2",
     "playwright": "1.61.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "wawoff2": "2.0.1"
   }
 }
