@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>pretext-kit bench</title>
+<style>
+  /* Every property Pretext models is pinned, as in sweep.html, so the DOM baselines lay out what the kit measures. */
+  body { margin: 0; }
+  #probe, #messages, #fresh, #fit, #fit-one {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-family: "Helvetica Neue", "PingFang SC", "Geeza Pro", sans-serif;
+    font-size: 16px;
+    line-height: 24px;
+    font-style: normal;
+    font-variant: normal;
+    font-weight: 400;
+    font-stretch: normal;
+    letter-spacing: normal;
+    word-spacing: normal;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    line-break: auto;
+    hyphens: manual;
+    text-align: start;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+  }
+  /* The DOM baselines' boxes are laid out but not painted: hidden boxes lay out as visible ones do. */
+  #messages, #fresh, #fit, #fit-one { visibility: hidden; }
+  #messages > div, #fresh > div { margin: 0; padding: 0; border: 0; }
+  /* The common fitting box: fixed width and height, overflow hidden, checked through scrollWidth and scrollHeight. */
+  #fit > div, #fit-one { width: 399px; height: 96px; overflow: hidden; }
+  #fit > div { position: absolute; top: 0; left: 0; }
+</style>
+</head>
+<body>
+<div id="probe"></div>
+<div id="messages"></div>
+<div id="fresh"></div>
+<div id="fit"></div>
+<div id="fit-one"></div>
+<script>
+  // bench-run.ts loads ?count for the instrumented bundle, which only counts calls and is never timed.
+  const s = document.createElement('script')
+  s.src = location.search.includes('count') ? 'dist/bench-count.js' : 'dist/bench.js'
+  document.body.appendChild(s)
+</script>
+</body>
+</html>

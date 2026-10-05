@@ -31,7 +31,8 @@
     "examples:serve": "node examples/build.ts && node examples/serve.ts",
     "examples:data": "node examples/build-accuracy-data.ts && node examples/build-headless-parity.ts",
     "examples:check": "node examples/check.ts",
-    "examples:screenshots": "node examples/check.ts --screenshots"
+    "examples:screenshots": "node examples/check.ts --screenshots",
+    "bench": "node verify/bench-run.ts"
   },
   "peerDependencies": {
     "@chenglou/pretext": ">=0.0.10",
