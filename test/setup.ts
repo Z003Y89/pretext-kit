@@ -2,6 +2,9 @@
 // expected widths machine-dependent. A fixed-width stand-in keeps every assertion exact. A font
 // named Kern also kerns, as real fonts do, so a run measures other than its graphemes summed:
 // each "ts" a quarter em tighter and each "y…" a quarter em looser.
+// A web font swapping in changes widths; tests flip this to simulate it.
+export const standIn = { scale: 1 }
+
 class StandInContext {
   font = ''
 
@@ -16,7 +19,7 @@ class StandInContext {
       width -= 0.25 * size * (text.split('ts').length - 1)
       width += 0.25 * size * (text.split('y…').length - 1)
     }
-    return { width }
+    return { width: width * standIn.scale }
   }
 }
 
