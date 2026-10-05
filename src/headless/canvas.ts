@@ -232,7 +232,9 @@ function measure(text: string, shaping: Shaping): HeadlessTextMetrics {
       codePoints.push(ch.codePointAt(0)!)
       graphemeEnds.push(0)
     }
-    graphemeEnds[graphemeEnds.length - 1] = 1
+    // Chrome adds no letter spacing after a character it treats as a zero-width space (measured in
+    // verify/HEADLESS_RESULTS.md); every one Canvas knows has become U+200B by now.
+    if (segment.codePointAt(0) !== ZWSP || segment.length !== 1) graphemeEnds[graphemeEnds.length - 1] = 1
   }
   const ends = Uint8Array.from(graphemeEnds)
   const placed: Placed = { fonts: [], glyphs: [], xs: [] }

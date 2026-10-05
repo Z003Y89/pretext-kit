@@ -54,6 +54,16 @@ test('Canvas words are cut at U+0020, so kerning with the space glyph is lost', 
   assert.ok(width('x\u2028T\u2028x', roboto) < cut)
 })
 
+test('U+2029 is drawn like U+2028, with the space glyph and no cut, as Chromium measures', () => {
+  // Chromium 149 (verify/HEADLESS_RESULTS.md): 16px Roboto 'x'+U+2029+'T'+U+2029+'x' is 32.703125, as with
+  // U+2028, and narrower than 'x T x' (33.328125), so T kerns with the space glyph across it.
+  const roboto = context('16px Roboto')
+  assert.equal(width('x\u2029T\u2029x', roboto), 32.703125)
+  assert.equal(width('x\u2028T\u2028x', roboto), 32.703125)
+  assert.equal(width('x T x', roboto), 33.328125)
+  assert.equal(width('\u2029', roboto), width(' ', roboto))
+})
+
 test('ZWSP and TAB cut a word too', () => {
   assert.equal(width('A\u200BV'), width('A') + width('V'))
   assert.equal(width('A\tV'), width('A V'))
@@ -82,6 +92,18 @@ test('letter spacing is added per grapheme, with ligatures off', () => {
   assert.equal(width('fi', ctx), width('f') + width('i') + 2 * 0.5)
   // A combining mark is part of its base's grapheme and takes no spacing of its own.
   assert.equal(width('é', ctx), width('é') + 0.5)
+})
+
+test('letter spacing skips ZWSP and what Canvas turns into it, as Chrome does', () => {
+  // Measured in Chromium 149 (verify/HEADLESS_RESULTS.md): 'A'+ZWSP+'V' at 0.5px is 23.078125, no
+  // spacing after the ZWSP; Blink adds none to a character it treats as a zero-width space.
+  const ctx = context()
+  ctx.letterSpacing = '0.5px'
+  assert.equal(width('A\u200BV', ctx), 23.078125)
+  for (const zw of ['\u00AD', '\u200E', '\u200F', '\u202A', '\uFEFF']) {
+    assert.equal(width(`A${zw}V`, ctx), width('A V', ctx) - width(' ', ctx), JSON.stringify(zw))
+  }
+  assert.equal(width('Ta\u00ADges', ctx), width('Tages', ctx))
 })
 
 test('any letter spacing turns contextual alternates off', () => {
