@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CORPORA, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, widths } from '../verify/corpora.ts'
+import { CORPORA, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, UI_LABELS, widths } from '../verify/corpora.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const verify = process.env.VERIFY_DIR ?? join(here, '../verify')
@@ -29,6 +29,10 @@ type Outcome = typeof OUTCOMES[number]
 // verify/sweep.ts: clamp runs at maxLines 1-5 (CLAMP_MAX_LINES there).
 const CLAMP_MAX_LINES = 5
 const SAMPLES_PER_OUTCOME = 8
+// verify/sweep.ts: fitFontSizeRich runs each width in two boxes (RICH_BOXES there: maxLines 1, and a
+// fixed height) over the corpora an icon row holds and the real UI labels (RICH_CORPORA there).
+const RICH_BOXES = 2
+const RICH_CORPORA = [...CORPORA.filter(c => ['latin', 'german', 'french', 'emoji-chat'].includes(c.name)), UI_LABELS]
 
 const cases: Case[] = JSON.parse(gunzipSync(readFileSync(join(verify, 'results/latest.json.gz'))).toString('utf8'))
 const results = readFileSync(join(verify, 'RESULTS.md'), 'utf8')
@@ -63,13 +67,14 @@ if (runs.length === 0) throw new Error('RESULTS.md: no browser sections found')
 
 // --- Cases per helper × corpus, from the sweep's own definitions ----------------------------------
 // The helpers whose cases per corpus this script can count, from verify/sweep.ts's loops.
-const COUNTABLE = ['shrinkwrap', 'balance', 'fitFontSize', 'clamp', 'truncateMiddle']
+const COUNTABLE = ['shrinkwrap', 'balance', 'fitFontSize', 'fitFontSizeRich', 'clamp', 'truncateMiddle']
 // Every helper RESULTS.md reports, in its order.
 const HELPERS = [...new Set(runs.flatMap(r => Object.keys(r.helpers)))]
 const corporaFor = (helper: string) =>
   helper === 'truncateMiddle' ? [LABELS, ...CORPORA.filter(c => c.name === 'german' || c.name === 'french')]
+    : helper === 'fitFontSizeRich' ? RICH_CORPORA
     : helper === 'fontFromStyle' ? [] : CORPORA
-const CORPUS_NAMES = [...new Set([...CORPORA.map(c => c.name), LABELS.name, ...cases.map(c => c.corpus)])]
+const CORPUS_NAMES = [...new Set([...CORPORA.map(c => c.name), LABELS.name, UI_LABELS.name, ...cases.map(c => c.corpus)])]
 const NO_CORPUS = 'all'
 
 function totalsFor(helper: string, factor: number, fromResults: number): Map<string, number> {
@@ -78,7 +83,7 @@ function totalsFor(helper: string, factor: number, fromResults: number): Map<str
   const step = steps.get(factor)?.[helper]
   if (step === undefined) throw new Error(`RESULTS.md gives no width step for ${helper} at factor ${factor}`)
   const ws = helper === 'truncateMiddle' ? widths(step, LABEL_WIDTH_MIN, LABEL_WIDTH_MAX) : widths(step)
-  const perText = ws.length * FONT_STACKS.length * (helper === 'clamp' ? CLAMP_MAX_LINES : 1)
+  const perText = ws.length * FONT_STACKS.length * (helper === 'clamp' ? CLAMP_MAX_LINES : helper === 'fitFontSizeRich' ? RICH_BOXES : 1)
   for (const c of corporaFor(helper)) out.set(c.name, c.texts.length * perText)
   return out
 }
