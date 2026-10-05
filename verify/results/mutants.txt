@@ -48,3 +48,5 @@ Mutants planted in a worktree of 18db330; sweep: chromium@1, the affected helper
 Rerun of one mutant at 43a53af, after the truncateMiddle grapheme-boundary unit test, sweep check and four labels
 were added (`node verify/mutants.ts --mutant='code points'`); its two rows above are replaced with this run's.
 Before (18db330): clamp 43, truncateMiddle 0 (56496 cases, 56493 pass), npm test passing.
+Rerun again at 8f3aa2e (after the truncateMiddle end-shortening fix, 7c71815): the same two rows, clamp 43 and
+truncateMiddle 128 of 61632, npm test failing (1).

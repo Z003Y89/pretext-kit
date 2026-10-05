@@ -328,7 +328,7 @@ everywhere, and the zeros are findings:
   decomposed accents and Hangul jamo at many widths and checks both cuts against `Intl.Segmenter`
   (`test/middle.test.ts`); the sweep checks both cuts against its own `Intl.Segmenter` (a cut inside a grapheme is a
   kit-mismatch); and four such labels joined the path corpus (`verify/corpora.ts`). Rerun at 43a53af, the mutant is
-  caught by 128 truncateMiddle cases and the new unit test; the rows above are that run's
+  caught by 128 truncateMiddle cases and the new unit test (the same at 8f3aa2e, after the fix below); the rows above are that run's
   (`verify/results/mutants.txt` notes the replaced ones). The full sweep was rerun with the four labels (§3).
 - **The new labels found a kit bug.** In WebKit 26.5 the Hangul jamo label in Georgia and Times New Roman at
   80-84px (18 cases over the three factors) came back as `한….txt`, 84.30 and 84.84px wide by Pretext's own
