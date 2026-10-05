@@ -13,7 +13,8 @@
     "test": "node --test --import ./test/setup.ts test/*.test.ts",
     "check": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "verify": "node verify/run.ts"
+    "verify": "node verify/run.ts",
+    "bench": "node verify/bench-run.ts"
   },
   "peerDependencies": {
     "@chenglou/pretext": ">=0.0.10"
