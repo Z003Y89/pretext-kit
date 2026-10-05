@@ -11,15 +11,16 @@ npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # optional peers, loaded only by prete
 ```
 
 ```ts
-import { registerFont, install } from 'pretext-kit/headless'
 import { readFileSync } from 'node:fs'
+import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
+import { registerFont, install } from 'pretext-kit/headless'
 
 // The same files your CSS @font-face loads, under the same family names. TTF/OTF/TTC, WOFF or WOFF2.
 await registerFont('Inter', new Uint8Array(readFileSync('fonts/Inter-Regular.ttf')))
 install()
 
-// Only now import and use Pretext / pretext-kit.
-const { measureLineStats, prepareWithSegments } = await import('@chenglou/pretext')
+// Before the first prepare(): a static import of Pretext above is fine, as Pretext reads the engine only then.
+const { lineCount } = measureLineStats(prepareWithSegments('Speichern', '600 14px Inter'), 160)
 ```
 
 A runnable version is `examples/vitest-label-fit.test.ts`.
@@ -72,18 +73,28 @@ it('fits one line at 160px', () => {
 })
 ```
 
-jest + jsdom (`jest.config`: `testEnvironment: 'jsdom'`, `setupFilesAfterEnv: ['./jest.setup.js']`, which runs inside the
-jsdom environment before each test file, so `document` already exists and `beforeAll` is available):
+jest + jsdom. pretext-kit and Pretext are ESM only (no `require` condition), so use jest's ESM mode:
+`NODE_OPTIONS=--experimental-vm-modules npx jest` (with `jest-environment-jsdom` installed).
 
 ```js
-// jest.setup.js
-const { readFileSync } = require('node:fs')
-const { registerFont, install } = require('pretext-kit/headless')
-beforeAll(async () => {
-  await registerFont('Inter', new Uint8Array(readFileSync('fonts/Inter-Regular.ttf')))
-  install()
-})
+// jest.config.mjs
+export default { transform: {}, testEnvironment: 'jsdom', setupFilesAfterEnv: ['./jest.setup.mjs'] }
 ```
+```js
+// jest.setup.mjs: runs inside the jsdom environment before each test file, so `document` already exists
+import { readFileSync } from 'node:fs'
+import { TextDecoder, TextEncoder } from 'node:util'
+
+// jest-environment-jsdom has no TextDecoder/TextEncoder, which harfbuzzjs needs when it loads,
+// so set them first and import the headless module dynamically after.
+Object.assign(globalThis, { TextDecoder, TextEncoder })
+const { registerFont, install } = await import('pretext-kit/headless')
+await registerFont('Inter', new Uint8Array(readFileSync('fonts/Inter-Regular.ttf')))
+install()
+```
+
+Verified by running jest 30 with `jest-environment-jsdom` on a copy of this repo (a test with `document.body` present
+measured `'Speichern © 2026'` at 600 14px Inter in one line at 160px).
 
 ### jsdom
 
