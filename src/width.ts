@@ -18,21 +18,26 @@ function shrinkwrapWith<P>(stats: StatsFn<P>, prepared: P, maxWidth: number): Wi
 
 function balanceWith<P>(stats: StatsFn<P>, prepared: P, maxWidth: number): WidthFit {
   const target = stats(prepared, maxWidth).lineCount
-  if (target <= 1) return shrinkwrapWith(stats, prepared, maxWidth)
+  // An unbounded width has no search range, and one line needs no balancing.
+  if (target <= 1 || !Number.isFinite(maxWidth)) return shrinkwrapWith(stats, prepared, maxWidth)
   let lo = 1
   let hi = Math.floor(maxWidth)
   // Rounding a fractional maxWidth down can add a line; no whole-pixel width then matches the target.
   if (hi < 1 || stats(prepared, hi).lineCount > target) return shrinkwrapWith(stats, prepared, maxWidth)
   while (lo < hi) {
-    const mid = (lo + hi) >> 1
+    const mid = lo + Math.floor((hi - lo) / 2)
     if (stats(prepared, mid).lineCount <= target) hi = mid
     else lo = mid + 1
   }
-  const s = stats(prepared, lo)
   // The max matters only when a grapheme is wider than lo: lines are one grapheme each at any width,
   // so the search bottoms out at 1px, yet the result must hold the widest line (capped at maxWidth,
   // where a browser would overflow it).
-  return { width: Math.min(maxWidth, Math.max(lo, Math.ceil(s.maxLineWidth))), lineCount: s.lineCount }
+  const width = Math.min(maxWidth, Math.max(lo, Math.ceil(stats(prepared, lo).maxLineWidth)))
+  // Line counts are not monotone in width, so the search result is not guaranteed to reproduce the
+  // target at the width actually returned; verify it and fall back to the always-correct shrinkwrap.
+  const check = stats(prepared, width)
+  if (check.lineCount !== target) return shrinkwrapWith(stats, prepared, maxWidth)
+  return { width, lineCount: check.lineCount }
 }
 
 export function shrinkwrap(prepared: PreparedTextWithSegments, maxWidth: number): WidthFit {

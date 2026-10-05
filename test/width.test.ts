@@ -16,7 +16,7 @@ test('a width one pixel under balance adds a line', () =>
 test('never wider than a fractional maxWidth', () => {
   const nine = prepareWithSegments('aaaaaaaaa', '21px Test') // 94.5px
   assert.deepEqual(shrinkwrap(nine, 94.5), { width: 94.5, lineCount: 1 })
-  assert.ok(balance(p('aa bb cc dd ee'), 94.5).width <= 94.5)
+  assert.deepEqual(balance(p('aa bb cc dd ee'), 94.5), { width: 70, lineCount: 2 })
 })
 test('narrower than a grapheme terminates with one grapheme a line', () =>
   assert.deepEqual(balance(p('abc'), 5), { width: 5, lineCount: 3 }))
@@ -32,4 +32,44 @@ test('rich twins agree with plain text for one item', () => {
   const r = prepareRichInline([{ text: 'aa bb cc dd ee', font: '20px Test' }])
   assert.deepEqual(balanceRich(r, 100), balance(p('aa bb cc dd ee'), 100))
   assert.deepEqual(shrinkwrapRich(r, 100), shrinkwrap(p('aa bb cc dd ee'), 100))
+})
+
+test('balance terminates on an infinite maxWidth', () => {
+  const t = prepareWithSegments('aa\nbb', '20px Test', { whiteSpace: 'pre-wrap' })
+  assert.deepEqual(balance(t, Infinity), { width: 20, lineCount: 2 })
+})
+
+// Deterministic generator so a failure reproduces.
+function rng(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0
+    let t = s
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+test('returned widths reproduce their line count and never exceed maxWidth', () => {
+  const next = rng(99)
+  for (let n = 0; n < 500; n++) {
+    const wordCount = 1 + Math.floor(next() * 12)
+    let text = ''
+    for (let w = 0; w < wordCount; w++) {
+      const len = 1 + Math.floor(next() * 8)
+      if (w > 0) text += next() < 0.1 ? '\n' : ' '
+      for (let c = 0; c < len; c++) text += 'abcdefgh'[Math.floor(next() * 8)]
+    }
+    const t = prepareWithSegments(text, '20px Test', { whiteSpace: 'pre-wrap' })
+    const maxWidth = 5 + next() * 395
+    const mw = n % 2 === 0 ? Math.floor(maxWidth) : maxWidth
+    const target = measureLineStats(t, mw).lineCount
+    for (const r of [balance(t, mw), shrinkwrap(t, mw)]) {
+      const ctx = `${JSON.stringify(text)} @ ${mw}: ${JSON.stringify(r)}`
+      assert.ok(r.width <= mw, ctx)
+      assert.equal(r.lineCount, target, ctx)
+      assert.equal(measureLineStats(t, r.width).lineCount, r.lineCount, ctx)
+    }
+  }
 })
