@@ -39,13 +39,15 @@ Pretext agreeing with the browser at the widths or sizes the judgement needs; wh
 | C3 | `fitFontSize(sizes, box, lh)` | Returns the largest whole-px size in [min, max] at which the browser's painting fits the box (height ≤ `box.height`, lines ≤ `maxLines`, no overflow past the width), such that one px larger does not fit; `null` exactly when `min` does not fit. Judged at the box `{ W, height: 96 }`, sizes 8-48, line height 1.5 × size. | browser sweep |
 | C4 | `fitFontSizeRich(sizes, box, lh)` | As C3, for an icon box followed by a label (one row, `extraWidth` as margin), sizes 8-32, boxes `{ W, maxLines: 1 }` and `{ W, height: 72 }`. | browser sweep |
 | C5 | `clamp(p, W, N, tail)`, `clampStats`, `measureTail` | Line count = min(Pretext's, N) and `truncated` exactly when Pretext lays out more than N; this matches a `-webkit-line-clamp: N` box's truncation and height. Every returned line, the cut one followed by the tail, paints within W + 1/64. The cut is the longest grapheme prefix whose text joined to the tail, measured as one text, fits. Floor: a cut keeps at least one grapheme, so where W is narrower than the tail plus the first grapheme the line paints past W, and the claim is only that it is one grapheme. *Not claimed:* that the cut falls where the browser's own ellipsis does (the SVG probe that would test it was not run). | browser sweep |
-| C6 | `truncateMiddle(label, W, keepEnd)` | The whole label exactly when its natural width fits W; otherwise start + `…` + end, cut only between graphemes, which paints within W + 1/64, where one more grapheme of the start would not fit, and whose end holds everything from `keepEnd.from` whenever that end, `…` and the first grapheme fit. The start keeps at least one grapheme, so where W is narrower than that grapheme and `…`, the result paints past W. | browser sweep |
+| C6 | `truncateMiddle(label, W, keepEnd)` | The whole label (`label.text`: the text as Pretext prepared it, white space collapsed as under `white-space: normal`) exactly when its natural width fits W; otherwise start + `…` + end of `label.text`, cut only between graphemes, which paints within W + 1/64, where one more grapheme of the start would not fit, and whose end holds everything from `keepEnd.from`, an index into `label.text`, whenever that end, `…` and the first grapheme fit. The start keeps at least one grapheme, so where W is narrower than that grapheme and `…`, the result paints past W. | browser sweep |
 | C7 | `fontFromStyle(getComputedStyle(el))` | Returns a Canvas font string that Canvas parses to the same font as the element's weight, style, size and family, with `letterSpacing` and `lineHeight` in px. Tested at the pinned style (weight 400, normal, no letter spacing) at 16px and 8-48px, and three single-property variants at 16px only: weight 700, italic, 0.5px letter spacing; not a cross of them (§4 explains why the variants were added). Indirectly, every other case's font comes from it. | browser sweep |
 | C8 | `pretext-kit/headless` | In Node, for code points the registered fonts cover: `measureText` widths within 0.02px of Chromium's Canvas, and Pretext's line counts equal Pretext's inside Chromium; `HeadlessCoverageError` thrown on exactly the cases a fixed coverage rule puts out of scope. Chromium's rules, macOS, registered fonts only. | headless parity sweep |
 | C9 | `watchFonts` | On each `loadingdone` event with at least one face, calls Pretext's `clearCache()` and then the callback; never after unsubscribing. | unit tests only (stand-in `FontFaceSet`) |
 | C10 | `stack`, `findIndexAt`, `anchorDelta`; `shrinkwrapRich`, `balanceRich` | Arithmetic over heights and tops; the rich twins are C1/C2 over `measureRichInlineStats`. | unit tests only; **not browser-swept** |
 
-C9 and C10 rest on `npm test` alone (150 tests, 85 + 65, on a stand-in Canvas, §6), not on a browser.
+C9 and C10 rest on `npm test` alone (160 tests, 90 + 70, on a stand-in Canvas, §6), not on a browser. The sweep's
+labels hold no white space that collapses, so `label.text` is the label as given there; the collapsed-text rule
+(and `keepEnd.from` indexing it, with doubled spaces, leading spaces and CRLF) is tested by `npm test` only.
 
 ## 2. Method
 
@@ -115,7 +117,8 @@ recomputed from the corpora, non-pass counts from the listing), and prints the t
 intervals' upper ends, i.e. one-sided 97.5%: Wilson score (≈ 3.84/n at 0 failures for large n) and, beside it, exact
 Clopper-Pearson (≈ 3.69/n at 0; the "3.7/n" often quoted is this one). "Judged against the painting" counts every
 case that is neither pretext-gap nor unreliable, so it includes the 12,931 platform cases as judged and not failing.
-Logic tests: `npm test`, 150 tests (85 + 65, `node --test`).
+Logic tests: `npm test`, 160 tests (90 + 70, `node --test`; 150 when the sweeps below were run, before the final
+review's fixes added ten).
 
 ## 3. Results
 
@@ -519,7 +522,10 @@ and may be off by a line, or a pixel of width, in what the browser paints. RESUL
 - **clamp's cut** is the longest prefix that fits with the tail, measured joined; that it matches where the browser
   itself would cut was not tested.
 - **Headless** is Chromium's rules with registered fonts, on macOS: an uncovered code point throws
-  `HeadlessCoverageError`; a weight with no registered face measures the nearest one.
+  `HeadlessCoverageError`; a weight with no registered face measures the nearest one; a `small-caps` font throws.
+- **truncateMiddle works on the collapsed text.** `prepareLabel` collapses white space as CSS does, so the result,
+  and `keepEnd.from`, refer to `label.text`, not to the string passed in; an index taken from the original string
+  is off wherever spaces collapsed.
 - **Not browser-tested:** `shrinkwrapRich`, `balanceRich`, `watchFonts`, `stack`, `findIndexAt`, `anchorDelta`.
 - **`watchFonts` in a worker**: by default it listens to `document.fonts`, which a worker lacks, so there it does
   nothing unless given the worker's `self.fonts` as its second argument.

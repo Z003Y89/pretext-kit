@@ -47,7 +47,12 @@ npm install ./pretext ./pretext-kit
 npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
-`@chenglou/pretext` is a peer dependency: your app and the kit share one Pretext, and one cache.
+`@chenglou/pretext` is a peer dependency: your app and the kit share one Pretext, and one cache. Its range is
+`>=0.0.10 <0.0.11`: Pretext is pre-1.0, so each 0.0.x release may change what the kit is verified against, and 0.0.10
+is the first release with the line breakers above. The first npm publish of pretext-kit waits for Pretext 0.0.10;
+until then the build from `main` still says 0.0.9, which npm does not check for the folder installs above. The
+optional peers are `harfbuzzjs` `^1.6.2` and `wawoff2` `^2.0.1` (1.6.2 and 2.0.1 are the versions verified). The
+package declares Node `>=24`, the only Node line its tests and the headless parity sweep have run on.
 
 ## When CSS is enough
 
@@ -87,16 +92,23 @@ balance(p, 320)             // { width, lineCount }: the narrowest width that ke
 const tail = measureTail('…', font)          // once per font
 clamp(p, 240, 2, tail)                       // { truncated, lineCount, lines: [{ text, width }] }
 
-const path = prepareLabel('~/Projects/atlas/src/core/line-breaker.test.ts', font)
-truncateMiddle(path, 220, { from: path.text.lastIndexOf('/') })   // a start, '…', then '/line-breaker.test.ts' whole
+const label = prepareLabel('~/Projects/atlas/src/core/line-breaker.test.ts', font)
+truncateMiddle(label, 220, { from: label.text.lastIndexOf('/') })   // a start, '…', then '/line-breaker.test.ts' whole
 
 const sizes = prepareSizes('Zahlungspflichtig abonnieren', px => `500 ${px}px "Helvetica Neue"`, { min: 11, max: 16 })
 fitFontSize(sizes, { width: 180, maxLines: 1 }, px => Math.round(px * 1.3))   // { px, prepared, lineCount } | null
 ```
 
 - `shrinkwrapRich` / `balanceRich` take a `PreparedRichInline` (mixed fonts, chips, icons).
+- `maxWidth` for `shrinkwrap`, `balance` and their rich forms is a number of CSS px, at least 0, or `Infinity` for
+  unbounded; a negative or NaN `maxWidth` throws a `RangeError` (Pretext would lay NaN out as unbounded and a negative
+  width as narrower than any grapheme, and the answer would be NaN or negative). The answer never exceeds `maxWidth`.
 - `clampStats(p, width, maxLines)` gives `{ truncated, lineCount }` without building lines: all a list needs for
-  rows it doesn't paint.
+  rows it doesn't paint. In both, `maxLines` is a whole number of at least 1; anything else throws a `RangeError`.
+- `prepareLabel(text, font).text` is the label as Pretext prepared it, white space collapsed as CSS's `white-space:
+  normal` does (runs of spaces, tabs and line breaks become one space, none at either end). `truncateMiddle` cuts and
+  returns that text, and `keepEnd.from` is an index into it: write `label.text.lastIndexOf('/')`, not an index into the
+  string you passed, which differs wherever white space collapsed.
 - `prepareSizesRich(px => items, range)` / `fitFontSizeRich` fit an icon and a label as one row; see
   [Mixed rows](#mixed-rows).
 - `stack(heights, gap, tops)`, `findIndexAt(tops, count, y)`, `anchorDelta(oldTops, newTops, anchor)` are the three
@@ -353,6 +365,9 @@ browser, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" 
 npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # optional peers, loaded only by pretext-kit/headless (wawoff2: WOFF2 fonts)
 ```
 
+wawoff2 is loaded only when a WOFF2 font is registered; without it, the entry loads and TTF, OTF, TTC and WOFF fonts
+register, and registering a WOFF2 rejects with an error naming the package.
+
 ```ts
 import { readFileSync } from 'node:fs'
 import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
@@ -390,13 +405,15 @@ The claim is scoped exactly so:
   effect on text without CJK), but real CJK text in a font lacking it still throws. Inherent case: a lone `「` or `「「`
   segment in such a font measures that stand-in rather than throwing, as the probe is the same `measureText` call.
   Likewise Pretext's emoji correction probes U+1F600 for any Extended_Pictographic text (`©`, `®`, `™`, `↔`, `▶`, `♥`, `‼`), which
-  gets a stand-in of exactly the font size; any other uncovered emoji, and U+1F600 inside a longer segment, still throws,
+  gets a stand-in of exactly the font size (plus any letter spacing, as the U+300C stand-in gets); any other uncovered emoji, and U+1F600 inside a longer segment, still throws,
   and a standalone `😀` segment in a font lacking it measures that stand-in rather than throwing. A symbol your font
   lacks (Inter has no `✔`) throws for that glyph.
+- **small-caps.** A `small-caps` font (which `fontFromStyle` emits for `font-variant: small-caps`) throws when it is
+  set on the context: Canvas widths change with small capitals, and the stand-in does not model them.
 - **Weights.** A weight with no matching registered face (600 or 700 with only a Regular file) silently measures the
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
-- **Chromium profile.** `install()` sets a desktop Chrome user agent before Pretext loads, so Pretext uses its Blink
-  rules. WebKit and Gecko profiles are not supported.
+- **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
+  so Pretext uses its Blink rules. WebKit and Gecko profiles are not supported.
 - **Platforms.** Parity is measured for macOS Chrome. Windows (DirectWrite) and Linux (FreeType; whole-px advances
   without subpixel positioning) each still need one measured check before they are claimed; if Linux's check shows
   Chrome rounds, `install({ rounding: 'whole-px' })` is the mode for it.
@@ -458,8 +475,9 @@ like `© 2026`, and an emoji no registered font covers throws `HeadlessCoverageE
 not clamp the width of emoji your registered fonts do cover: a registered emoji font whose U+1F600 advance exceeds
 size + 0.5px makes Pretext's correction run, and under jsdom it zeroes those emoji. So register an emoji font with an
 advance of at most size + 0.5px (Apple Color Emoji is exactly 1em), or stub `getBoundingClientRect` on the jsdom
-window, or don't expose jsdom's `document` to Pretext. To have jsdom's globals exist before Pretext loads, set them
-and then `await import()` Pretext, as `test/headless/jsdom.test.ts` does.
+window, or don't expose jsdom's `document` to Pretext. Pretext reads `document` from the first `prepare()` on; to
+reproduce a jest/vitest jsdom environment in a plain Node test, set jsdom's globals and then `await import()` Pretext,
+as `test/headless/jsdom.test.ts` does.
 
 ### Soft hyphens and invisible characters
 

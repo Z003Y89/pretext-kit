@@ -53,7 +53,8 @@ against Pretext `main` (f10d888, 2026-10-05): npm's 0.0.9 predates the ports of 
 ```ts
 shrinkwrap(prepared: PreparedTextWithSegments, maxWidth: number): { width: number, lineCount: number }
 ```
-The width that paints the same lines as `maxWidth` and wastes no space: the widest line from `measureLineStats`,
+`maxWidth` is at least 0 (or `Infinity`); a negative or NaN one throws a `RangeError`, as Pretext does for its own
+bad numbers. The width that paints the same lines as `maxWidth` and wastes no space: the widest line from `measureLineStats`,
 `Math.ceil`'d and capped at `maxWidth` (the README's rule, encoded). One line walk, no search.
 
 ```ts
@@ -71,12 +72,12 @@ chips.
 
 ```ts
 clamp(prepared: PreparedTextWithSegments, width: number, maxLines: number, tail?: Tail): Clamped
-type Tail = { text: string, font: string, options?: PrepareOptions, width: number, spaceWidth: number }
+type Tail = { text: string, font: string, options?: PrepareOptions, width: number }
                                                   // what the painter appends after the cut (an ellipsis, "… more"), in its font;
                                                   // the cut is measured joined with it, so kerning and shaping across the seam count
 measureTail(text: string, font: string, options?: PrepareOptions): Tail  // e.g. measureTail('…', FONT), measured once
 ```
-Matches `-webkit-line-clamp`. The clamped line breaks where it would without the clamp; the tail follows it if it
+`maxLines` (here and in `clampStats`) is a whole number of at least 1, else a `RangeError`. Matches `-webkit-line-clamp`. The clamped line breaks where it would without the clamp; the tail follows it if it
 fits; otherwise the line is cut after the last grapheme that leaves the tail room, inside a word if need be, keeping at
 least one grapheme. That is the rule browsers apply, per RESEARCH.md, Line Clamp And Ellipsis, which also gives the
 demo's 8,025-layout agreement. Ported from `ellipsis.model.ts` (`clampLines`), with its constants becoming parameters. The browser sweep showed
@@ -88,8 +89,10 @@ with the tail as one text, fits: a binary search of a few `prepare()` calls (`sr
 prepareLabel(text: string, font: string): PreparedLabel           // grapheme starts found once
 truncateMiddle(label: PreparedLabel, width: number, keepEnd?: { from: number }): string
 ```
-One-line middle truncation for file names, paths and IDs: `~/Projects/atlas/…/line-breaker.test.ts`. `keepEnd.from`
-is a code-unit offset the end must start at or before, e.g. `text.lastIndexOf('/')`, so a file name is never cut.
+One-line middle truncation for file names, paths and IDs: `~/Projects/atlas/…/line-breaker.test.ts`. `label.text` is
+the text as Pretext prepared it, white space collapsed (`white-space: normal`), and is what the result is cut from.
+`keepEnd.from` is a code-unit offset into `label.text` the end must start at or before, e.g.
+`label.text.lastIndexOf('/')`, so a file name is never cut.
 Lifted from `layoutMiddle`. This is the desktop-app case Finder and Explorer solve natively.
 
 ### Font size
