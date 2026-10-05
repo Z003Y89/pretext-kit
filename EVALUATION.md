@@ -455,9 +455,10 @@ changes changed (the fontFromStyle cases and the overflow sentences).
 factor-1 tallies, not WebKit's, Firefox's or the zoomed ones:
 
 Run 2026-10-05 on the same Mac (macOS 14.6.1, Node 24.4.1, npm 11.4.2, Playwright's browsers already cached), into
-a new directory under the session's scratch space: `verify/reproduce.sh --kit-commit=9f46f09 --sweep=chromium@1`,
-174 s wall time (at 9f46f09 the comparison still read the clone's own RESULTS.md, which the factor-1-only mode does
-not rewrite, so the comparison was against the committed tallies). Every step passed:
+a new directory under the session's scratch space: `verify/reproduce.sh --kit-commit=729410b --sweep=chromium@1`,
+163 s wall time. Its output is committed as `verify/results/reproduce-chromium1.txt` (paths shortened to `<dir>`
+and `<kit-repo>`; the per-step logs stayed in the scratch directory). An earlier run at 9f46f09 gave the same
+results in 174 s. Every step passed:
 
 - `npm test`: 83 + 65 tests, 0 failing; `npm run check` clean.
 - The Chromium factor-1 sweep: 7 of 7 helper tallies equal RESULTS.md (for example clamp 808080 cases: 807503 pass,
