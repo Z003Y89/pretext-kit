@@ -1,7 +1,10 @@
 // The app screen's strings in three languages. Real UI copy, not lorem ipsum: German compounds and
 // French phrases are what break fixed-size layouts in practice.
 //
-// Both sides get the same strings; see hyphenatedTitles below for the one place soft hyphens enter.
+// Both sides get the same strings. Soft hyphens enter in two places: German UI labels carry soft hyphens
+// written by hand at their compound joints (Tages|abschluss|bericht), where a German reader splits
+// them; a dictionary picks syllable breaks (Tagesab-schlussbericht) that read wrong in a button.
+// Titles get theirs from TeX patterns at build time; see hyphenatedTitles below.
 
 export type Lang = 'en' | 'de' | 'fr'
 export const LANGS: Lang[] = ['en', 'de', 'fr']
@@ -60,7 +63,7 @@ export const STRINGS: Record<Lang, ScreenText> = {
   },
   de: {
     app: 'Abrechnung',
-    toolbar: ['Neue Rechnung', '„Tagesabschlussbericht“', 'Exportieren', 'Einstellungen'],
+    toolbar: ['Neue Rechnung', '„Tages\u00ADabschluss\u00ADbericht“', 'Exportieren', 'Einstellungen'],
     cards: [
       {
         id: '207/0011',
@@ -88,7 +91,7 @@ export const STRINGS: Record<Lang, ScreenText> = {
       },
     ],
     secondary: 'Änderungen speichern',
-    primary: 'Zahlungspflichtig abonnieren',
+    primary: 'Zahlungs\u00ADpflichtig abonnieren',
   },
   fr: {
     app: 'Facturation',
@@ -124,7 +127,10 @@ export const STRINGS: Record<Lang, ScreenText> = {
   },
 }
 
-// Hyphenation policy: on both sides, labels, badges, buttons and bodies are not hyphenated. Kit titles
+// Hyphenation policy: on both sides, badges and bodies are not hyphenated, and labels only at the
+// joints written into them above. The kit ignores those joints (paints the label without them) except in
+// one step: on a phone, the toolbar label it keeps last may break at a joint when one of its words is
+// wider than the room beside the icons. The CSS side keeps them (hyphens: manual). Kit titles
 // get soft hyphens only in a word wider than the card, where the alternative is an arbitrary
 // overflow-wrap break; the kit knows which words those are because it measures them. CSS titles use
 // hyphens: auto, which depends on the browser having a dictionary for the language. The hyphenated

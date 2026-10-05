@@ -14,7 +14,9 @@
   <p class="intro">The same screen in English, German and French, at a phone-to-tablet width. German compounds
     („Tagesabschlussbericht“, „Zahlungspflichtig abonnieren“) and long French labels („Enregistrer les
     modifications“) are what break layouts. Both sides get the same strings and the same hyphenation policy: no
-    hyphens in labels, badges, buttons or bodies; in titles, the kit hyphenates only a word wider than the card (with
+    hyphens in badges or bodies; German labels carry soft hyphens written by hand at their compound joints
+    („Tages·abschluss·bericht“, „Zahlungs·pflichtig“; a dictionary would pick syllables such as „Tagesab-schluss…“),
+    which the kit uses only when a word is wider than the room left for it and CSS uses whenever it wraps; in titles, the kit hyphenates only a word wider than the card (with
     soft hyphens put in at build time by the <code>hyphen</code> package's TeX patterns), and the CSS side uses
     <code>hyphens: auto</code>.</p>
 
@@ -22,7 +24,8 @@
     <h2>What CSS can't match here</h2>
     <ul>
       <li><b>Labels that fit without hyphens</b>: each language's toolbar and buttons get their own shared size and
-        layout, chosen by measuring, instead of wrapping the row.</li>
+        layout, chosen by measuring, instead of wrapping the row; a label breaks at a compound joint only when one
+        of its words is wider than the room.</li>
       <li><b>Hyphenation only where it's needed</b>: the kit knows which title word is wider than the card. CSS
         <code>hyphens: auto</code> follows each browser's dictionary, which differs per engine.</li>
       <li><b>Badges that fit</b> in every language, at one size per list.</li>

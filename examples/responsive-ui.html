@@ -24,8 +24,9 @@
         app's order (settings, then export, then new invoice; the daily closing report, this screen's subject,
         keeps its label longest), else two lines broken at spaces. On a phone the kit keeps one row and only the
         report's label; the other buttons become icons named by <code>aria-label</code>. CSS keeps every label at
-        the cost of 2–3 rows. (In German at a 320px screen even „Tagesabschlussbericht“ doesn't fit at 90% of its
-        size, so all four buttons are icons, each as wide as its icon.)</li>
+        the cost of 2–3 rows. A single word wider than the room beside the icons (German „Tagesabschlussbericht“
+        at a 320px screen) breaks onto two lines only at a compound joint written into the string as a soft hyphen
+        („Tages-“ / „abschlussbericht“), at 90% of its size or more; if no joint fits, all four buttons are icons.</li>
       <li><b>Badges whose text fits</b> instead of an ellipsis: one badge size for the list, as wide as its text, and
         the case row wraps before a badge is cut.</li>
       <li><b>A middle cut without a known split point</b>: <code>truncateMiddle</code> keeps as much of each end of a
@@ -68,7 +69,8 @@
       <li><b>Toolbar</b>: <code>fitFontSizeRich</code> over the whole row as one line (each icon and label an item
         that never breaks, padding as extra width), each button as wide as its content and the row aligned to the
         start; buttons collapse to icons in the app's priority order; then <code>fitFontSizeRich</code> per button
-        for two lines, with every break at a space. Icon-only buttons keep their label as <code>aria-label</code>
+        for two lines, with every break at a space, and for the kept label last, also at its authored compound joints
+        (soft hyphens, painted with <code>hyphens: manual</code>). Icon-only buttons keep their label as <code>aria-label</code>
         and tooltip. CSS: <code>flex-wrap</code>, a <code>clamp()</code> label size, icons sized in em.</li>
       <li><b>Badges</b>: <code>fitFontSize</code> only when a badge's natural width passes its cap (40% of the
         card), one shared size, then <code>shrinkwrap</code> for its width. CSS: the head wraps, an ellipsis as a

@@ -1,5 +1,6 @@
 // languages: the same screen in English, German and French at one width. Both sides get the same
-// strings. Labels, badges and buttons are never hyphenated: the kit reflows its rows instead. A title
+// strings. Badges are never hyphenated, and labels and buttons only at compound joints written into
+// the German strings, which the kit uses only for a word wider than the room: it reflows its rows first. A title
 // word wider than the card gets the soft hyphens the build put in (`hyphen` TeX patterns), and only
 // that word; the CSS side uses hyphens: auto on titles, with each block's lang.
 

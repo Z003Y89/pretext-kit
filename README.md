@@ -144,6 +144,10 @@ const { width, lineCount } = balance(prepareWithSegments(text, font), boxWidth)
 // paint `text`, soft hyphens included, at `width` with `hyphens: manual`
 ```
 
+For UI labels, author the soft hyphens yourself at compound joints (`'Tages\u00ADabschluss\u00ADbericht'`):
+dictionaries pick syllable breaks (Tagesab-schlussbericht) that a German reader finds wrong in a button. Use
+`hyphen/de` for running text and titles.
+
 The sweep's German and French corpora are hyphenated throughout and run through every helper: zero kit-mismatch
 in all three browsers. Their pretext-gaps are under 0.5% of the German cases and under 1% of the French ones in
 every browser and zoom factor (WebKit also has line-height `platform` cases, which are safe). See
@@ -282,14 +286,15 @@ CSS handles equally well (titles, bodies, row heights):
 
 - **Responsive UI**: a billing screen from 320 to 1440px: a toolbar and button pair in one shared size
   (`fitFontSizeRich`, content widths, then tighter padding, then icon-only buttons in the app's priority order, then
-  two lines broken at spaces),
+  two lines broken at spaces; on a phone, only the report keeps its label, on two lines at a space or else at a
+  compound joint written into the string),
   badges that fit (`fitFontSize`, `shrinkwrap`), file names cut in the middle with no split point
   (`truncateMiddle`), and a 2,000-row list with exact heights and a scroll anchor (`stack`, `findIndexAt`,
   `anchorDelta`) beside CSS `content-visibility: auto`.
 - **Text size**: an app-wide text-size setting from 0.8× to 1.5×. The kit reflows first and shrinks text by at
   most 10% (cf. WCAG 1.4.4).
-- **Languages**: English, German and French; no hyphens in labels, soft hyphens only in a title word wider than
-  its card.
+- **Languages**: English, German and French; labels break only at hand-written compound joints and only when a
+  word is wider than the room, soft hyphens from TeX patterns only in a title word wider than its card.
 - **Accuracy**: the sweep as a browser × zoom × helper × corpus grid with sample cases
   (`npm run examples:data` re-exports it from `verify/`).
 - **Headless parity**: coming with pretext-kit/headless.
@@ -304,7 +309,7 @@ every setting at 360px.
 | | |
 |---|---|
 | ![Text size at 1.3×](examples/screenshots/text-size.png) | ![Languages, German at 560px](examples/screenshots/languages.png) |
-| ![Responsive UI at a 360px viewport](examples/screenshots/responsive-ui-360.png) | ![Accuracy explorer](examples/screenshots/accuracy.png) |
+| ![Responsive UI in German at a 360px viewport: the kit's toolbar keeps one row, three icons and „Tages-/abschlussbericht“ broken at its compound joint](examples/screenshots/responsive-ui-360.png) | ![Accuracy explorer](examples/screenshots/accuracy.png) |
 | ![2,000 rows with heights known before render, beside content-visibility: auto](examples/screenshots/numbers-before-render.png) | |
 
 ## Versions

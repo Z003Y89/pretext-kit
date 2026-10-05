@@ -105,6 +105,11 @@ const ANY = [1, 2, Number.POSITIVE_INFINITY]
 export const SHRINK_FLOOR = 0.9
 const floorOf = (max: number) => Math.min(max, Math.ceil(max * SHRINK_FLOOR))
 
+// UI labels carry soft hyphens written by hand at compound joints (strings.ts). The kit lays labels
+// out without them, except in the one toolbar step that may break the kept label at a joint.
+const SHY = '\u00AD'
+export const plainLabel = (s: string) => s.replaceAll(SHY, '')
+
 // Breakpoints are the model's: the kit side paints the column count it is given.
 export function columnsAt(width: number): number {
   return width >= 1040 ? 3 : width >= 700 ? 2 : 1
@@ -118,11 +123,14 @@ export const iconGapAt = (px: number) => Math.round(px * 0.45)
 // The model.
 
 export type Fit = { px: number, lineHeight: number, lines: number }
-// A button of a row (toolbar or footer): its width, and its label's fit, or null for icon-only.
-export type RowButton = { width: number, contentWidth: number, fit: Fit | null }
+// A button of a row (toolbar or footer): its width, and its label's fit, or null for icon-only. `text`
+// is set only when the label is painted with its authored compound joints (soft hyphens); otherwise
+// the label is painted without them.
+export type RowButton = { width: number, contentWidth: number, fit: Fit | null, text?: string }
 // natural: every label at full size, widths from their text; shared: one smaller size for all (and/or
 // tighter padding); icons: some buttons collapsed to icons in the app's collapse order (widest label
-// first without one), the rest labelled, on one line or the last label on two; two-lines: equal
+// first without one), the rest labelled, on one line or the last label on two (at spaces, else at
+// its authored compound joints); two-lines: equal
 // widths, every label on up to two lines broken at spaces; all-icons: every button icon-only, content
 // widths; stacked: buttons one under another (footer).
 export type RowMode = 'natural' | 'shared' | 'icons' | 'two-lines' | 'all-icons' | 'stacked'
@@ -245,7 +253,8 @@ export function createModel(): Model {
   //      important first; widest label first only when the app gives no order), at most half of them;
   //   4. two-lines: equal widths, every label on up to two lines, broken at spaces only (then tighter);
   //   5. toolbar with a collapse order: more icons until only the order's last button keeps its label,
-  //      on one line, else on two lines broken at spaces;
+  //      on one line, else on two lines broken at spaces, else on two lines also broken at the label's
+  //      authored compound joints (soft hyphens), used only in a word wider than the room;
   //   6. all-icons (toolbar, content widths, start-aligned) or stacked (footer).
   // Steps 1 and 2 are one fitFontSizeRich call over the whole row as one line (each label an item that
   // never breaks, padding and gaps as extra width), so the shared size is the kit's answer.
@@ -253,7 +262,9 @@ export function createModel(): Model {
     key: string, labels: string[], role: RoleFont, max: number, inner: number, gap: number, padX: number, tightPadX: number,
     padY: number, icons: boolean, collapseOrder?: number[],
   }): Row {
-    const { labels: ls, role, max, inner, gap, padX, padY, icons } = o
+    const { role, max, inner, gap, padX, padY, icons } = o
+    const authored = o.labels
+    const ls = authored.map(plainLabel)
     const n = ls.length
     const floor = floorOf(max)
     const lh = (px: number) => lineHeightAt(role, px)
@@ -358,9 +369,50 @@ export function createModel(): Model {
           u = f.px - 1
         }
       }
+      // Step 5c: the same label on up to two lines, now also breaking at its authored compound joints
+      // (soft hyphens written into the UI string), kept only in a word wider than the room; every piece
+      // between joints, with its hyphen, must fit, so no word breaks anywhere else.
+      if (authored[keep]!.includes(SHY)) {
+        const words = authored[keep]!.split(' ')
+        const wordFits = (w: string, j: number, px: number, content: number) =>
+          (j === 0 ? lead(px) : 0) + natural(plainLabel(w), font(px)) <= content + FIT_TOLERANCE
+        const jointed = (px: number, content: number) => words.map((w, j) => wordFits(w, j, px, content) ? plainLabel(w) : w).join(' ')
+        const piecesFit = (s: string, px: number, content: number) => s.split(' ').every((w, j) => {
+          const pieces = w.split(SHY)
+          return pieces.every((p, k) => (j === 0 && k === 0 ? lead(px) : 0) + natural(p, font(px))
+            + (k < pieces.length - 1 ? natural('-', font(px)) : 0) <= content + FIT_TOLERANCE)
+        })
+        for (const pad of [padX, o.tightPadX]) {
+          let u = max
+          while (u >= floor) {
+            const content = inner - (n - 1) * (2 * pad + iconAt(u)) - gap * (n - 1) - 2 * pad
+            if (content <= 0) break
+            const s = jointed(u, content)
+            if (!s.includes(SHY)) break
+            const items = (px: number): Array<RichInlineItem | RichInlineBox> => [{ width: lead(px) }, { text: s, font: font(px) }]
+            const f = fitFontSizeRich(sizedRich(`${o.key}|joints|${keep}|${role.style.fontFamily}\n${s}`, items, floor, u), { width: content, maxLines: 2 }, lh)
+            if (f === null) break
+            // Joints only where a word is wider than the room at the size chosen, and only where they hold.
+            if (jointed(f.px, content) !== s || !piecesFit(s, f.px, content)) { u = f.px - 1; continue }
+            const fit = { px: f.px, lineHeight: lh(f.px), lines: f.lineCount }
+            const iconW = 2 * pad + iconAt(f.px)
+            const labelContent = shrinkwrapRich(richOne(`${o.key}|joints|${keep}|${f.px}|${role.style.fontFamily}\n${s}`, items(f.px)), content).width
+            const used = (n - 1) * iconW + labelContent + 2 * pad + gap * (n - 1)
+            if (used <= inner) {
+              return {
+                mode: 'icons', icon: iconAt(f.px), padX: pad, height: Math.max(fit.lines * fit.lineHeight, iconAt(f.px)) + 2 * padY,
+                buttons: ls.map((_, i) => i === keep
+                  ? { width: labelContent + 2 * pad, contentWidth: labelContent, fit, text: s }
+                  : { width: iconW, contentWidth: iconAt(f.px), fit: null }),
+              }
+            }
+            u = f.px - 1
+          }
+        }
+      }
     }
 
-    // Step 5c: every button icon-only, each as wide as its icon and padding, start-aligned.
+    // Step 5d: every button icon-only, each as wide as its icon and padding, start-aligned.
     if (icons) {
       const pad = n * (2 * padX + iconAt(floor)) + gap * (n - 1) <= inner ? padX : o.tightPadX
       return {
@@ -565,7 +617,7 @@ export function buildScreen(side: 'kit' | 'css', lang: Lang, t: ScreenText): Scr
     button.setAttribute('role', 'button')
     const content = el('div', 'tb-content role-label')
     const ic = icon(ICONS[i]!)
-    const text = el('span', 'tb-text', s)
+    const text = el('span', 'tb-text', side === 'kit' ? plainLabel(s) : s)
     content.append(ic, text)
     button.append(content)
     button.dataset.check = ''
@@ -612,14 +664,14 @@ export function buildScreen(side: 'kit' | 'css', lang: Lang, t: ScreenText): Scr
   const footerButtons = [t.secondary, t.primary].map((s, i) => {
     const button = el('div', `btn ${i === 0 ? 'secondary' : 'primary'}`)
     button.setAttribute('role', 'button')
-    const label = el('div', 'btn-label role-button', s)
+    const label = el('div', 'btn-label role-button', side === 'kit' ? plainLabel(s) : s)
     button.dataset.check = ''
     button.append(label)
     footer.append(button)
     return { button, label }
   })
   root.append(bar, toolbarBox, cardsBox, footer)
-  return { root, labels: [...t.toolbar], toolbarBox, toolbar, app, cardsBox, cards, footer, footerButtons }
+  return { root, labels: t.toolbar.map(plainLabel), toolbarBox, toolbar, app, cardsBox, cards, footer, footerButtons }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -682,6 +734,7 @@ export function paintKit(d: ScreenDom, L: ScreenLayout, body: string[][], fonts:
       pretextOwn.delete(b.content)
     } else {
       b.text.style.display = ''
+      setText(b.text, r.text ?? d.labels[i]!)
       b.button.removeAttribute('aria-label')
       b.button.removeAttribute('title')
       b.content.style.textAlign = ''
@@ -690,7 +743,7 @@ export function paintKit(d: ScreenDom, L: ScreenLayout, body: string[][], fonts:
       b.content.style.lineHeight = px(fit.lineHeight)
       paintIcon(b.icon, iconAt(fit.px), iconGapAt(fit.px), fit.lineHeight)
       b.content.dataset.lines = String(fit.lines)
-      ownRich(b.content, [{ width: iconAt(fit.px) + iconGapAt(fit.px) }, { text: d.labels[i]!, font: fontAt(fonts.label, fit.px) }], r.contentWidth)
+      ownRich(b.content, [{ width: iconAt(fit.px) + iconGapAt(fit.px) }, { text: r.text ?? d.labels[i]!, font: fontAt(fonts.label, fit.px) }], r.contentWidth)
     }
   }
 
@@ -816,7 +869,7 @@ export function measureOverflow(root: HTMLElement, padY = 0): Overflow {
 
 export function summary(L: ScreenLayout): { label: string, value: string }[] {
   const list = (xs: (number | string)[]) => xs.join(' / ')
-  const row = (r: Row) => `${r.mode}: ${list(r.buttons.map(b => b.fit === null ? 'icon' : `${b.fit.px}px${b.fit.lines > 1 ? '×2' : ''}`))}`
+  const row = (r: Row) => `${r.mode}: ${list(r.buttons.map(b => b.fit === null ? 'icon' : `${b.fit.px}px${b.fit.lines > 1 ? '×2' : ''}${b.text !== undefined ? ' at a joint' : ''}`))}`
   return [
     { label: 'Screen', value: `${L.width}px, ${L.columns} col` },
     { label: 'Toolbar', value: row(L.toolbar) },

@@ -118,16 +118,38 @@ for (const vw of VIEWPORTS) {
         const tb = await page.evaluate(() => {
           const bar = document.querySelector<HTMLElement>('.screen.kit .toolbar')!
           const buttons = [...bar.querySelectorAll<HTMLElement>('.tb')]
-          return `${bar.dataset.mode}: ` + buttons.map(b => b.getAttribute('aria-label') !== null ? `[${b.getAttribute('aria-label')} as icon]` : (b.textContent ?? '').trim()).join(' | ')
+          // A label as painted, with ' / ' where the browser broke its lines (a '-' first if at a joint).
+          const painted = (b: HTMLElement) => {
+            const node = b.querySelector('.tb-text')?.firstChild
+            if (!(node instanceof Text)) return (b.textContent ?? '').trim()
+            const s = node.data
+            const range = document.createRange()
+            let out = ''
+            let top: number | null = null
+            for (let i = 0; i < s.length; i++) {
+              range.setStart(node, i)
+              range.setEnd(node, i + 1)
+              // A character after a joint the line broke at also reports the painted hyphen's box: take its last.
+              const rects = range.getClientRects()
+              const r = rects[rects.length - 1]
+              if (r !== undefined && r.width > 0) {
+                if (top !== null && r.top > top + 1) out = out.replace(/\u00AD$/, '-').replace(/ $/, '') + ' / '
+                top = r.top
+              }
+              out += s[i]
+            }
+            return out.replaceAll('\u00AD', '')
+          }
+          return `${bar.dataset.mode}: ` + buttons.map(b => b.getAttribute('aria-label') !== null ? `[${b.getAttribute('aria-label')} as icon]` : painted(b)).join(' | ')
             + ` (${buttons.map(b => b.style.width).join(', ')}, padding ${buttons[0]!.style.paddingLeft})`
         })
         log.push(`${where} ${l} toolbar at a ${w}px screen: ${tb}`)
         }
       }
       if (SHOTS && (vw === 1280 || (vw === 360 && p === 'responsive-ui'))) {
-        // The phone shot in English, where the report keeps its label; in German at 320px even it
-        // doesn't fit at 90% of its size, and all four buttons are icons.
-        if (p === 'responsive-ui' && vw === 360) await lang('en')(page)
+        // The phone shot in German, the reader's language: the report keeps its label, on two lines
+        // broken at its authored compound joint.
+        if (p === 'responsive-ui' && vw === 360) await lang('de')(page)
         if (p === 'text-size') await slider('scale', 1.3)(page)
         await frame(page)
         await page.evaluate(p => (document.querySelector(p === 'languages' ? '.lang-block:nth-child(2)' : '#stage') as HTMLElement).scrollIntoView(), p)
