@@ -295,7 +295,33 @@ function report(): void {
   const unitRow = (what: string, unit: string, n: number, fails: number): string => fails === 0
     ? `| ${what} | ${unit} | ${n} | 0 | ${pct(wilsonUpper(0, n))} | ${pct(clopperPearsonUpper(0, n))} |`
     : `| ${what} | ${unit} | ${n} | ≥ 1 (see HEADLESS_RESULTS.md) | – | – |`
-  console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × face (8 cases each)', wUnits, wMiss))
+  console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × family × weight (8 cases each)', wUnits, wMiss))
+  // Distinct string × face pairs: a requested weight with no face of its own measures the face CSS matching picks
+  // (Chromium synthesises bold from it; the stand-in uses the nearest), so it is not a separate unit.
+  const faces = new Map<string, number[]>()
+  for (const m of hr.matchAll(/ as (\d+) "([^"]+)"/g)) faces.set(m[2]!, [...(faces.get(m[2]!) ?? []), Number(m[1])])
+  const nStrings = Number(/^(\d+) strings × \d+ families × weights ([\d/]+)/m.exec(hr)?.[1])
+  const weights = (/^\d+ strings × \d+ families × weights ([\d/]+)/m.exec(hr)?.[1] ?? '').split('/').map(Number)
+  if (faces.size === 0 || !(nStrings > 0) || weights.length === 0) throw new Error('HEADLESS_RESULTS.md: fonts or strings not found')
+  // CSS font matching: at or below 500 the nearest lighter face first, above 500 the nearest heavier first.
+  const faceFor = (have: number[], want: number): number => {
+    const sorted = [...have].sort((x, y) => x - y)
+    if (sorted.includes(want)) return want
+    const heavier = sorted.filter(x => x > want)
+    const lighter = sorted.filter(x => x < want).reverse()
+    return (want > 500 ? [...heavier, ...lighter] : [...lighter, ...heavier])[0]!
+  }
+  const skipped = new Map<string, Set<string>>() // family|face → skipped string labels
+  for (const m of hr.matchAll(/^- "([^"]+)" in (\d+) (.+?) \(\d+ cases\)/gm)) {
+    const fam = m[3]!
+    const key = `${fam}|${faceFor(faces.get(fam) ?? [], Number(m[2]))}`
+    skipped.set(key, (skipped.get(key) ?? new Set()).add(m[1]!))
+  }
+  let distinct = 0
+  for (const [fam, have] of faces) {
+    for (const face of new Set(weights.map(x => faceFor(have, x)))) distinct += nStrings - (skipped.get(`${fam}|${face}`)?.size ?? 0)
+  }
+  console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × distinct face', distinct, wMiss))
   console.log(`| line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | ${lJudged} | ${lMis} | ${pct(wilsonUpper(lMis, lJudged))} | ${pct(clopperPearsonUpper(lMis, lJudged))} |`)
   console.log(unitRow('line count equal to Pretext in Chromium', `text × font (${lWidths} widths each)`, lUnits, lMis))
   console.log('')

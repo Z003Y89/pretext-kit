@@ -117,7 +117,7 @@ For exact fits in Safari 26, use whole-px line heights.
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 2.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 2.3 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -127,9 +127,9 @@ By helper:
 | shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
 | balance (13s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
 | fitFontSize (21s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| fitFontSizeRich (19s) | 203944 | 203723 | 221 | 0 | 0 | 0 |
-| clamp (56s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
-| truncateMiddle (5s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
+| fitFontSizeRich (20s) | 203944 | 203723 | 221 | 0 | 0 | 0 |
+| clamp (65s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
+| truncateMiddle (6s) | 61632 | 61629 | 3 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -143,7 +143,7 @@ By corpus (sweep helpers):
 | german | 246288 | 245536 | 752 | 0 | 0 | 0 |
 | french | 246288 | 244727 | 1561 | 0 | 0 | 0 |
 | ui-labels | 19240 | 19239 | 1 | 0 | 0 | 0 |
-| labels | 25680 | 25678 | 2 | 0 | 0 | 0 |
+| labels | 30816 | 30814 | 2 | 0 | 0 | 0 |
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1.25
 
@@ -158,8 +158,8 @@ By helper:
 | balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
 | fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
 | fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
-| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
-| truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
+| clamp (17s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| truncateMiddle (2s) | 15552 | 15551 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -173,7 +173,7 @@ By corpus (sweep helpers):
 | german | 61968 | 61762 | 206 | 0 | 0 | 0 |
 | french | 61968 | 61580 | 388 | 0 | 0 | 0 |
 | ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
-| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+| labels | 7776 | 7776 | 0 | 0 | 0 | 0 |
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 2
 
@@ -188,8 +188,8 @@ By helper:
 | balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
 | fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
 | fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
-| clamp (15s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
-| truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
+| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| truncateMiddle (2s) | 15552 | 15551 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -203,11 +203,11 @@ By corpus (sweep helpers):
 | german | 61968 | 61762 | 206 | 0 | 0 | 0 |
 | french | 61968 | 61580 | 388 | 0 | 0 | 0 |
 | ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
-| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+| labels | 7776 | 7776 | 0 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 4.9 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 5.0 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -215,11 +215,11 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
 | shrinkwrap (77s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (42s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (46s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| fitFontSizeRich (32s) | 203944 | 203944 | 0 | 0 | 0 | 0 |
-| clamp (93s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
-| truncateMiddle (5s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+| balance (40s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
+| fitFontSize (45s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
+| fitFontSizeRich (34s) | 203944 | 203944 | 0 | 0 | 0 | 0 |
+| clamp (96s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
+| truncateMiddle (7s) | 61632 | 61632 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -233,11 +233,11 @@ By corpus (sweep helpers):
 | german | 246288 | 244530 | 470 | 1288 | 0 | 0 |
 | french | 246288 | 245028 | 536 | 724 | 0 | 0 |
 | ui-labels | 19240 | 19240 | 0 | 0 | 0 | 0 |
-| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
+| labels | 30816 | 30816 | 0 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 1.4 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 1.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -246,10 +246,10 @@ By helper:
 | fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
 | shrinkwrap (22s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
 | balance (12s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| fitFontSizeRich (9s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
+| fitFontSize (15s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSizeRich (10s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
 | clamp (26s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
-| truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 15552 | 15552 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -263,7 +263,7 @@ By corpus (sweep helpers):
 | german | 61968 | 61524 | 121 | 323 | 0 | 0 |
 | french | 61968 | 61638 | 138 | 192 | 0 | 0 |
 | ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
-| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+| labels | 7776 | 7776 | 0 | 0 | 0 | 0 |
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 2
 
@@ -275,11 +275,11 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
 | shrinkwrap (21s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
-| balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (13s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| fitFontSizeRich (8s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
-| clamp (24s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
-| truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| balance (12s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSizeRich (9s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
+| clamp (25s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 15552 | 15552 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -293,23 +293,23 @@ By corpus (sweep helpers):
 | german | 61968 | 61524 | 121 | 323 | 0 | 0 |
 | french | 61968 | 61638 | 138 | 192 | 0 | 0 |
 | ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
-| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+| labels | 7776 | 7776 | 0 | 0 | 0 | 0 |
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 3.3 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 3.4 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
-| shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (23s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
-| fitFontSize (26s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| fitFontSizeRich (27s) | 203944 | 203718 | 226 | 0 | 0 | 0 |
-| clamp (93s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
-| truncateMiddle (8s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+| shrinkwrap (23s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
+| balance (24s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
+| fitFontSize (28s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
+| fitFontSizeRich (28s) | 203944 | 203718 | 226 | 0 | 0 | 0 |
+| clamp (89s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
+| truncateMiddle (9s) | 61632 | 61632 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -323,23 +323,23 @@ By corpus (sweep helpers):
 | german | 246288 | 245306 | 982 | 0 | 0 | 0 |
 | french | 246288 | 245057 | 1231 | 0 | 0 | 0 |
 | ui-labels | 19240 | 19240 | 0 | 0 | 0 | 0 |
-| labels | 25680 | 25680 | 0 | 0 | 0 | 0 |
+| labels | 30816 | 30816 | 0 | 0 | 0 | 0 |
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 1.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 1.0 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
-| shrinkwrap (8s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
-| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
+| balance (7s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
 | fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
-| fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
-| clamp (28s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| fitFontSizeRich (7s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
+| clamp (25s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 15552 | 15552 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -353,7 +353,7 @@ By corpus (sweep helpers):
 | german | 61968 | 61717 | 251 | 0 | 0 | 0 |
 | french | 61968 | 61663 | 305 | 0 | 0 | 0 |
 | ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
-| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+| labels | 7776 | 7776 | 0 | 0 | 0 | 0 |
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 2
 
@@ -365,11 +365,11 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
 | shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
-| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
-| fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
-| fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
-| clamp (27s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| balance (7s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| fitFontSize (8s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| fitFontSizeRich (7s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
+| clamp (25s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 15552 | 15552 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -383,7 +383,7 @@ By corpus (sweep helpers):
 | german | 61968 | 61717 | 251 | 0 | 0 | 0 |
 | french | 61968 | 61663 | 305 | 0 | 0 | 0 |
 | ui-labels | 4840 | 4840 | 0 | 0 | 0 | 0 |
-| labels | 6480 | 6480 | 0 | 0 | 0 | 0 |
+| labels | 7776 | 7776 | 0 | 0 | 0 | 0 |
 
 ## kit-mismatch cases
 

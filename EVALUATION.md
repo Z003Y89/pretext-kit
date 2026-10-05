@@ -5,16 +5,18 @@ the results wrong. Every number names the file it comes from and the command tha
 2026-10-05; kit at the commit that adds this file, Pretext at
 [f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3dfc5877fbca5e4570ee04111e7001).
 
-**In one paragraph.** Over 7,006,572 browser cases (seven helpers × Chromium 149, WebKit 26.5, Firefox 151 × three
+**In one paragraph.** Over 7,029,756 browser cases (seven helpers × Chromium 149, WebKit 26.5, Firefox 151 × three
 zoom factors, on one Mac), the kit never answered differently from what Pretext's own numbers require, and wherever
 Pretext agreed with the browser, the browser painted what the kit predicted, apart from 12,931 WebKit cases with one
 proven browser cause (fractional line heights, §8): 0 kit-mismatch cases. The bound to quote (§3) treats each text
-as one unit: the 95% upper bound on the share of texts like these that would show any kit-mismatch is 4.4% to 8.0%
-per helper and browser (1.1% to 2.1% if text × font pairs are taken as independent). Seven planted bugs were each
+as one unit: the 95% upper bound on the share of texts like these that would show any kit-mismatch is 4.4% to 7.4%
+per helper and browser (1.1% to 2.0% if text × font pairs are taken as independent). Seven planted bugs were each
 caught; six by 6,688 to 161,581 cases, and the seventh (`fontFromStyle` dropping the weight) only after this
 evaluation added the cases that see it, since the sweep as it stood missed it (§4). Four subtler bugs (1/64 px or
-one code point) were each caught by some helper's cases, but a zero fit tolerance by no balance or fitFontSize case,
-and cuts inside grapheme clusters by no truncateMiddle case and no unit test (§4, §6). The kit inherits every
+one code point) were each caught by some helper's cases. A zero fit tolerance is caught by no balance or
+fitFontSize case (§6). Cuts inside grapheme clusters were caught by no truncateMiddle case and no unit test until
+this evaluation added a unit test, a sweep check and four labels for them; the labels then exposed a truncateMiddle
+overrun in WebKit, fixed (§4). The kit inherits every
 disagreement between Pretext and a browser (21,978 cases, 0.31%), among them 19 + 66 fitted sizes on soft-hyphenated
 text that visibly overflow their box in Chromium and Firefox (§8). Everything was measured on macOS 14 only.
 
@@ -37,7 +39,7 @@ Pretext agreeing with the browser at the widths or sizes the judgement needs; wh
 | C3 | `fitFontSize(sizes, box, lh)` | Returns the largest whole-px size in [min, max] at which the browser's painting fits the box (height ≤ `box.height`, lines ≤ `maxLines`, no overflow past the width), such that one px larger does not fit; `null` exactly when `min` does not fit. Judged at the box `{ W, height: 96 }`, sizes 8-48, line height 1.5 × size. | browser sweep |
 | C4 | `fitFontSizeRich(sizes, box, lh)` | As C3, for an icon box followed by a label (one row, `extraWidth` as margin), sizes 8-32, boxes `{ W, maxLines: 1 }` and `{ W, height: 72 }`. | browser sweep |
 | C5 | `clamp(p, W, N, tail)`, `clampStats`, `measureTail` | Line count = min(Pretext's, N) and `truncated` exactly when Pretext lays out more than N; this matches a `-webkit-line-clamp: N` box's truncation and height. Every returned line, the cut one followed by the tail, paints within W + 1/64. The cut is the longest grapheme prefix whose text joined to the tail, measured as one text, fits. Floor: a cut keeps at least one grapheme, so where W is narrower than the tail plus the first grapheme the line paints past W, and the claim is only that it is one grapheme. *Not claimed:* that the cut falls where the browser's own ellipsis does (the SVG probe that would test it was not run). | browser sweep |
-| C6 | `truncateMiddle(label, W, keepEnd)` | The whole label exactly when its natural width fits W; otherwise start + `…` + end, which paints within W + 1/64, where one more grapheme of the start would not fit, and whose end holds everything from `keepEnd.from` whenever that end, `…` and the first grapheme fit. The start keeps at least one grapheme, so where W is narrower than that grapheme and `…`, the result paints past W. | browser sweep |
+| C6 | `truncateMiddle(label, W, keepEnd)` | The whole label exactly when its natural width fits W; otherwise start + `…` + end, cut only between graphemes, which paints within W + 1/64, where one more grapheme of the start would not fit, and whose end holds everything from `keepEnd.from` whenever that end, `…` and the first grapheme fit. The start keeps at least one grapheme, so where W is narrower than that grapheme and `…`, the result paints past W. | browser sweep |
 | C7 | `fontFromStyle(getComputedStyle(el))` | Returns a Canvas font string that Canvas parses to the same font as the element's weight, style, size and family, with `letterSpacing` and `lineHeight` in px. Tested at the pinned style (weight 400, normal, no letter spacing) at 16px and 8-48px, and three single-property variants at 16px only: weight 700, italic, 0.5px letter spacing; not a cross of them (§4 explains why the variants were added). Indirectly, every other case's font comes from it. | browser sweep |
 | C8 | `pretext-kit/headless` | In Node, for code points the registered fonts cover: `measureText` widths within 0.02px of Chromium's Canvas, and Pretext's line counts equal Pretext's inside Chromium; `HeadlessCoverageError` thrown on exactly the cases a fixed coverage rule puts out of scope. Chromium's rules, macOS, registered fonts only. | headless parity sweep |
 | C9 | `watchFonts` | On each `loadingdone` event with at least one face, calls Pretext's `clearCache()` and then the callback; never after unsubscribing. | unit tests only (stand-in `FontFaceSet`) |
@@ -66,7 +68,7 @@ no whole number of lines, to 1/64 px, makes the case `unreliable`); widest lines
 | urls (unbroken runs) | 12 | mixed-app-text, written for the sweep | shrinkwrap, balance, fitFontSize, clamp |
 | german, soft-hyphenated | 12 | written for the sweep; `hyphen/de` (de-1996) | all |
 | french, soft-hyphenated | 12 | written for the sweep; `hyphen/fr` | all |
-| labels (paths, incl. CJK and Arabic) | 20 | written for the sweep | truncateMiddle |
+| labels (paths, incl. CJK, Arabic, emoji sequences, decomposed accents, Hangul jamo) | 24 | written for the sweep | truncateMiddle |
 | ui-labels | 5 | real UI labels | fitFontSizeRich |
 
 Fonts: four stacks, `"Helvetica Neue", "PingFang SC", "Geeza Pro", sans-serif`; `Arial, "PingFang SC", "Geeza Pro",
@@ -102,7 +104,8 @@ letter spacing 0/0.5px = 5,184, less 24 string × family × weight pairs (192 ca
 624 string × family × weight units are not 624 distinct faces: Inter and Roboto have one face, so their 600 and 700
 (synthesised by Chromium) measure the 400 face, and Shantell Sans 600 takes its 700 face. Counted by distinct face,
 they are 261 string × face pairs (Inter TTF 53, Inter WOFF2 53, Roboto 49, Shantell Sans 2 × 53), for which 0
-misses bound the rate at 1.45% (Wilson, 3.84/(261 + 3.84), worked by hand). Line counts: 298 text × font pairs
+misses bound the rate at 1.45% (Wilson; printed by `node verify/stats.ts`, which derives the faces from
+HEADLESS_RESULTS.md). Line counts: 298 text × font pairs
 (Latin, German and French from the corpora,
 168 with soft hyphens, plus special characters) × 241 widths (71,818 cases). The scope rule was fixed before the first
 run, from the font files' cmaps, not from the stand-in.
@@ -119,7 +122,7 @@ Logic tests: `npm test`, 148 tests (`node --test`).
 
 From `node verify/stats.ts` over the run recorded in `verify/RESULTS.md` (`npm run verify`, 2026-10-05).
 
-**No kit-mismatch in any helper, browser or factor.** 7,006,572 cases; 6,984,594 judged against the painting (the
+**No kit-mismatch in any helper, browser or factor.** 7,029,756 cases; 7,007,778 judged against the painting (the
 others are 21,978 pretext-gap; no unreliable); 12,931 platform (all WebKit fitFontSize, §8).
 
 **The bound to quote: one per helper and browser, with the text as the unit.** Cases of one text at adjacent widths,
@@ -129,7 +132,7 @@ such cases as independent draws gives bounds like 0.0024%, which overstate the e
 magnitude. Two clustered units are reported. The text × font stack pair (all its widths, line counts, boxes and
 factors pooled; it fails if any of its cases is a kit-mismatch) is a conservative unit, assuming text × font pairs
 are independent. The text alone (all four stacks pooled too) does not assume that, and gives the wider bound, which
-is the one to quote: 4.4% (84 texts), 6.8% (fitFontSizeRich, 53) and 8.0% (truncateMiddle, 44) per browser.
+is the one to quote: 4.4% (84 texts), 6.8% (fitFontSizeRich, 53) and 7.4% (truncateMiddle, 48) per browser.
 
 All bounds below are the upper ends of two-sided 95% intervals, so each is a one-sided 97.5% upper bound; the 21
 per-helper-and-browser bounds in a table are not simultaneous (with no correction, the chance that at least one is
@@ -158,9 +161,9 @@ Text × font stack unit:
 | clamp | chromium | 336 | 3615 | 0 | 0 | 1.13% | 1.09% |
 | clamp | webkit | 336 | 3615 | 0 | 0 | 1.13% | 1.09% |
 | clamp | firefox | 336 | 3615 | 0 | 0 | 1.13% | 1.09% |
-| truncateMiddle | chromium | 176 | 483 | 0 | 0 | 2.14% | 2.07% |
-| truncateMiddle | webkit | 176 | 483 | 0 | 0 | 2.14% | 2.07% |
-| truncateMiddle | firefox | 176 | 483 | 0 | 0 | 2.14% | 2.07% |
+| truncateMiddle | chromium | 192 | 483 | 0 | 0 | 1.96% | 1.90% |
+| truncateMiddle | webkit | 192 | 483 | 0 | 0 | 1.96% | 1.90% |
+| truncateMiddle | firefox | 192 | 483 | 0 | 0 | 1.96% | 1.90% |
 
 Text unit (the bound to quote):
 
@@ -181,9 +184,9 @@ Text unit (the bound to quote):
 | clamp | chromium | 84 | 14460 | 0 | 0 | 4.37% | 4.30% |
 | clamp | webkit | 84 | 14460 | 0 | 0 | 4.37% | 4.30% |
 | clamp | firefox | 84 | 14460 | 0 | 0 | 4.37% | 4.30% |
-| truncateMiddle | chromium | 44 | 1932 | 0 | 0 | 8.03% | 8.04% |
-| truncateMiddle | webkit | 44 | 1932 | 0 | 0 | 8.03% | 8.04% |
-| truncateMiddle | firefox | 44 | 1932 | 0 | 0 | 8.03% | 8.04% |
+| truncateMiddle | chromium | 48 | 1932 | 0 | 0 | 7.41% | 7.40% |
+| truncateMiddle | webkit | 48 | 1932 | 0 | 0 | 7.41% | 7.40% |
+| truncateMiddle | firefox | 48 | 1932 | 0 | 0 | 7.41% | 7.40% |
 
 Read: "at 97.5% one-sided confidence, fewer than 4.37% of texts like these would show any shrinkwrap mismatch in
 Chromium 149". fontFromStyle has no text: its unit is a stack × style variant (the pinned style pooled over 42 sizes,
@@ -252,15 +255,15 @@ painting.
 | clamp | firefox@1 | 808080 | 807991 | 89 | 0 | 0 | 0 | 807991 | 0.0005% | 0.0005% | 0.0005% |
 | clamp | firefox@1.25 | 203280 | 203258 | 22 | 0 | 0 | 0 | 203258 | 0.0019% | 0.0019% | 0.0018% |
 | clamp | firefox@2 | 203280 | 203258 | 22 | 0 | 0 | 0 | 203258 | 0.0019% | 0.0019% | 0.0018% |
-| truncateMiddle | chromium@1 | 56496 | 56493 | 3 | 0 | 0 | 0 | 56493 | 0.0068% | 0.0068% | 0.0065% |
-| truncateMiddle | chromium@1.25 | 14256 | 14255 | 1 | 0 | 0 | 0 | 14255 | 0.027% | 0.027% | 0.026% |
-| truncateMiddle | chromium@2 | 14256 | 14255 | 1 | 0 | 0 | 0 | 14255 | 0.027% | 0.027% | 0.026% |
-| truncateMiddle | webkit@1 | 56496 | 56496 | 0 | 0 | 0 | 0 | 56496 | 0.0068% | 0.0068% | 0.0065% |
-| truncateMiddle | webkit@1.25 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
-| truncateMiddle | webkit@2 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
-| truncateMiddle | firefox@1 | 56496 | 56496 | 0 | 0 | 0 | 0 | 56496 | 0.0068% | 0.0068% | 0.0065% |
-| truncateMiddle | firefox@1.25 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
-| truncateMiddle | firefox@2 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
+| truncateMiddle | chromium@1 | 61632 | 61629 | 3 | 0 | 0 | 0 | 61629 | 0.0062% | 0.0062% | 0.0060% |
+| truncateMiddle | chromium@1.25 | 15552 | 15551 | 1 | 0 | 0 | 0 | 15551 | 0.025% | 0.025% | 0.024% |
+| truncateMiddle | chromium@2 | 15552 | 15551 | 1 | 0 | 0 | 0 | 15551 | 0.025% | 0.025% | 0.024% |
+| truncateMiddle | webkit@1 | 61632 | 61632 | 0 | 0 | 0 | 0 | 61632 | 0.0062% | 0.0062% | 0.0060% |
+| truncateMiddle | webkit@1.25 | 15552 | 15552 | 0 | 0 | 0 | 0 | 15552 | 0.025% | 0.025% | 0.024% |
+| truncateMiddle | webkit@2 | 15552 | 15552 | 0 | 0 | 0 | 0 | 15552 | 0.025% | 0.025% | 0.024% |
+| truncateMiddle | firefox@1 | 61632 | 61632 | 0 | 0 | 0 | 0 | 61632 | 0.0062% | 0.0062% | 0.0060% |
+| truncateMiddle | firefox@1.25 | 15552 | 15552 | 0 | 0 | 0 | 0 | 15552 | 0.025% | 0.025% | 0.024% |
+| truncateMiddle | firefox@2 | 15552 | 15552 | 0 | 0 | 0 | 0 | 15552 | 0.025% | 0.025% | 0.024% |
 
 </details>
 
@@ -269,7 +272,8 @@ painting.
 | check | unit | n | failures | upper (Wilson) | upper (exact) |
 |---|---|---:|---:|---:|---:|
 | widths within 0.02px of Chromium's Canvas | case | 4992 | 0 | 0.077% | 0.074% |
-| widths within 0.02px of Chromium's Canvas | string × face (8 cases each) | 624 | 0 | 0.612% | 0.589% |
+| widths within 0.02px of Chromium's Canvas | string × family × weight (8 cases each) | 624 | 0 | 0.612% | 0.589% |
+| widths within 0.02px of Chromium's Canvas | string × distinct face | 261 | 0 | 1.45% | 1.40% |
 | line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | 71642 | 0 | 0.0054% | 0.0051% |
 | line count equal to Pretext in Chromium | text × font (241 widths each) | 298 | 0 | 1.27% | 1.23% |
 
@@ -284,7 +288,8 @@ are in the table above; their causes are in §6 and §8.
 Chromium at factor 1, the affected helpers only (`node verify/run.ts --only=chromium --factors=1 --helpers=…`, which
 writes no RESULTS.md and never touches the baseline). An unmutated control run comes first and must have no
 kit-mismatch. Its output, run at 18db330, is committed as `verify/results/mutants.txt`; the control gave every
-helper's tally as in RESULTS.md and `npm test` passing.
+helper's tally as in RESULTS.md and `npm test` passing. The rows from 18db330 predate the four labels added below, so
+their truncateMiddle counts are over 56,496 cases, not 61,632.
 
 | planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |
 |---|---|---:|---:|---:|---|
@@ -300,8 +305,8 @@ helper's tally as in RESULTS.md and `npm test` passing.
 | FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | fitFontSize | 161616 | 0 (not caught here) | 161312 | fails (2 failing) |
 | FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | clamp | 808080 | 267 | 807241 | fails (2 failing) |
 | FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | truncateMiddle | 56496 | 74 | 56422 | fails (2 failing) |
-| cuts at code points, not grapheme clusters (subtle) | clamp | 808080 | 43 | 807460 | passes |
-| cuts at code points, not grapheme clusters (subtle) | truncateMiddle | 56496 | 0 (not caught here) | 56493 | passes |
+| cuts at code points, not grapheme clusters (subtle), rerun at 43a53af | clamp | 808080 | 43 | 807460 | fails (1 failing) |
+| cuts at code points, not grapheme clusters (subtle), rerun at 43a53af | truncateMiddle | 61632 | 128 | 61501 | fails (1 failing) |
 | fontFromStyle drops italic (subtle) | fontFromStyle | 180 | 4 | 176 | fails (2 failing) |
 | fontFromStyle drops letter spacing (subtle) | fontFromStyle | 180 | 4 | 176 | fails (3 failing) |
 
@@ -316,9 +321,21 @@ everywhere, and the zeros are findings:
 - **The fit tolerance set to 0** is caught by shrinkwrap (54 cases), clamp (267) and truncateMiddle (74), and by
   `npm test`, but by **no balance or fitFontSize case**: at the sweep's inputs no answer of theirs turns on a line
   within 1/64 px of the width, so for those two helpers the sweep cannot tell 0 from 1/64.
-- **Cutting at code points instead of grapheme clusters** is caught only by clamp (43 cases, emoji sequences in the
-  chat corpus); **not by truncateMiddle and not by `npm test`**. Why truncateMiddle's checks pass it was not traced
-  (its labels hold few multi-code-point clusters); no unit test puts one at a cut.
+- **Cutting at code points instead of grapheme clusters** was at first caught only by clamp (43 cases, emoji
+  sequences in the chat corpus): **not by truncateMiddle (0 of 56,496) and not by `npm test`**. The harness never
+  checked where truncateMiddle's cuts fall, and only one label (a 🏖️ path) had a multi-code-point grapheme. Since a
+  split emoji or accent is visible, this was closed: a unit test cuts labels with ZWJ families, flags, skin tones,
+  decomposed accents and Hangul jamo at many widths and checks both cuts against `Intl.Segmenter`
+  (`test/middle.test.ts`); the sweep checks both cuts against its own `Intl.Segmenter` (a cut inside a grapheme is a
+  kit-mismatch); and four such labels joined the path corpus (`verify/corpora.ts`). Rerun at 43a53af, the mutant is
+  caught by 128 truncateMiddle cases and the new unit test; the rows above are that run's
+  (`verify/results/mutants.txt` notes the replaced ones). The full sweep was rerun with the four labels (§3).
+- **The new labels found a kit bug.** In WebKit 26.5 the Hangul jamo label in Georgia and Times New Roman at
+  80-84px (18 cases over the three factors) came back as `한….txt`, 84.30 and 84.84px wide by Pretext's own
+  measure: the end was measured alone, and joined to a start already down to its one grapheme and the ellipsis it
+  overran. truncateMiddle now shortens the end until the result fits (a regression test reproduces it with the
+  stand-in's kerning font); every truncateMiddle case then passed in all three browsers, and §3 is the full sweep
+  rerun with the fix.
 - **fontFromStyle dropping italic, or letter spacing**, is caught by the variant cases (4 each), and only by them.
 
 **One mutant escaped the sweep, and that was a defect.** A first round of the gross mutants, against the harness as
@@ -413,9 +430,9 @@ before paint), not speed. The kit and the DOM baselines agreed on every height a
 | **One OS, one machine.** macOS 14.6.1 on an Apple M2; Core Text shaping and rasterisation only. | No claim for Windows (DirectWrite), Linux (FreeType, hinting), Android or iOS. | The same sweep on Windows and Linux runners; Pretext's own accuracy pages show those engines differ. |
 | **Playwright builds, not shipped browsers.** Chromium 149 and Firefox 151 trail stable; WebKit 26.5 is a frozen macOS 14 build, not Safari 27 (Playwright 1.62+ cannot drive it here; Ruling 13). | Engine changes since (Safari 27's 1/64 px line boxes, for one) are untested. Electron's and WebView2's Chromium builds were not checked. | Rerun on current stable browsers on a current macOS with a newer Playwright; add Electron. |
 | **System fonts only.** Four named macOS stacks at weight 400 (plus fontFromStyle's variants); no web fonts, no `font-feature-settings`. | Web fonts (the common case in apps) change metrics, loading and fallback; bold or variable fonts in the painted helpers are untested. | Sweep with `@font-face` web fonts, bold and a variable font; headless parity already uses web-font files, in Chromium only. |
-| **Stand-in corpora.** 84 sweep texts (plus 20 paths and 5 labels) written or chosen for coverage, not drawn from apps. | The clustered bound assumes app text resembles these; it may not (long tables, code, mixed scripts beyond en/ar). | Corpora sampled from real app strings, with consent; more scripts (Thai, Devanagari, Hebrew, Korean). |
-| **Clustered cases.** Millions of cases come from 44-84 texts (176-336 text × font pairs) per helper. | Per-case bounds overstate confidence; even the text × font bound assumes pairs are independent. | Quote the text-unit bound (§3); add texts rather than widths. |
-| **Subtle bugs the sweep misses in places.** A fit tolerance of 0 instead of 1/64 px is caught by no balance or fitFontSize case; cutting inside grapheme clusters by no truncateMiddle case and no unit test (§4). | A sub-pixel or single-cluster error in those helpers could pass the sweep. | Texts whose lines end within 1/64 px of the width for balance and fitFontSize; path labels with emoji sequences, combining marks and Indic clusters for truncateMiddle; unit tests for both. |
+| **Stand-in corpora.** 84 sweep texts (plus 24 paths and 5 labels) written or chosen for coverage, not drawn from apps. | The clustered bound assumes app text resembles these; it may not (long tables, code, mixed scripts beyond en/ar). | Corpora sampled from real app strings, with consent; more scripts (Thai, Devanagari, Hebrew, Korean). |
+| **Clustered cases.** Millions of cases come from 48-84 texts (192-336 text × font pairs) per helper. | Per-case bounds overstate confidence; even the text × font bound assumes pairs are independent. | Quote the text-unit bound (§3); add texts rather than widths. |
+| **A sub-pixel bug the sweep misses in two helpers.** A fit tolerance of 0 instead of 1/64 px is caught by no balance or fitFontSize case (§4). (Cuts inside grapheme clusters, which also escaped truncateMiddle's sweep and every unit test, are now checked.) | An error in balance or fitFontSize at a line within 1/64 px of the width could pass the sweep; it changes an answer by at most a pixel at such edges. | Texts whose lines end within 1/64 px of the width. Grapheme coverage is still Latin, emoji, decomposed accents and Hangul; Indic and Thai clusters are untested. |
 | **Common-mode error.** The kit and the harness share definitions from the spec, such as the 1/64 px fit tolerance and "fits" meaning no unbreakable piece wider than the box. The harness pins its own copy of 1/64 and computes from Pretext, never from the kit, and a review checked the judge for circularity (Task 6, fix round 2: independent), but a wrong shared definition would make both agree. | A definitional error common to both is invisible to the sweep. | Judge a sample against pixels or against the browser's own APIs where they exist (`text-wrap: balance`, `-webkit-line-clamp`'s ellipsis). |
 | **One language setting.** Every page ran with `<html lang="en">`. | Language-dependent line breaking (CJK punctuation rules, hyphenation dictionaries, Thai) under other `lang` values is untested. | Sweep CJK and German texts under their own `lang`. |
 | **The oracle is the DOM, not pixels.** Lines and widths are read from layout boxes and ranges; no pixel comparison. clamp's cut is compared with a span painted on its own, not with the browser's own ellipsis (the SVG probe in Pretext's RESEARCH.md was not used). | A cut that differs from where the browser would put its ellipsis is not detected; a painting that differs from layout boxes is not detected. | Run the SVG ellipsis probe for clamp; pixel diffs for a sample. |
