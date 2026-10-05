@@ -135,6 +135,8 @@ for (const r of runs) {
 }
 if (updateBaseline) {
   if (!full) throw new Error('--update-baseline needs a full run (no --only or --helpers)')
+  // A baseline written over a kit bug would bless the gaps that bug produced.
+  if (mismatches.length > 0) throw new Error('--update-baseline refused: the run has kit-mismatch cases')
   writeFileSync(BASELINE, JSON.stringify(counts, null, 2) + '\n')
   console.log('wrote verify/baseline.json')
 }
@@ -166,12 +168,14 @@ if (full) {
     'case, to be a browser painting something its CSS does not say; only the cause below is recognised. An',
     '`unreliable` case painted a height that is no whole number of lines, so lines could not be counted.',
     '',
-    'shrinkwrap and balance are checked against the painting, not only against themselves: the width is at most the',
-    'box, its line count is the box\'s painted count, shrinkwrap\'s width is the ceiling of the widest painted line',
-    '(measured per line from the text\'s non-white-space fragments; one pixel less passes only if the browser paints',
-    'the identical layout there, since engines let a line overshoot by up to 1/64 px), and one pixel under balance\'s',
-    'width paints more lines. For shrinkwrap, a widest line Pretext measures more than 1/64 px away from the painted',
-    'one is a pretext-gap, as a differing line count is.',
+    'Each kit answer is judged against Pretext\'s own numbers first, and any failure there is a kit-mismatch whatever',
+    'the browser paints: shrinkwrap and balance must fit the box with Pretext\'s line count at the box width and at their',
+    'own width, shrinkwrap must equal Pretext\'s widest line rounded up (one pixel less exactly when Pretext lays out the',
+    'same lines there), balance one pixel narrower must cost Pretext a line, and fitFontSize must fit by Pretext at its',
+    'size and not at the next. Only then is the painting compared, where a disagreement is a pretext-gap: line counts at',
+    'each width probed, shrinkwrap\'s width against the ceiling of the widest painted line (measured per line from the',
+    'text\'s non-white-space fragments; one pixel less passes only if the browser paints the identical layout there,',
+    'since engines let a line overshoot by up to 1/64 px), and balance one pixel narrower painting more lines.',
     `\`npm run verify\` fails on any kit-mismatch, on a pinned font family that is absent, and when a`,
     'browser×helper\'s pretext-gap or unreliable count exceeds `verify/baseline.json` by more than max(5, 5%).',
     '',

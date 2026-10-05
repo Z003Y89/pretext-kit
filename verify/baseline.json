@@ -4,7 +4,7 @@
     "unreliable": 0
   },
   "chromium/shrinkwrap": {
-    "pretext-gap": 5859,
+    "pretext-gap": 3965,
     "unreliable": 0
   },
   "chromium/balance": {
@@ -20,7 +20,7 @@
     "unreliable": 0
   },
   "webkit/shrinkwrap": {
-    "pretext-gap": 63,
+    "pretext-gap": 43,
     "unreliable": 0
   },
   "webkit/balance": {
@@ -36,7 +36,7 @@
     "unreliable": 0
   },
   "firefox/shrinkwrap": {
-    "pretext-gap": 384,
+    "pretext-gap": 122,
     "unreliable": 0
   },
   "firefox/balance": {
