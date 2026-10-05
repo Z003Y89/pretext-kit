@@ -45,7 +45,8 @@ These are Pretext's own rules (RESEARCH.md Part 1, AGENTS.md), adopted so the ki
 
 ## API
 
-`import { … } from 'pretext-kit'` (depends on `@chenglou/pretext` as a peer).
+`import { … } from 'pretext-kit'` (depends on `@chenglou/pretext` as a peer). Until Pretext's next release it builds
+against Pretext `main` (f10d888, 2026-10-05): npm's 0.0.9 predates the ports of each engine's line breaker.
 
 ### Width
 
@@ -70,10 +71,11 @@ chips.
 
 ```ts
 clamp(prepared: PreparedTextWithSegments, width: number, maxLines: number, tail?: Tail): Clamped
-type Tail = { width: number }                      // room the painter appends after the cut: an ellipsis, "… more"
+type Tail = { width: number, spaceWidth: number }  // room the painter appends after the cut (an ellipsis, "… more"), and the font's space
 type Clamped = { truncated: boolean, lineCount: number, lines: { text: string, width: number }[] }
 clampStats(prepared, width, maxLines): { truncated: boolean, lineCount: number }   // rows you don't paint: layout() only
-measureTail(text: string, font: string): Tail     // e.g. measureTail('…', FONT), measured once
+measureTail(text: string, font: string): Tail     // e.g. measureTail('…', FONT), measured once; spaceWidth from a no-break space,
+                                                  // since a handle doesn't expose its font
 ```
 Matches `-webkit-line-clamp`. The clamped line breaks where it would without the clamp; the tail follows it if it
 fits; otherwise the line is cut after the last grapheme that leaves the tail room, inside a word if need be, keeping at
@@ -127,7 +129,7 @@ src/
   font-size.ts    prepareSizes, fitFontSize            ~90
   list.ts         stack, findIndexAt, anchorDelta      ~50
   index.ts        re-exports
-test/             bun test, logic on a stand-in measurer (fixed per-char widths)
+test/             node --test (Node 24 runs the .ts directly), logic on a stand-in measurer (fixed per-char widths)
 verify/           browser sweep pages + Playwright runner
 demo/             one page: each helper next to the plain-CSS result, resizable
 ```
@@ -143,7 +145,7 @@ second engine.
 
 ## Verification
 
-**Logic (`bun test`).** On a stand-in measurer with known widths, so the answers are computable by hand:
+**Logic (`node --test`).** On a stand-in measurer with known widths, so the answers are computable by hand:
 - shrinkwrap/balance return a width whose line count equals `maxWidth`'s, and `width - 1` gives more lines
   (balance), or `width` equals the ceil of the widest line (shrinkwrap).
 - clamp: line count, truncation, the tail fitting, the first-grapheme rule, and empty and one-line text.
@@ -156,8 +158,11 @@ WebView2, WKWebView/Tauri/Capacitor). It sweeps 5 corpora (Latin prose, CJK, Ara
 URLs/paths), 4 named fonts, widths 120-600 px in 1 px steps and 1-5 lines. It paints each helper's output as an app
 would, then reads the DOM:
 - shrinkwrap/balance: an element at the returned width has the predicted line count and doesn't wrap again.
-- clamp: `-webkit-line-clamp` box truncation and height agree; the cut text is compared with the method RESEARCH.md
-  describes.
+- clamp: `-webkit-line-clamp` box truncation and height agree, and each returned line painted with `white-space: pre`
+  plus the tail fits the width. Comparing the cut against the browser's own ellipsis needs RESEARCH.md's SVG probe;
+  v1 leans on the ellipsis demo's 8,025-layout result for the cut rule it ports, and adds the probe only if a case
+  disagrees.
+- truncateMiddle: the painted line fits the width and ends with the kept end.
 - fitFontSize: the painted element at `px` fits the box, and at `px + 1` it doesn't.
 
 **Pass bar:** the kit adds no mismatch. A case may fail only where Pretext's own `layout()` already disagrees with
