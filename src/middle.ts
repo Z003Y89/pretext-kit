@@ -4,26 +4,29 @@
 import { layoutNextLine, layoutNextLineRange, layoutWithLines, prepareWithSegments } from '@chenglou/pretext'
 import type { LayoutCursor, PreparedTextWithSegments } from '@chenglou/pretext'
 import { measureTail } from './clamp.ts'
-import { graphemeEnds, longestPrefix, measureText, trimCut } from './cut.ts'
+import { graphemeEnds, graphemeSegmenter, longestPrefix, measureText, trimCut } from './cut.ts'
 import { FIT_TOLERANCE } from './fit.ts'
 
+// `text` is the label as Pretext prepared it, white space collapsed (runs of spaces, tabs and
+// line breaks to one space, none at either end), so it is what truncateMiddle cuts and returns,
+// and the text keepEnd.from indexes: `label.text.lastIndexOf('/')`, not an index into the input.
 export type PreparedLabel = {
   text: string
   font: string
   prepared: PreparedTextWithSegments
   starts: LayoutCursor[]
   offsets: number[]
+  // graphemeEnds(text), computed once: every start the label is cut to ends at one of these.
+  ends: number[]
   ellipsisWidth: number
-  spaceWidth: number
 }
 
 const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
 const ELLIPSIS = '…'
 const SOFT_HYPHENS = /\u00AD/g
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-// Code-unit offset of a cursor in the source text. Pretext's cursors count graphemes
-// inside segments, but callers hold string indexes, so the two are bridged here.
+// Code-unit offset of a cursor in label.text (the segments joined). Pretext's cursors count
+// graphemes inside segments, but callers hold string indexes, so the two are bridged here.
 function offsetOf(segments: string[], cursor: LayoutCursor): number {
   let offset = 0
   for (let i = 0; i < cursor.segmentIndex; i++) offset += segments[i]!.length
@@ -59,27 +62,27 @@ export function prepareLabel(text: string, font: string): PreparedLabel {
       k++
     }
   }
-  const tail = measureTail(ELLIPSIS, font)
+  const collapsed = prepared.segments.join('')
   return {
-    text,
+    text: collapsed,
     font,
     prepared,
     starts,
     offsets,
-    ellipsisWidth: tail.width,
-    spaceWidth: tail.spaceWidth,
+    ends: graphemeEnds(collapsed),
+    ellipsisWidth: measureTail(ELLIPSIS, font).width,
   }
 }
 
 // The start of the label, before the end at `endFrom`, that fits around an ellipsis with `end`
 // and is locally longest (one grapheme more would overrun), the whole result measured as one
-// text prepared alone, as it paints: the start keeps one grapheme
-// whatever the room, so `fits` is false only when even that overruns. Soft hyphens paint
-// nothing inside the line, so the start drops them before it is measured: kept, they would
-// split its words into syllables measured apart.
+// text prepared alone, as it paints: the start keeps one grapheme whatever the room, so `fits`
+// is false only when even that overruns. Soft hyphens paint nothing inside the line, so the
+// start drops them before it is measured: kept, they would split its words into syllables
+// measured apart.
 function withStart(label: PreparedLabel, end: string, endFrom: number, width: number): { text: string, fits: boolean } {
-  const ends = graphemeEnds(label.text).filter(e => e <= endFrom)
-  if (ends.length === 0) ends.push(graphemeEnds(label.text)[0] ?? 0)
+  const ends = label.ends.filter(e => e <= endFrom)
+  if (ends.length === 0) ends.push(label.ends[0] ?? 0)
   const visible = (prefix: string): string => prefix.replace(SOFT_HYPHENS, '')
   const head = visible(trimCut(longestPrefix(label, label.text, ends, width, prefix => visible(prefix) + ELLIPSIS + end)))
   const text = head + ELLIPSIS + end
@@ -93,14 +96,18 @@ function graphemeCount(text: string): number {
 }
 
 // One line that keeps a label's start and end around an ellipsis. With keepEnd, the end is
-// everything from the grapheme at keepEnd.from (a path's file name with its slash) where the
-// room holds it, so the cut never falls inside the name; otherwise the end is the longest
-// run of graphemes that fits half the room, less any graphemes it gives up so the joined result
-// fits. The start fills what is left. The stream only
-// walks forward, so each candidate end is measured as the line from its first grapheme.
+// everything from the grapheme at keepEnd.from, an index into label.text (a path's file name
+// with its slash), where the room holds it, so the cut never falls inside the name; otherwise
+// the end is the longest run of graphemes that fits half the room, less any graphemes it gives
+// up so the joined result fits. The start fills what is left. The stream only walks forward,
+// so each candidate end is measured as the line from its first grapheme.
 export function truncateMiddle(label: PreparedLabel, width: number, keepEnd?: { from: number }): string {
   const { prepared, starts, offsets } = label
   const whole = layoutNextLineRange(prepared, START, Number.POSITIVE_INFINITY)
+  // The whole label is returned only when its natural width fits outright (EVALUATION C6, which
+  // the sweep checks), while a cut result, a text composed here, gets the 1/64 slack clamp's
+  // last line gets too. Not one rule, deliberately: a label within that slack is cut, a
+  // conservative answer where engines' own slack differs (Pretext's lineFitEpsilon).
   if (whole === null || whole.width <= width) return label.text
   const room = width - label.ellipsisWidth
   let nameStart = 0

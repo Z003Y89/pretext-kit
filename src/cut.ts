@@ -21,7 +21,8 @@ export function paintedWidth(m: Measure, text: string): number {
   return measureText(m, text.replace(/ +$/, s => '\u00A0'.repeat(s.length)))
 }
 
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+// One grapheme segmenter for the kit (middle.ts uses it too).
+export const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
 // Code-unit ends of each grapheme of `text`: prefix k is text.slice(0, ends[k - 1]).
 export function graphemeEnds(text: string): number[] {

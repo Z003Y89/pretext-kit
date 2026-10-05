@@ -104,3 +104,27 @@ test('an end that overruns once joined to the shortest start is shortened', () =
     assert.ok(w <= width, `${out} is ${w} wide at ${width}`)
   }
 })
+
+// Final review I-1: Pretext collapses white space, so the cut points index the collapsed text, and
+// keepEnd.from indexes label.text, which is that collapsed text.
+test('label.text is the collapsed text, and keepEnd.from indexes it', () => {
+  const label = prepareLabel('docs/My  Project  Notes/2026  plan.md', '20px Test')
+  assert.equal(label.text, 'docs/My Project Notes/2026 plan.md')
+  const from = label.text.lastIndexOf('/')
+  for (let width = 150; width < 325; width += 5) {
+    const out = truncateMiddle(label, width, { from })
+    assert.ok(out.endsWith('…/2026 plan.md'), `${width}: ${out}`)
+    assert.ok(label.text.startsWith(out.slice(0, out.indexOf('…'))), `${width}: ${out}`)
+  }
+  assert.equal(truncateMiddle(label, 400, { from }), label.text)
+})
+test('leading and trailing spaces collapse out of label.text', () => {
+  const label = prepareLabel('   src/a/file.ts  ', '20px Test')
+  assert.equal(label.text, 'src/a/file.ts')
+  assert.equal(truncateMiddle(label, 110, { from: label.text.lastIndexOf('/') }), 'sr…/file.ts')
+})
+test('a CRLF collapses to one space in label.text', () => {
+  const label = prepareLabel('src\r\nlib/name.ts', '20px Test')
+  assert.equal(label.text, 'src lib/name.ts')
+  assert.equal(truncateMiddle(label, 110, { from: label.text.lastIndexOf('/') }), 'sr…/name.ts')
+})
