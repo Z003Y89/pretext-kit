@@ -74,7 +74,9 @@ test('a grapheme wider than the box still does not fit', () => {
 const row = (px: number) => [{ width: px }, { text: 'aa bb', font: font(px) }]
 const rowFits = (px: number, width: number) => {
   const s = measureRichInlineStats(prepareRichInline(row(px)), width)
-  return s.lineCount <= 1 && s.maxLineWidth <= width + FIT_TOLERANCE
+  // The kit's criterion, written independently: a line past the width fails only if an unbreakable piece is wider too.
+  const unit = measureRichInlineStats(prepareRichInline(row(px)), 0).maxLineWidth
+  return s.lineCount <= 1 && (s.maxLineWidth <= width + FIT_TOLERANCE || unit <= width + FIT_TOLERANCE)
 }
 
 test('rich: an icon box and a label scale together', () =>   // 3.25px of width per px of size
@@ -109,13 +111,21 @@ test('rich: bad ranges throw, and a NaN width throws', () => {
 })
 
 // Mirrors the soft-hyphen test above for a row: an icon then 'aat-saa-bb cc' at 20px in a 75px box.
-// Pretext fits 'aat­saa-' beside the icon and reports that line at its syllables' width apart (80px),
+// Pretext fits 'aat\u00ADsaa-' beside the icon and reports that line at its syllables' width apart (80px),
 // though no unbreakable piece is wider than 75px; fitFontSizeRich must judge it as fitFontSize does.
 test('rich: a soft-hyphen line Pretext fits counts as fitting though its width apart is wider', () => {
-  const kernRow = (px: number) => [{ width: px / 2 }, { text: 'aat­saa­bb cc', font: `${px}px Kern` }]
+  const kernRow = (px: number) => [{ width: px / 2 }, { text: 'aat\u00ADsaa\u00ADbb cc', font: `${px}px Kern` }]
   const reported = measureRichInlineStats(prepareRichInline(kernRow(20)), 75)
   assert.ok(reported.maxLineWidth > 75 + FIT_TOLERANCE)
   const fit = fitFontSizeRich(prepareSizesRich(kernRow, { min: 10, max: 20 }), { width: 75, height: 60 }, () => 30)
   assert.equal(fit?.px, 20)
   assert.equal(fit?.lineCount, 2)
+})
+
+// The refusing half of the rule for rows: from 21px the icon box alone is wider than the 20px box, so no line
+// break helps and the size fails, though Pretext still lays the row out. Only the width can refuse here.
+test('rich: a box wider than the width still does not fit', () => {
+  const sizes = prepareSizesRich(px => [{ width: px }, { text: 'a', font: font(px) }], { min: 5, max: 40 })
+  assert.equal(fitFontSizeRich(sizes, { width: 20 }, () => 1e9)?.px, 20)
+  assert.ok(sizes.units.some(u => u === undefined))
 })

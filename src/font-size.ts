@@ -70,14 +70,15 @@ function widestUnit(sizes: PreparedSizes, px: number): number {
 type Stats = { lineCount: number, maxLineWidth: number }
 
 // Returns the line count when the stats fit the box at px, else -1, so the search needs no result object per probe.
-// widestUnit is called only when a line is reported past the width, so most probes never measure it.
-function judge(s: Stats, widestUnit: () => number, px: number, box: FitBox, lineHeight: (px: number) => number): number {
+// unit(px) is the widest unbreakable piece at px, called only when a line is reported past the width, so most probes
+// never measure it. Callers build unit once per fit, so the search allocates nothing per probe.
+function judge(s: Stats, unit: (px: number) => number, px: number, box: FitBox, lineHeight: (px: number) => number): number {
   // Written as negated <= so a NaN (from a caller's lineHeight, height or maxLines) fails closed instead of passing.
   // A line Pretext laid out past the width either overflows, holding a piece wider than the width that no break
   // can split, or is one Pretext fitted there and reports wider than it paints (one ending at a soft hyphen whose
   // syllables measure narrower joined than apart, or any other line Pretext accepts past its reported width).
   // Only the first fails to fit: Pretext's layout, not its reported width, decides the rest.
-  if (!(s.maxLineWidth <= box.width + FIT_TOLERANCE) && !(widestUnit() <= box.width + FIT_TOLERANCE)) return -1
+  if (!(s.maxLineWidth <= box.width + FIT_TOLERANCE) && !(unit(px) <= box.width + FIT_TOLERANCE)) return -1
   if (box.maxLines !== undefined && !(s.lineCount <= box.maxLines)) return -1
   if (box.height !== undefined && !(s.lineCount * lineHeight(px) <= box.height)) return -1
   return s.lineCount
@@ -107,8 +108,8 @@ export function fitFontSize(
   box: FitBox,
   lineHeight: (px: number) => number,
 ): FitResult | null {
-  const probe = (px: number) =>
-    judge(measureLineStats(handleAt(sizes, px), box.width), () => widestUnit(sizes, px), px, box, lineHeight)
+  const unit = (px: number) => widestUnit(sizes, px)
+  const probe = (px: number) => judge(measureLineStats(handleAt(sizes, px), box.width), unit, px, box, lineHeight)
   const px = searchSize(sizes.min, sizes.max, box.width, probe)
   if (px < 0) return null
   return { px, prepared: handleAt(sizes, px), lineCount: probe(px) }
@@ -168,8 +169,8 @@ export function fitFontSizeRich(
   box: FitBox,
   lineHeight: (px: number) => number,
 ): FitResultRich | null {
-  const probe = (px: number) =>
-    judge(measureRichInlineStats(handleAtRich(sizes, px), box.width), () => widestUnitRich(sizes, px), px, box, lineHeight)
+  const unit = (px: number) => widestUnitRich(sizes, px)
+  const probe = (px: number) => judge(measureRichInlineStats(handleAtRich(sizes, px), box.width), unit, px, box, lineHeight)
   const px = searchSize(sizes.min, sizes.max, box.width, probe)
   if (px < 0) return null
   return { px, prepared: handleAtRich(sizes, px), lineCount: probe(px) }
