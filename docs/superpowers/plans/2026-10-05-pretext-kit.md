@@ -335,3 +335,25 @@ test('bad ranges throw', () => assert.throws(() => prepareSizes(T, font, { min: 
 - [ ] **Step 4: Use it** in `verify/sweep.ts` and `demo/demo.ts`: each takes its font, letter spacing and line height from a styled element's computed style. Re-run `npm run verify` and expect the same zero `kit-mismatch` (this proves the helper in three browsers).
 - [ ] **Step 5: Run** `npm test && npm run check`. Expected: PASS. **Commit** `feat: fontFromStyle reads the font from computed style`.
 
+
+### Task 10: fitFontSizeRich (text, icons and badges scaling together)
+
+**Files:**
+- Modify: `src/font-size.ts` (share the search), `src/index.ts`, `test/font-size.test.ts`, `verify/sweep.ts`, `verify/corpora.ts`, `README.md` (if Task 8 has written it; else Task 8 picks this up)
+
+**Interfaces:**
+- Consumes: `FIT_TOLERANCE`; the bisection in `fitFontSize` (Task 5); `prepareRichInline`, `measureRichInlineStats`, `RichInlineItem`, `RichInlineBox`, `RichInlineOptions`, `PreparedRichInline` from `@chenglou/pretext/rich-inline`.
+- Produces: `type PreparedSizesRich = { items: (px: number) => Array<RichInlineItem | RichInlineBox>, min: number, max: number, options: RichInlineOptions | undefined, handles: (PreparedRichInline | undefined)[] }`;
+  `prepareSizesRich(items, range: { min: number, max: number }, options?): PreparedSizesRich` (same `RangeError` rules as `prepareSizes`);
+  `fitFontSizeRich(sizes: PreparedSizesRich, box: FitBox, lineHeight: (px: number) => number): { px: number, prepared: PreparedRichInline, lineCount: number } | null`.
+  The row at size `px` is whatever `items(px)` returns, e.g. `px => [{ width: Math.round(px * 1.25) }, { text: label, font: \`600 ${px}px Inter\`, extraWidth: Math.round(px * 0.5) }]`: an icon box, then a label with its gap counted as `extraWidth`. "Fits" is the same rule as `fitFontSize`, over `measureRichInlineStats`. Heights count `lineCount * lineHeight(px)`; a box taller than the line height makes its line taller in the browser (Pretext README), so the doc comment says callers keep icon heights at or below the line height.
+
+- [ ] **Step 1: Write failing tests** (stand-in widths; `row = px => [{ width: px }, { text: 'aa bb', font: \`${px}px Test\` }]`, whose one-line width is `px + 2.25·px = 3.25·px`):
+  - `fitFontSizeRich(prepareSizesRich(row, { min: 8, max: 40 }), { width: 100, maxLines: 1 }, px => px * 1.5)!.px === 30` (97.5px; 31 gives 100.75px)
+  - The same independent `fitsDirect` property as Task 5, built on `prepareRichInline` + `measureRichInlineStats`: the result fits, and `px + 1` doesn't or is `max`.
+  - With a single text item and no boxes, it agrees with `fitFontSize` for the same text and box at five widths.
+  - `null` when even `min` doesn't fit; a second fit reuses the prepared handle; a bad range throws `RangeError`.
+- [ ] **Step 2: Run** `npm test`. Expected: FAIL.
+- [ ] **Step 3: Implement.** One bisection shared by `fitFontSize` and `fitFontSizeRich`, taking the probe as a parameter (the pattern `src/width.ts` uses for its rich twins), not two copies. Lazy handles per size as in Task 5.
+- [ ] **Step 4: Run** `npm test && npm run check`. Expected: PASS. **Commit** `feat: fitFontSizeRich sizes icons and text as one row`.
+- [ ] **Step 5: Sweep.** Add helper `'fitFontSizeRich'` to `sweep()`. Rows: an icon (`display: inline-block; vertical-align: top; width: round(1.25·px)px; height: px`), then a label from the Latin, German, French and emoji corpora with `margin-left: round(0.5·px)px` (matching `extraWidth`), in one `white-space: normal; overflow-wrap: break-word` container of width W, with box `{ width: W, maxLines: 1 }` and `{ width: W, height: 3 × lineHeight }`, sizes 8-32, line height `round(1.5·px)`. `pass` iff the painted row at `px` fits (lines ≤ maxLines or height ≤ box height, and `scrollWidth ≤ W`) and at `px + 1` it doesn't (or `px` is max). The same `pretext-gap` and `platform` attribution rules as Task 6 apply. Run `npm run verify`, expect zero `kit-mismatch`, and commit `test: browser sweep for icon and label rows` with `RESULTS.md`.
