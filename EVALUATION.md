@@ -7,12 +7,13 @@ the results wrong. Every number names the file it comes from and the command tha
 
 **In one paragraph.** Over 7,006,572 browser cases (seven helpers × Chromium 149, WebKit 26.5, Firefox 151 × three
 zoom factors, on one Mac), the kit never answered differently from what Pretext's own numbers require, and wherever
-Pretext agreed with the browser, the browser painted what the kit predicted: 0 kit-mismatch cases. The 95% upper
-bound on the rate of kit-mismatch is about 1-2% of text × font combinations per helper and browser (the number to
-quote, §3). Planted bugs are caught by thousands to hundreds of thousands of cases each, except one, which the sweep
-missed until this evaluation added cases for it (§4). The kit inherits every disagreement between Pretext and a
-browser (21,978 such cases, 0.31%), including 19 + 66 fitted sizes on soft-hyphenated text that visibly overflow in
-Chromium and Firefox (§8). Everything was measured on macOS 14 only.
+Pretext agreed with the browser, the browser painted what the kit predicted, apart from 12,931 WebKit cases with one
+proven browser cause (fractional line heights, §8): 0 kit-mismatch cases. The 95% upper bound on the kit-mismatch rate
+is 1.1-2.1% of text × font combinations per helper and browser (the number to quote, §3). Seven planted bugs were
+each caught; six by 4,000 to 160,000 cases, and the seventh (`fontFromStyle` dropping the weight) only after this
+evaluation added the cases that see it, since the sweep as it stood missed it (§4). The kit inherits every
+disagreement between Pretext and a browser (21,978 cases, 0.31%), among them 19 + 66 fitted sizes on soft-hyphenated
+text that visibly overflow their box in Chromium and Firefox (§8). Everything was measured on macOS 14 only.
 
 ## 1. Claims under test
 
@@ -20,9 +21,15 @@ Each claim holds for the inputs in §2 (four named macOS font stacks, the corpor
 the three browser builds named there. A single counterexample in that scope falsifies it; outside that scope nothing
 is claimed. "Fits W" means no line paints wider than W + 1/64 px (engines let a line overshoot by up to 1/64 px).
 
+Each claim has two halves, tested in order (§2). Against Pretext's own numbers it is unconditional: any case where
+the kit's answer is not what Pretext's layout requires falsifies it. Against the painting it is conditional on
+Pretext agreeing with the browser at the widths or sizes the judgement needs; where Pretext does not, the case is a
+`pretext-gap`, counted and listed but evidence neither for nor against the kit. So the painting claims below are
+"the kit adds no error to Pretext's", not "the browser always paints what the kit says" (§8 lists where it doesn't).
+
 | # | helper | claim | tested by |
 |---|---|---|---|
-| C1 | `shrinkwrap(p, W)` | Returns `{ width, lineCount }` with `lineCount` equal to Pretext's line count at W and `width` = ⌈widest line Pretext lays out at W⌉ (one less only when Pretext lays out the same lines there), capped at W. The browser, at `width`, paints `lineCount` lines, and `width` is the ceiling of its widest painted line. | browser sweep |
+| C1 | `shrinkwrap(p, W)` | Returns `{ width, lineCount }` with `lineCount` equal to Pretext's line count at W and `width` = ⌈widest line Pretext lays out at W⌉ (one less only when Pretext lays out the same lines there), capped at W. The browser, at `width`, paints `lineCount` lines, and `width` is the ceiling of its widest painted line (one less only where the browser paints the same lines there). | browser sweep |
 | C2 | `balance(p, W)` | Returns the narrowest whole-px `width` at which the browser paints `layout(p, W).lineCount` lines: at `width` it paints that many, at `width − 1` more (unless a grapheme wider than `width − 1` forces the width). | browser sweep |
 | C3 | `fitFontSize(sizes, box, lh)` | Returns the largest whole-px size in [min, max] at which the browser's painting fits the box (height ≤ `box.height`, lines ≤ `maxLines`, no overflow past the width), such that one px larger does not fit; `null` exactly when `min` does not fit. Judged at the box `{ W, height: 96 }`, sizes 8-48, line height 1.5 × size. | browser sweep |
 | C4 | `fitFontSizeRich(sizes, box, lh)` | As C3, for an icon box followed by a label (one row, `extraWidth` as margin), sizes 8-32, boxes `{ W, maxLines: 1 }` and `{ W, height: 72 }`. | browser sweep |
@@ -234,7 +241,18 @@ kit-mismatch. The table is its output:
 
 | planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |
 |---|---|---:|---:|---:|---|
-<!-- mutants -->
+| shrinkwrap +1px | shrinkwrap | 161616 | 150273 | 10744 | fails (5 failing) |
+| balance returns shrinkwrap | balance | 161616 | 120948 | 40115 | fails (4 failing) |
+| fitFontSize returns px − 1 (min stays min) | fitFontSize | 161616 | 161581 | 35 | fails (8 failing) |
+| fitFontSizeRich ignores the icon box | fitFontSizeRich | 203944 | 59725 | 144168 | fails (3 failing) |
+| clamp without the tail | clamp | 808080 | 158851 | 648730 | fails (6 failing) |
+| truncateMiddle ignores keepEnd | truncateMiddle | 56496 | 6688 | 49807 | fails (4 failing) |
+| fontFromStyle drops the weight | fontFromStyle | 180 | 4 | 176 | fails (5 failing) |
+
+Run at 8da68c5 (`node verify/mutants.ts`; the control: every helper's tally as in RESULTS.md, `npm test` passing).
+The other cases are pretext-gaps, or pass where the bug changes nothing the checks see (for instance a +1px width
+capped at W, a one-line text whose balance is its shrinkwrap, an answer already at the minimum size); they were not
+analysed case by case. Every mutant is caught by the sweep and by `npm test`; fontFromStyle's only by its 4 weight-700 cases.
 
 **One mutant escaped the sweep, and that was a defect.** A first round of the same mutants, against the harness as
 it stood at 9804f84 (a throwaway branch `mutants-tmp` in a separate worktree, since deleted), gave the same counts as
@@ -333,7 +351,8 @@ verify/reproduce.sh --sweep=chromium@1     # the browser sweep in Chromium at fa
 ```
 
 It clones this repository at its HEAD (or `--kit-repo`, `--kit-commit`) and Pretext at f10d888 side by side into a new
-temporary directory (or `--dir`), builds Pretext (`npm install && npm run build:package`, as the README says), runs
+temporary directory (or `--dir`), builds Pretext with its pinned TypeScript (`npx -p typescript@6.0.2 tsc -p tsconfig.build.json`, which is what its
+`build:package` runs), runs
 `npm ci` and `npx playwright install chromium webkit firefox` (Playwright 1.61.0's pinned builds), then `npm test`,
 `npm run check`, the browser sweep, `node verify/stats.ts --compare-log=…` (each browser × factor × helper tally it
 ran against RESULTS.md) and `npm run verify:headless`, and prints the tallies. It needs macOS 14 (the sweep's pinned

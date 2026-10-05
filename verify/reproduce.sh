@@ -52,8 +52,10 @@ echo "$(sw_vers -productName 2>/dev/null) $(sw_vers -productVersion 2>/dev/null)
 
 step pretext-clone git clone --quiet "$PRETEXT_REPO" "$DIR/pretext"
 step pretext-checkout git -C "$DIR/pretext" checkout --quiet "$PRETEXT_COMMIT"
-# Pretext has no npm lockfile; its build is tsc alone, pinned in its devDependencies (typescript 6.0.2).
-step pretext-build bash -c "cd '$DIR/pretext' && npm install --no-audit --no-fund && npm run build:package"
+# Pretext's build (`npm run build:package`) is tsc alone, pinned in its devDependencies to typescript 6.0.2. Its
+# other dev dependencies float (it has no npm lockfile) and on 2026-10-05 no longer resolve with `npm install`
+# (an oxlint peer conflict), so tsc is run directly; the dist it writes is identical to the recorded runs'.
+step pretext-build bash -c "cd '$DIR/pretext' && npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json"
 step kit-clone git clone --quiet "$KIT_REPO" "$DIR/pretext-kit"
 step kit-checkout git -C "$DIR/pretext-kit" checkout --quiet "$KIT_COMMIT"
 cd "$DIR/pretext-kit" || exit 1
