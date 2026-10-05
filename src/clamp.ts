@@ -15,7 +15,7 @@ const NO_TAIL: Tail = { width: 0, spaceWidth: 0 }
 export function measureTail(text: string, font: string): Tail {
   return {
     width: measureNaturalWidth(prepareWithSegments(text, font)),
-    spaceWidth: measureNaturalWidth(prepareWithSegments(' ', font)),
+    spaceWidth: measureNaturalWidth(prepareWithSegments('\u00A0', font)),
   }
 }
 
@@ -38,11 +38,17 @@ export function fillLine(prepared: PreparedTextWithSegments, start: LayoutCursor
     if (piece.width > room - x + FIT_TOLERANCE) {
       // Blink's LineTruncator keeps one character whatever the room, so a cut that
       // would be empty keeps the first grapheme rather than showing a bare tail.
-      return text === '' ? { text: piece.text, width: piece.width } : { text, width: x }
+      // The width is what is painted, so a kept trailing space counts.
+      if (text !== '') return { text, width: x }
+      return { text: piece.text, width: piece.width + (piece.text.endsWith(' ') ? spaceWidth : 0) }
     }
     x += piece.width
     if (piece.text.endsWith(' ')) {
-      if (x + spaceWidth > room) return { text: text + piece.text.slice(0, -1), width: x }
+      if (x + spaceWidth > room) {
+        const cut = text + piece.text.slice(0, -1)
+        // A line that is only this space would be empty: keep it, as for a grapheme.
+        return cut === '' ? { text: piece.text, width: x + spaceWidth } : { text: cut, width: x }
+      }
       x += spaceWidth
     }
     text += piece.text
@@ -70,7 +76,8 @@ export function clamp(prepared: PreparedTextWithSegments, width: number, maxLine
   if (layoutNextLineRange(prepared, cursor, width) === null) return { truncated: false, lineCount: lines.length, lines }
   const last = lines.length - 1
   const line = lines[last]!
-  if (line.width + tail.width > width) lines[last] = fillLine(prepared, lastStart, width - tail.width, tail.spaceWidth)
+  // Same slack as Pretext's own line fit, or a line it just accepted is cut here.
+  if (line.width + tail.width > width + FIT_TOLERANCE) lines[last] = fillLine(prepared, lastStart, width - tail.width, tail.spaceWidth)
   else lines[last] = { text: trimEndSpace(line.text), width: line.width }
   return { truncated: true, lineCount: lines.length, lines }
 }
