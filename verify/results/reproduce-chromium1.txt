@@ -1,4 +1,4 @@
-pretext-kit 729410b from <kit-repo>; Pretext f10d888c0f3dfc5877fbca5e4570ee04111e7001; into <dir>; sweep: chromium@1
+pretext-kit 4165a35 from <kit-repo>; Pretext f10d888c0f3dfc5877fbca5e4570ee04111e7001; into <dir>; sweep: chromium@1
 macOS 14.6.1 arm64, node v24.4.1, npm 11.4.2
 == pretext-clone: git clone --quiet https://github.com/chenglou/pretext.git <dir>/pretext
    ok (<dir>/logs/pretext-clone.log)
@@ -8,7 +8,7 @@ macOS 14.6.1 arm64, node v24.4.1, npm 11.4.2
    ok (<dir>/logs/pretext-build.log)
 == kit-clone: git clone --quiet <kit-repo> <dir>/pretext-kit
    ok (<dir>/logs/kit-clone.log)
-== kit-checkout: git -C <dir>/pretext-kit checkout --quiet 729410b
+== kit-checkout: git -C <dir>/pretext-kit checkout --quiet 4165a35
    ok (<dir>/logs/kit-checkout.log)
 == npm-ci: npm ci --no-audit --no-fund
    ok (<dir>/logs/npm-ci.log)
@@ -26,14 +26,14 @@ macOS 14.6.1 arm64, node v24.4.1, npm 11.4.2
    ok (<dir>/logs/verify-headless.log)
 
 == tallies
-npm test: ℹ tests 83 ℹ pass 83 ℹ fail 0 ℹ tests 65 ℹ pass 65 ℹ fail 0
+npm test: ℹ tests 85 ℹ pass 85 ℹ fail 0 ℹ tests 65 ℹ pass 65 ℹ fail 0
 chromium@1 fontFromStyle: 180 cases in 0.0s (pass 180, pretext-gap 0, platform 0, unreliable 0, kit-mismatch 0)
 chromium@1 shrinkwrap: 161616 cases in 13.7s (pass 156575, pretext-gap 5041, platform 0, unreliable 0, kit-mismatch 0)
-chromium@1 balance: 161616 cases in 12.8s (pass 156946, pretext-gap 4670, platform 0, unreliable 0, kit-mismatch 0)
-chromium@1 fitFontSize: 161616 cases in 20.5s (pass 161312, pretext-gap 304, platform 0, unreliable 0, kit-mismatch 0)
+chromium@1 balance: 161616 cases in 12.7s (pass 156946, pretext-gap 4670, platform 0, unreliable 0, kit-mismatch 0)
+chromium@1 fitFontSize: 161616 cases in 20.7s (pass 161312, pretext-gap 304, platform 0, unreliable 0, kit-mismatch 0)
 chromium@1 fitFontSizeRich: 203944 cases in 18.9s (pass 203723, pretext-gap 221, platform 0, unreliable 0, kit-mismatch 0)
-chromium@1 clamp: 808080 cases in 54.8s (pass 807503, pretext-gap 577, platform 0, unreliable 0, kit-mismatch 0)
-chromium@1 truncateMiddle: 56496 cases in 4.6s (pass 56493, pretext-gap 3, platform 0, unreliable 0, kit-mismatch 0)
+chromium@1 clamp: 808080 cases in 55.5s (pass 807503, pretext-gap 577, platform 0, unreliable 0, kit-mismatch 0)
+chromium@1 truncateMiddle: 61632 cases in 6.1s (pass 61629, pretext-gap 3, platform 0, unreliable 0, kit-mismatch 0)
 7 of 7 browser × factor × helper tallies equal RESULTS.md
 mutant "drop kerning": 2868 width misses (max 14.7001px), 1594 headless-mismatches
 mutant "ignore weight": 848 width misses (max 34.3797px), 2988 headless-mismatches
@@ -45,7 +45,7 @@ HEADLESS_RESULTS.md written by this run differs from the committed one in:
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 all steps passed
-real 163.02
-user 164.09
-sys 10.09
+real 168.50
+user 166.13
+sys 10.07
 exit 0
