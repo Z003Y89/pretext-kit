@@ -27,9 +27,17 @@ A runnable version is `examples/vitest-label-fit.test.ts`.
 
 ### The claim and its limits
 
-On macOS, Chrome 154: for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas
-(320/352 bit-exact, max 0.019px), and Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does
-(2,021/2,024). The claim is scoped exactly so:
+On macOS Chrome, for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas, and
+Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. Measured twice:
+
+- **Parity sweep** (`npm run verify:headless`, [verify/HEADLESS_RESULTS.md](verify/HEADLESS_RESULTS.md)), Chromium
+  149.0.7827.55 via Playwright 1.61.0 on macOS 14.6.1, fonts loaded by `@font-face` from the same files: 4,992 widths
+  (Inter TTF and WOFF2, Roboto, Shantell Sans; weights 400/600/700, 12-20px, letter spacing 0/0.5px), 3,842 bit-exact
+  (all Inter and Roboto ones), max 0.000427px; 71,818 line counts (Latin, German with soft hyphens, French, quoted,
+  pictographic and separator texts at 120-600px), 0 differing from Pretext inside Chromium.
+- **Initial research**, Chrome 154: 320/352 widths bit-exact, max 0.019px; line counts 2,021/2,024.
+
+The claim is scoped exactly so:
 
 - **Registered fonts only.** A code point no registered font covers makes `measureText` throw a `HeadlessCoverageError`
   naming the character and the font list (Chrome would use an OS fallback font we can't reproduce). An opt-in

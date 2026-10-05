@@ -25,8 +25,10 @@ export function measureWidths(OffscreenCanvasImpl: Canvas, cases: WidthCase[]): 
     const font = canvasFont(c.family, c.weight, c.size)
     ctx.font = font
     ctx.letterSpacing = `${c.spacing}px`
-    // A font Canvas rejects would silently measure in the previous one.
-    if (ctx.font.includes(c.family) === false) throw new Error(`font not taken: ${font} reads back ${ctx.font}`)
+    // A font Canvas rejects would silently measure in the previous one, so the family read back must
+    // be exactly the one set (Chromium serializes it with or without quotes).
+    const family = /\d+(?:\.\d+)?px\s+(.*)$/.exec(ctx.font)?.[1]?.replace(/^"(.*)"$/, '$1')
+    if (family !== c.family) throw new Error(`font not taken: ${font} reads back ${ctx.font}`)
     if (parseFloat(ctx.letterSpacing) !== c.spacing) throw new Error(`letterSpacing not taken: ${c.spacing}px`)
     return ctx.measureText(c.text).width
   })

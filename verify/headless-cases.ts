@@ -10,18 +10,23 @@ import type { Corpus, Text } from './corpora.ts'
 // the weight its @font-face rule declares (the stand-in reads the same weight from OS/2).
 export type FaceFile = { family: string, file: string, format: 'truetype' | 'woff2', weight: number }
 
+// Family names carry an "HX " prefix in both Chromium (@font-face) and Node (registerFont), so no
+// installed font of the same name can stand in for a file that failed to load.
 // Shantell Sans is the only family here with two weights: Inter and Roboto ship one face each, so
 // 600 and 700 are synthesized from it in Chromium and nothing could show the stand-in ignoring the
 // requested weight.
 export const FACES: FaceFile[] = [
-  { family: 'Inter', file: 'Inter-Regular.ttf', format: 'truetype', weight: 400 },
-  { family: 'Inter WOFF2', file: 'Inter-Regular.woff2', format: 'woff2', weight: 400 },
-  { family: 'Roboto', file: 'Roboto-Regular.ttf', format: 'truetype', weight: 400 },
-  { family: 'Shantell Sans', file: 'ShantellSans-Regular.ttf', format: 'truetype', weight: 400 },
-  { family: 'Shantell Sans', file: 'ShantellSans-Bold.ttf', format: 'truetype', weight: 700 },
+  { family: 'HX Inter', file: 'Inter-Regular.ttf', format: 'truetype', weight: 400 },
+  { family: 'HX Inter WOFF2', file: 'Inter-Regular.woff2', format: 'woff2', weight: 400 },
+  { family: 'HX Roboto', file: 'Roboto-Regular.ttf', format: 'truetype', weight: 400 },
+  { family: 'HX Shantell Sans', file: 'ShantellSans-Regular.ttf', format: 'truetype', weight: 400 },
+  { family: 'HX Shantell Sans', file: 'ShantellSans-Bold.ttf', format: 'truetype', weight: 700 },
 ]
 
-export const WIDTH_FAMILIES = ['Inter', 'Inter WOFF2', 'Roboto', 'Shantell Sans']
+export const WIDTH_FAMILIES = ['HX Inter', 'HX Inter WOFF2', 'HX Roboto', 'HX Shantell Sans']
+// 2048 units per em: every advance is a dyadic fraction of a pixel at these sizes, so Chromium and
+// HarfBuzz must agree bit for bit. A tripwire beside the formal bar: any inexact width here fails.
+export const EXACT_FAMILIES = ['HX Inter', 'HX Inter WOFF2', 'HX Roboto']
 export const WEIGHTS = [400, 600, 700]
 export const SIZES = [12, 14, 16, 20]
 export const SPACINGS = [0, 0.5]
@@ -89,6 +94,9 @@ export const WIDTH_STRINGS: Text[] = [
   { label: 'BOM', text: 'A\uFEFFV' },
   { label: 'ZWNJ', text: 'Auf\u200Clage' },
   { label: 'ZWJ', text: 'a\u200Db' },
+  { label: 'U+FFFC', text: 'A\uFFFCV' },
+  { label: 'C0 control', text: 'A\u0001V' },
+  { label: 'ZWSP + mark', text: 'a\u200B\u0301b' },
   { label: 'SHY compound', text: 'Zah\u00ADlungs\u00ADpflich\u00ADtig' },
   { label: 'SHY Tages', text: 'Ta\u00ADges\u00ADab\u00ADschluss\u00ADbe\u00ADricht' },
 ]
@@ -96,12 +104,12 @@ export const WIDTH_STRINGS: Text[] = [
 // A Pretext + DOM configuration of the line-count sweep: font size 16px, line height 24px.
 export type LineFont = { label: string, family: string, weight: number, letterSpacing: number }
 export const LINE_FONTS: LineFont[] = [
-  { label: 'Inter 400', family: 'Inter', weight: 400, letterSpacing: 0 },
-  { label: 'Inter 700', family: 'Inter', weight: 700, letterSpacing: 0 },
-  { label: 'Inter 400 +0.5px', family: 'Inter', weight: 400, letterSpacing: 0.5 },
-  { label: 'Roboto 400', family: 'Roboto', weight: 400, letterSpacing: 0 },
-  { label: 'Shantell Sans 400', family: 'Shantell Sans', weight: 400, letterSpacing: 0 },
-  { label: 'Shantell Sans 700', family: 'Shantell Sans', weight: 700, letterSpacing: 0 },
+  { label: 'Inter 400', family: 'HX Inter', weight: 400, letterSpacing: 0 },
+  { label: 'Inter 700', family: 'HX Inter', weight: 700, letterSpacing: 0 },
+  { label: 'Inter 400 +0.5px', family: 'HX Inter', weight: 400, letterSpacing: 0.5 },
+  { label: 'Roboto 400', family: 'HX Roboto', weight: 400, letterSpacing: 0 },
+  { label: 'Shantell Sans 400', family: 'HX Shantell Sans', weight: 400, letterSpacing: 0 },
+  { label: 'Shantell Sans 700', family: 'HX Shantell Sans', weight: 700, letterSpacing: 0 },
 ]
 export const LINE_SIZE = 16
 export const LINE_HEIGHT = 24
@@ -113,8 +121,9 @@ function hyphenated(hyphenateSync: (text: string) => string, texts: Text[]): Tex
   return texts.map(({ label, text }) => ({ label, text: hyphenateSync(text) }))
 }
 
-// v1's german and french corpora (pretext-kit verify/corpora.ts on kit-v1, where they are
-// hyphenated with hyphen/de and hyphen/fr; copied here, as this branch's corpora.ts predates them).
+// v1's german and french corpora, copied from kit-v1's verify/corpora.ts (hyphenated there too with
+// hyphen/de and hyphen/fr), as this branch's corpora.ts predates them. Keep the two in sync until
+// the corpora are shared: a change on kit-v1 must be copied here.
 const GERMAN: Text[] = [
   { label: 'Tagesabschluss', text: 'Der Tagesabschlussbericht der Synchronsprecherinnen liegt seit gestern Abend im Projektordner.' },
   { label: 'Nebenrollen', text: 'Bitte die Nebenrollen-Takes vor der Endabmischung noch einmal mit der Regieassistentin durchhören.' },

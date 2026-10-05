@@ -9,14 +9,17 @@
 //    difference is a headless-mismatch; then Chromium-Pretext vs the DOM, where it is a pretext-gap.
 // 3. Mutants: the Node side again with a mutated copy of src/headless; each must be caught.
 //
-// Scope rule, fixed before any run: a (text, family, weight) case is in scope exactly when the
-// stand-in measures the text in that font without HeadlessCoverageError, i.e. when every code point
-// is in a registered face's cmap, is default-ignorable, or is U+2028/U+2029 in a face with a space.
-// Anything else is a code point Chromium draws from an OS fallback font, which the stand-in does
-// not claim. Skipped cases are counted, with the code points that put them out of scope.
+// Scope rule, fixed before any run and decided without the stand-in: after Canvas's own text
+// preparation (ASCII white space becomes U+0020; SHY, ZWSP, LRM, RLM, U+202A-U+202E, U+FEFF and
+// U+FFFC become U+200B, plain_text_node.cc), a (text, family, weight) case is in scope exactly when
+// every code point is in the cmap of the face CSS matching picks (read here with HarfBuzz's
+// collectUnicodes), is Default_Ignorable_Code_Point, or is U+2028/U+2029 in a face with U+0020.
+// Anything else Chromium draws from an OS fallback font, which the stand-in does not claim. Skipped
+// cases are counted with the code points that put them out of scope, and the stand-in must agree
+// case by case: throw HeadlessCoverageError on every skipped case and on no other.
 //
-// Exits 1 on any width beyond the bar, any headless-mismatch, any face Chromium did not load, and
-// any mutant that produces no headless-mismatch.
+// Exits 1 on any width beyond the bar, any inexact width in a 2048-upem family, any headless-mismatch,
+// any scope disagreement, any face Chromium did not load, and any mutant not caught.
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -25,13 +28,15 @@ import { release } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-import { versionString } from 'harfbuzzjs'
+import { Blob, Face, versionString } from 'harfbuzzjs'
 import { chromium } from 'playwright'
+import * as wawoff2 from 'wawoff2'
 import { HeadlessCoverageError, install, registerFont } from '../src/headless/index.ts'
 import {
-  FACES, LINE_CORPORA, LINE_FONTS, LINE_HEIGHT, LINE_SIZE, LINE_WIDTH_MAX, LINE_WIDTH_MIN, LINE_WIDTH_STEP,
+  EXACT_FAMILIES, FACES, LINE_CORPORA, LINE_FONTS, LINE_HEIGHT, LINE_SIZE, LINE_WIDTH_MAX, LINE_WIDTH_MIN, LINE_WIDTH_STEP,
   SIZES, SPACINGS, WEIGHTS, WIDTH_FAMILIES, WIDTH_STRINGS, WIDTH_TOLERANCE,
 } from './headless-cases.ts'
+import type { FaceFile } from './headless-cases.ts'
 import { canvasFont } from './headless-measure.ts'
 import type { LineCase, WidthCase } from './headless-measure.ts'
 import type { NodeInput, NodeOutput } from './headless-node.ts'
@@ -43,31 +48,70 @@ const fontDir = join(root, 'test/fonts')
 const dist = join(here, 'dist')
 const pkg = (name: string): string => JSON.parse(readFileSync(join(root, 'node_modules', name, 'package.json'), 'utf8')).version
 
-// ---- Scope: what the stand-in measures without a coverage error ------------------------------
+const failures: string[] = []
 
-for (const face of FACES) await registerFont(face.family, new Uint8Array(readFileSync(join(fontDir, face.file))), { weight: face.weight })
-install()
-const scopeCtx = new OffscreenCanvas(1, 1).getContext('2d')!
+// ---- Scope, decided without the stand-in -----------------------------------------------------------
+
+const cmaps = new Map<FaceFile, Set<number>>()
+for (const face of FACES) {
+  let data = new Uint8Array(readFileSync(join(fontDir, face.file)))
+  if (face.format === 'woff2') data = new Uint8Array(await wawoff2.decompress(data))
+  cmaps.set(face, new Set(new Face(new Blob(data), 0).collectUnicodes()))
+}
+
+// The face CSS font matching picks: the exact weight, else above 500 the nearest heavier face first,
+// at or below it the nearest lighter first (CSS Fonts 4, 5.2; the 400-500 band only matters for
+// requests of 400-500 between faces, which this sweep never makes).
+function matchFace(family: string, weight: number): FaceFile {
+  const faces = FACES.filter(f => f.family === family)
+  const exact = faces.find(f => f.weight === weight)
+  if (exact !== undefined) return exact
+  const heavier = faces.filter(f => f.weight > weight).sort((a, b) => a.weight - b.weight)
+  const lighter = faces.filter(f => f.weight < weight).sort((a, b) => b.weight - a.weight)
+  const pick = (weight > 500 ? [...heavier, ...lighter] : [...lighter, ...heavier])[0]
+  if (pick === undefined) throw new Error(`no face for ${weight} ${family}`)
+  return pick
+}
+
+const CANVAS_SPACE = [0x09, 0x0a, 0x0c, 0x0d]
+const CANVAS_ZWSP = new Set([0xad, 0x200b, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0xfeff, 0xfffc])
+const defaultIgnorable = /^\p{Default_Ignorable_Code_Point}$/u
+const hex = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
 
 // The code points of a text the font does not cover, or [] when the text is in scope.
 function uncovered(text: string, family: string, weight: number): string[] {
-  scopeCtx.font = canvasFont(family, weight, 16)
-  try {
-    scopeCtx.measureText(text)
-    return []
-  } catch (error) {
-    if (!(error instanceof HeadlessCoverageError)) throw error
-  }
+  const cmap = cmaps.get(matchFace(family, weight))!
   const out = new Set<string>()
   for (const ch of text) {
-    try {
-      scopeCtx.measureText(ch)
-    } catch (error) {
-      if (!(error instanceof HeadlessCoverageError)) throw error
-      out.add(`U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')} ${ch}`)
-    }
+    let cp = ch.codePointAt(0)!
+    if (CANVAS_SPACE.includes(cp)) cp = 0x20
+    if (CANVAS_ZWSP.has(cp)) cp = 0x200b
+    if (cmap.has(cp) || defaultIgnorable.test(String.fromCodePoint(cp))) continue
+    if ((cp === 0x2028 || cp === 0x2029) && cmap.has(0x20)) continue
+    out.add(`${hex(ch.codePointAt(0)!)} ${JSON.stringify(ch).slice(1, -1)}`)
   }
   return [...out]
+}
+
+// The stand-in, checked against that rule on every case, in scope or not.
+for (const face of FACES) await registerFont(face.family, new Uint8Array(readFileSync(join(fontDir, face.file))), { weight: face.weight })
+install()
+const scopeCtx = new OffscreenCanvas(1, 1).getContext('2d')!
+let scopeChecked = 0
+const scopeDisagreements: string[] = []
+function checkScope(what: string, text: string, family: string, weight: number, inScope: boolean): void {
+  scopeCtx.font = canvasFont(family, weight, 16)
+  let throws = false
+  try {
+    scopeCtx.measureText(text)
+  } catch (error) {
+    if (!(error instanceof HeadlessCoverageError)) throw error
+    throws = true
+  }
+  scopeChecked++
+  if (throws === inScope) {
+    scopeDisagreements.push(`${what}: the rule calls it ${inScope ? 'covered' : 'uncovered'}, the stand-in ${throws ? 'throws' : 'measures it'}`)
+  }
 }
 
 type Skip = { what: string, codePoints: string[] }
@@ -79,6 +123,7 @@ for (const { label, text } of WIDTH_STRINGS) {
   for (const family of WIDTH_FAMILIES) {
     for (const weight of WEIGHTS) {
       const missing = uncovered(text, family, weight)
+      checkScope(`"${label}" in ${weight} ${family}`, text, family, weight, missing.length === 0)
       if (missing.length > 0) {
         skips.widths.push({ what: `"${label}" in ${weight} ${family} (${SIZES.length * SPACINGS.length} cases)`, codePoints: missing })
         continue
@@ -94,6 +139,7 @@ for (const corpus of LINE_CORPORA) {
   for (const { label, text } of corpus.texts) {
     for (const f of LINE_FONTS) {
       const missing = uncovered(text, f.family, f.weight)
+      checkScope(`${corpus.name} "${label}" in ${f.label}`, text, f.family, f.weight, missing.length === 0)
       if (missing.length > 0) {
         skips.lines.push({ what: `${corpus.name} "${label}" in ${f.label}`, codePoints: missing })
         continue
@@ -107,6 +153,7 @@ for (const corpus of LINE_CORPORA) {
 }
 const widths: number[] = []
 for (let w = LINE_WIDTH_MIN; w <= LINE_WIDTH_MAX; w += LINE_WIDTH_STEP) widths.push(w)
+for (const d of scopeDisagreements) failures.push(`scope: ${d}`)
 const shy = lineCases.filter(c => c.text.includes('\u00AD')).length
 console.log(`${widthCases.length} width cases (${skips.widths.length} string × font pairs skipped); ` +
   `${lineCases.length} texts × fonts (${shy} with soft hyphens, ${skips.lines.length} skipped) × ${widths.length} widths`)
@@ -174,7 +221,6 @@ const server = createServer((req, res) => {
 await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 
-const failures: string[] = []
 // Headed, as v1: headless builds differ in font fallback from what users see.
 const browser = await chromium.launch({ headless: false })
 const browserVersion = browser.version()
@@ -311,6 +357,9 @@ for (const m of MUTANTS) {
 // The word-cut mutant is exempt from line counts only while Pretext measures no U+0020 beside text.
 if (node.spaced.length > 0) failures.push(`Pretext measured ${node.spaced.length} strings with a U+0020 beside text, e.g. ${JSON.stringify(node.spaced[0])}; make the word-cut mutant's lines true`)
 if (widthResult.misses.length > 0) failures.push(`${widthResult.misses.length} widths beyond ${WIDTH_TOLERANCE}px`)
+// The bit-exactness tripwire for the 2048-upem families.
+const inexact = widthCases.flatMap((c, i) => (EXACT_FAMILIES.includes(c.family) && node.widths[i] !== chromeWidths[i] ? [{ c, i }] : []))
+if (inexact.length > 0) failures.push(`${inexact.length} inexact widths in ${EXACT_FAMILIES.join(', ')}, e.g. "${inexact[0]!.c.label}"`)
 const mismatches = count(lineResults, 'headless-mismatch')
 if (mismatches > 0) failures.push(`${mismatches} headless-mismatch cases`)
 
@@ -329,7 +378,7 @@ const nodeAt = (text: string, family: string): number | undefined => {
   return i < 0 ? undefined : node.widths[i]
 }
 
-// Synthetic bold: Inter and Roboto have one face each, so Chromium synthesizes 600 and 700 from it.
+// Synthetic bold: HX Inter and HX Roboto have one face each, so Chromium synthesizes 600 and 700 from it.
 const singleFace = WIDTH_FAMILIES.filter(f => FACES.filter(face => face.family === f).length === 1)
 const boldChanged: string[] = []
 let boldCompared = 0
@@ -439,13 +488,20 @@ const md: string[] = [
   'Fonts: test/fonts, loaded in Chromium through `@font-face` from the same files the stand-in registers, each',
   'awaited with `document.fonts.load` and checked `loaded`: ' +
     FACES.map(f => `${f.file} as ${f.weight} "${f.family}"`).join(', ') + '.',
-  'Inter and Roboto have one face, so Chromium synthesizes 600 and 700; Shantell Sans has a 400 and a 700 face',
-  '(added for this sweep so that a stand-in ignoring the requested weight can be caught at all).',
+  'Every family name carries an "HX " prefix on both sides, so no installed Inter or Roboto can stand in for a file; the',
+  'family Canvas reads back must equal the one set. Inter and Roboto have one face, so Chromium synthesizes 600 and 700;',
+  'Shantell Sans has a 400 and a 700 face (added for this sweep so that a stand-in ignoring the requested weight can be',
+  'caught at all).',
   '',
-  '**Scope rule (fixed before the first run).** A (text, font) case is in scope exactly when the stand-in measures the',
-  'text in that font without `HeadlessCoverageError`: every code point is in a registered face\'s cmap, is',
-  'default-ignorable, or is U+2028/U+2029 in a face with a space glyph. Anything else Chromium draws from an OS',
-  'fallback font, which the stand-in does not claim to reproduce.',
+  '**Scope rule (fixed before the first run), decided without the stand-in.** After Canvas\'s own text preparation (ASCII',
+  'white space becomes U+0020; SHY, ZWSP, LRM, RLM, U+202A-U+202E, U+FEFF and U+FFFC become U+200B), a (text, font) case is',
+  'in scope exactly when every code point is in the cmap of the face CSS matching picks (HarfBuzz `collectUnicodes` on',
+  'the font file, WOFF2 decompressed), is Default_Ignorable_Code_Point, or is U+2028/U+2029 in a face with U+0020.',
+  'Anything else Chromium draws from an OS fallback font, which the stand-in does not claim to reproduce. The skip lists',
+  'below come from this rule. The stand-in is then checked against it case by case: it must throw',
+  `\`HeadlessCoverageError\` on every skipped case and on no other. ${scopeChecked} cases checked, ${scopeDisagreements.length} disagreements` +
+    (scopeDisagreements.length === 0 ? '.' : ':'),
+  ...scopeDisagreements.map(d => `- ${d}`),
   '',
   '**Stand-in bug this sweep found, fixed in src/headless/canvas.ts.** Under letter spacing the stand-in added the spacing',
   'after U+200B and every character Canvas turns into it (SHY, LRM, RLM, U+202A-U+202E, U+FEFF), where Chromium adds none',
@@ -462,7 +518,8 @@ const md: string[] = [
   '',
   `Strings: ${WIDTH_STRINGS.map(s => show(s.text)).join(', ')}.`,
   '',
-  'Inter and Roboto (2048 units per em) measure bit-exact. Shantell Sans (1000 units per em) differs by under 0.0005px in',
+  `Tripwire beside the bar: ${EXACT_FAMILIES.join(', ')} (2048 units per em, so every advance is a dyadic fraction of a`,
+  `pixel) must measure bit-exact; ${inexact.length} inexact. Shantell Sans (1000 units per em) differs by under 0.0005px in`,
   'most cases: its advances are not dyadic fractions of a pixel, and Chromium rounds them differently from HarfBuzz\'s',
   '1/65536 px; far below the bar and never a line count.',
   '',
@@ -506,6 +563,10 @@ const md: string[] = [
   ...(mismatches === 0 ? ['None.'] : ranged(lineResults.filter(r => r.outcome === 'headless-mismatch'))),
   '',
   '### pretext-gap cases',
+  '',
+  'Not investigated case by case. Each is Pretext in Chromium against Chromium\'s painting, with Node agreeing with',
+  'Chromium-Pretext, so each is attributed to Pretext vs the DOM, not to the stand-in. That includes the Shantell Sans',
+  'cluster (most of the gaps, against about 0.1% of Inter cases), which is uninvestigated.',
   '',
   ...(count(lineResults, 'pretext-gap') === 0 ? ['None.'] : ranged(lineResults.filter(r => r.outcome === 'pretext-gap'))),
   '',

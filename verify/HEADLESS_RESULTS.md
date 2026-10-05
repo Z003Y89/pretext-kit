@@ -8,14 +8,19 @@ Run on 2026-10-05 by `npm run verify:headless` (verify/headless.ts).
 - Node v24.4.1, macOS 14.6.1 (Darwin 23.6.0), arm64
 
 Fonts: test/fonts, loaded in Chromium through `@font-face` from the same files the stand-in registers, each
-awaited with `document.fonts.load` and checked `loaded`: Inter-Regular.ttf as 400 "Inter", Inter-Regular.woff2 as 400 "Inter WOFF2", Roboto-Regular.ttf as 400 "Roboto", ShantellSans-Regular.ttf as 400 "Shantell Sans", ShantellSans-Bold.ttf as 700 "Shantell Sans".
-Inter and Roboto have one face, so Chromium synthesizes 600 and 700; Shantell Sans has a 400 and a 700 face
-(added for this sweep so that a stand-in ignoring the requested weight can be caught at all).
+awaited with `document.fonts.load` and checked `loaded`: Inter-Regular.ttf as 400 "HX Inter", Inter-Regular.woff2 as 400 "HX Inter WOFF2", Roboto-Regular.ttf as 400 "HX Roboto", ShantellSans-Regular.ttf as 400 "HX Shantell Sans", ShantellSans-Bold.ttf as 700 "HX Shantell Sans".
+Every family name carries an "HX " prefix on both sides, so no installed Inter or Roboto can stand in for a file; the
+family Canvas reads back must equal the one set. Inter and Roboto have one face, so Chromium synthesizes 600 and 700;
+Shantell Sans has a 400 and a 700 face (added for this sweep so that a stand-in ignoring the requested weight can be
+caught at all).
 
-**Scope rule (fixed before the first run).** A (text, font) case is in scope exactly when the stand-in measures the
-text in that font without `HeadlessCoverageError`: every code point is in a registered face's cmap, is
-default-ignorable, or is U+2028/U+2029 in a face with a space glyph. Anything else Chromium draws from an OS
-fallback font, which the stand-in does not claim to reproduce.
+**Scope rule (fixed before the first run), decided without the stand-in.** After Canvas's own text preparation (ASCII
+white space becomes U+0020; SHY, ZWSP, LRM, RLM, U+202A-U+202E, U+FEFF and U+FFFC become U+200B), a (text, font) case is
+in scope exactly when every code point is in the cmap of the face CSS matching picks (HarfBuzz `collectUnicodes` on
+the font file, WOFF2 decompressed), is Default_Ignorable_Code_Point, or is U+2028/U+2029 in a face with U+0020.
+Anything else Chromium draws from an OS fallback font, which the stand-in does not claim to reproduce. The skip lists
+below come from this rule. The stand-in is then checked against it case by case: it must throw
+`HeadlessCoverageError` on every skipped case and on no other. 948 cases checked, 0 disagreements.
 
 **Stand-in bug this sweep found, fixed in src/headless/canvas.ts.** Under letter spacing the stand-in added the spacing
 after U+200B and every character Canvas turns into it (SHY, LRM, RLM, U+202A-U+202E, U+FEFF), where Chromium adds none
@@ -26,37 +31,50 @@ those characters as segments of their own.
 
 ## Widths
 
-51 strings × 4 families × weights 400/600/700 × sizes 12/14/16/20px ×
-letter spacing 0px/0.5px: **4800 cases, 3688 exact, max |Δ| 0.000427px,
+54 strings × 4 families × weights 400/600/700 × sizes 12/14/16/20px ×
+letter spacing 0px/0.5px: **4992 cases, 3842 exact, max |Δ| 0.000427px,
 0 beyond 0.02px.** Chromium's OffscreenCanvas `measureText` against the stand-in's.
 
-Strings: "Speichern", "Zahlungspflichtig abonnieren", "„Zahlungspflichtig abonnieren“", "„Tagesabschlussbericht“", "Donaudampfschifffahrtskapitän", "Grundstücksverkehrsgenehmigung", "Übergrößenträger ÄÖÜ äöü ß ẞ", "Wird geladen…", "Benutzerkontoeinstellungen speichern", "Paramètres de confidentialité avancés", "Enregistrer les modifications ?", "L’anticonstitutionnalité", "Œuvre « complète » — été", "Ça coûte 12,50 €", "0123456789", "1 234 567,89", "2026-10-05 17:42:09", "3.14159 × 2 = 6.28318", "Hello, world! (test) [x] {y}", "“Quoted” ‘single’ — dash – en", "Wait... what?! Yes; no: maybe.", "AV AVA Tw To Ty Wa Yo", "LT LY P. F, T. Vo", "AVATAR WAVY TYPO", "A V", "x T x", "office affine fluffy", "fi fl ffi ffl", "The first staff", "© 2026 Acme", "Acme®", "Brand™", "A ↔ B", "Play ▶", "I ♥ it", " ", "a b", "a\u2028b", "a\u2029b", "x\u2028T\u2028x", "x\u2029T\u2029x", "\u2028", "\u2029", "A\u200BV", "Zahlungs\u200Bpflichtig\u200Babonnieren", "A\u200EV", "A\uFEFFV", "Auf\u200Clage", "a\u200Db", "Zah\u00ADlungs\u00ADpflich\u00ADtig", "Ta\u00ADges\u00ADab\u00ADschluss\u00ADbe\u00ADricht".
+Strings: "Speichern", "Zahlungspflichtig abonnieren", "„Zahlungspflichtig abonnieren“", "„Tagesabschlussbericht“", "Donaudampfschifffahrtskapitän", "Grundstücksverkehrsgenehmigung", "Übergrößenträger ÄÖÜ äöü ß ẞ", "Wird geladen…", "Benutzerkontoeinstellungen speichern", "Paramètres de confidentialité avancés", "Enregistrer les modifications ?", "L’anticonstitutionnalité", "Œuvre « complète » — été", "Ça coûte 12,50 €", "0123456789", "1 234 567,89", "2026-10-05 17:42:09", "3.14159 × 2 = 6.28318", "Hello, world! (test) [x] {y}", "“Quoted” ‘single’ — dash – en", "Wait... what?! Yes; no: maybe.", "AV AVA Tw To Ty Wa Yo", "LT LY P. F, T. Vo", "AVATAR WAVY TYPO", "A V", "x T x", "office affine fluffy", "fi fl ffi ffl", "The first staff", "© 2026 Acme", "Acme®", "Brand™", "A ↔ B", "Play ▶", "I ♥ it", " ", "a b", "a\u2028b", "a\u2029b", "x\u2028T\u2028x", "x\u2029T\u2029x", "\u2028", "\u2029", "A\u200BV", "Zahlungs\u200Bpflichtig\u200Babonnieren", "A\u200EV", "A\uFEFFV", "Auf\u200Clage", "a\u200Db", "A￼V", "AV", "a\u200B́b", "Zah\u00ADlungs\u00ADpflich\u00ADtig", "Ta\u00ADges\u00ADab\u00ADschluss\u00ADbe\u00ADricht".
 
-Inter and Roboto (2048 units per em) measure bit-exact. Shantell Sans (1000 units per em) differs by under 0.0005px in
+Tripwire beside the bar: HX Inter, HX Inter WOFF2, HX Roboto (2048 units per em, so every advance is a dyadic fraction of a
+pixel) must measure bit-exact; 0 inexact. Shantell Sans (1000 units per em) differs by under 0.0005px in
 most cases: its advances are not dyadic fractions of a pixel, and Chromium rounds them differently from HarfBuzz's
 1/65536 px; far below the bar and never a line count.
 
 | family | cases | exact | max abs Δ px | > 0.02px |
 |---|---:|---:|---:|---:|
-| Inter | 1224 | 1224 | 0 | 0 |
-| Inter WOFF2 | 1224 | 1224 | 0 | 0 |
-| Roboto | 1128 | 1128 | 0 | 0 |
-| Shantell Sans | 1224 | 112 | 0.000427 | 0 |
+| HX Inter | 1272 | 1272 | 0 | 0 |
+| HX Inter WOFF2 | 1272 | 1272 | 0 | 0 |
+| HX Roboto | 1176 | 1176 | 0 | 0 |
+| HX Shantell Sans | 1272 | 122 | 0.000427 | 0 |
 
-Skipped (out of scope): 12 string × font pairs.
+Skipped (out of scope): 24 string × font pairs.
 
-- "umlauts" in 400 Roboto (8 cases): U+1E9E ẞ
-- "umlauts" in 600 Roboto (8 cases): U+1E9E ẞ
-- "umlauts" in 700 Roboto (8 cases): U+1E9E ẞ
-- "A ↔ B" in 400 Roboto (8 cases): U+2194 ↔
-- "A ↔ B" in 600 Roboto (8 cases): U+2194 ↔
-- "A ↔ B" in 700 Roboto (8 cases): U+2194 ↔
-- "Play ▶" in 400 Roboto (8 cases): U+25B6 ▶
-- "Play ▶" in 600 Roboto (8 cases): U+25B6 ▶
-- "Play ▶" in 700 Roboto (8 cases): U+25B6 ▶
-- "I ♥ it" in 400 Roboto (8 cases): U+2665 ♥
-- "I ♥ it" in 600 Roboto (8 cases): U+2665 ♥
-- "I ♥ it" in 700 Roboto (8 cases): U+2665 ♥
+- "umlauts" in 400 HX Roboto (8 cases): U+1E9E ẞ
+- "umlauts" in 600 HX Roboto (8 cases): U+1E9E ẞ
+- "umlauts" in 700 HX Roboto (8 cases): U+1E9E ẞ
+- "A ↔ B" in 400 HX Roboto (8 cases): U+2194 ↔
+- "A ↔ B" in 600 HX Roboto (8 cases): U+2194 ↔
+- "A ↔ B" in 700 HX Roboto (8 cases): U+2194 ↔
+- "Play ▶" in 400 HX Roboto (8 cases): U+25B6 ▶
+- "Play ▶" in 600 HX Roboto (8 cases): U+25B6 ▶
+- "Play ▶" in 700 HX Roboto (8 cases): U+25B6 ▶
+- "I ♥ it" in 400 HX Roboto (8 cases): U+2665 ♥
+- "I ♥ it" in 600 HX Roboto (8 cases): U+2665 ♥
+- "I ♥ it" in 700 HX Roboto (8 cases): U+2665 ♥
+- "C0 control" in 400 HX Inter (8 cases): U+0001 \u0001
+- "C0 control" in 600 HX Inter (8 cases): U+0001 \u0001
+- "C0 control" in 700 HX Inter (8 cases): U+0001 \u0001
+- "C0 control" in 400 HX Inter WOFF2 (8 cases): U+0001 \u0001
+- "C0 control" in 600 HX Inter WOFF2 (8 cases): U+0001 \u0001
+- "C0 control" in 700 HX Inter WOFF2 (8 cases): U+0001 \u0001
+- "C0 control" in 400 HX Roboto (8 cases): U+0001 \u0001
+- "C0 control" in 600 HX Roboto (8 cases): U+0001 \u0001
+- "C0 control" in 700 HX Roboto (8 cases): U+0001 \u0001
+- "C0 control" in 400 HX Shantell Sans (8 cases): U+0001 \u0001
+- "C0 control" in 600 HX Shantell Sans (8 cases): U+0001 \u0001
+- "C0 control" in 700 HX Shantell Sans (8 cases): U+0001 \u0001
 
 ### Width misses
 
@@ -97,6 +115,10 @@ Skipped (out of scope): 2 text × font pairs.
 None.
 
 ### pretext-gap cases
+
+Not investigated case by case. Each is Pretext in Chromium against Chromium's painting, with Node agreeing with
+Chromium-Pretext, so each is attributed to Pretext vs the DOM, not to the stand-in. That includes the Shantell Sans
+cluster (most of the gaps, against about 0.1% of Inter cases), which is uninvestigated.
 
 - Roboto 400 / latin "Latin short" @ 168px: Pretext 5, DOM 4
 - Roboto 400 / latin "Latin hyphenation" @ 198px: Pretext 5, DOM 4
@@ -271,15 +293,15 @@ Chromium / stand-in widths at 400 16px, no spacing (NaN: out of scope):
 
 | family | " " | "a b" | "a⏎b" U+2028 | "a¶b" U+2029 | U+2028 | U+2029 | "x T x" | "x␤T␤x" U+2028 | "x¶T¶x" U+2029 |
 |---|---|---|---|---|---|---|---|---|---|
-| Inter | 4.5 / 4.5 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 4.5 / 4.5 | 4.5 / 4.5 | 36.796875 / 36.796875 | 36.796875 / 36.796875 | 36.796875 / 36.796875 |
-| Inter WOFF2 | 4.5 / 4.5 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 4.5 / 4.5 | 4.5 / 4.5 | 36.796875 / 36.796875 | 36.796875 / 36.796875 | 36.796875 / 36.796875 |
-| Roboto | 3.960938 / 3.960938 | 21.640625 / 21.640625 | 21.640625 / 21.640625 | 21.640625 / 21.640625 | 3.960938 / 3.960938 | 3.960938 / 3.960938 | 33.328125 / 33.328125 | 32.703125 / 32.703125 | 32.703125 / 32.703125 |
-| Shantell Sans | 5.455994 / 5.455994 | 24.831985 / 24.831985 | 24.831985 / 24.831985 | 24.831985 / 24.831985 | 5.455994 / 5.455994 | 5.455994 / 5.455994 | 37.455978 / 37.455978 | 37.455978 / 37.455978 | 37.455978 / 37.455978 |
+| HX Inter | 4.5 / 4.5 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 4.5 / 4.5 | 4.5 / 4.5 | 36.796875 / 36.796875 | 36.796875 / 36.796875 | 36.796875 / 36.796875 |
+| HX Inter WOFF2 | 4.5 / 4.5 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 23.28125 / 23.28125 | 4.5 / 4.5 | 4.5 / 4.5 | 36.796875 / 36.796875 | 36.796875 / 36.796875 | 36.796875 / 36.796875 |
+| HX Roboto | 3.960938 / 3.960938 | 21.640625 / 21.640625 | 21.640625 / 21.640625 | 21.640625 / 21.640625 | 3.960938 / 3.960938 | 3.960938 / 3.960938 | 33.328125 / 33.328125 | 32.703125 / 32.703125 | 32.703125 / 32.703125 |
+| HX Shantell Sans | 5.455994 / 5.455994 | 24.831985 / 24.831985 | 24.831985 / 24.831985 | 24.831985 / 24.831985 | 5.455994 / 5.455994 | 5.455994 / 5.455994 | 37.455978 / 37.455978 | 37.455978 / 37.455978 | 37.455978 / 37.455978 |
 
 ## Synthetic bold
 
-Inter, Inter WOFF2, Roboto at 600 and 700, synthesized by Chromium from the one 400 face, against Chromium's own 400 width of
-the same string, size and spacing: 2384 of 2384 equal, so synthetic bold does not change Canvas advances
+HX Inter, HX Inter WOFF2, HX Roboto at 600 and 700, synthesized by Chromium from the one 400 face, against Chromium's own 400 width of
+the same string, size and spacing: 2480 of 2480 equal, so synthetic bold does not change Canvas advances
 here. In the DOM, Inter 700 paints the same line count as Inter 400 in 12050 of 12050
 text × width cases.
 
@@ -295,7 +317,7 @@ so only the width sweep sees it, through Roboto, which kerns with the space glyp
 | mutant | edit in canvas.ts | width cases > 0.02px | max abs Δ px | headless-mismatch | caught |
 |---|---|---:|---:|---:|---|
 | drop kerning | `if (fontKerning === 'none') features.push(new Feature('kern', 0))` → `features.push(new Feature('kern', 0))` | 2868 | 14.700104 | 1594 | yes |
-| ignore weight | `findFace(parsed.families[i]!, parsed.weight, style)` → `findFace(parsed.families[i]!, 400, style)` | 816 | 34.3797 | 2988 | yes |
+| ignore weight | `findFace(parsed.families[i]!, parsed.weight, style)` → `findFace(parsed.families[i]!, 400, style)` | 848 | 34.3797 | 2988 | yes |
 | drop the U+0020 word cut | `return codePoint === 0x20 \|\| codePoint === ZWSP \|\|` → `return codePoint === ZWSP \|\|` | 96 | 1.171875 | 0 | yes |
 
 - drop kerning, e.g. Inter 400 / latin "Latin update" @ 136px: Node 9, Chromium-Pretext 8
