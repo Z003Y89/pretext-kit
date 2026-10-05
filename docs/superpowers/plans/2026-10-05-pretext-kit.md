@@ -309,7 +309,18 @@ test('bad ranges throw', () => assert.throws(() => prepareSizes(T, font, { min: 
 - Consumes: every export from `src/index.ts`.
 
 - [ ] **Step 1: Bench.** 1,000 chat messages from the corpora at `16px Helvetica Neue…`. Report the median of 20 runs, in µs per message, for: `prepareWithSegments` (first sight), `shrinkwrap`, `balance`, `clamp(…, 3)`, and `fitFontSize` (cold and warm `PreparedSizes`), each at a resize from 400 → 399 px. `npm run verify -- --bench` runs it in all three browsers and appends a "Cost" table to `RESULTS.md` with builds and date. There are no thresholds (spec: reported, not targeted).
-- [ ] **Step 2: Demo** `demo/index.html`: a width slider over sections for bubbles (shrinkwrap vs CSS `fit-content`), headline (balance vs CSS `text-wrap: balance`), card (clamp vs `-webkit-line-clamp`), file list (truncateMiddle vs `text-overflow: ellipsis`), badge (fitFontSize) and a 10,000-row virtual list (stack/findIndexAt/anchorDelta). Follow Pretext's demo rule: the model owns every measured value, the painter writes them inline, and the demo never corrects what the kit reports. Bundle with esbuild like `verify/`. Check it by hand at three widths in the built-in browser.
+- [ ] **Step 2a: Examples** (user request, 2026-10-05): an `examples/` folder replaces `demo/`, with one page per helper plus an index linking them, each with a width slider and a "kit vs plain CSS" comparison side by side, live numbers (chosen px/width/lines, and µs per frame from `performance.now()`), light/dark via `prefers-color-scheme`, and fonts from `fontFromStyle`, with `watchFonts` wired in:
+  - `fit-font-size`: button labels and badges via `fitFontSize`;
+  - `icon-rows`: `fitFontSizeRich` on "207/0011 Dr. Lind"-style rows;
+  - `balance`: plain wrap vs `text-wrap: balance` vs `balance()`;
+  - `shrinkwrap`: chat bubbles vs `fit-content`;
+  - `clamp`: 3-line cards with "… more";
+  - `truncate-middle`: a file list;
+  - `hyphenation`: German/French with `hyphen` soft hyphens vs `hyphens: auto`;
+  - `virtual-list`: 10,000 rows with `stack`/`findIndexAt`/`anchorDelta`, including a "load 50 older rows above" button that keeps the anchor still.
+
+  Built with esbuild into `examples/dist` (git-ignored) by `npm run examples`, served by `npm run examples:serve` (a tiny static server). The demo rules hold: the model owns every measured value, the painter writes them inline, and nothing corrects what the kit reports. The controller shows them to the user in the built-in browser with screenshots.
+- [ ] **Step 2: Demo** (superseded by 2a; keep only what 2a doesn't cover) `demo/index.html`: a width slider over sections for bubbles (shrinkwrap vs CSS `fit-content`), headline (balance vs CSS `text-wrap: balance`), card (clamp vs `-webkit-line-clamp`), file list (truncateMiddle vs `text-overflow: ellipsis`), badge (fitFontSize) and a 10,000-row virtual list (stack/findIndexAt/anchorDelta). Follow Pretext's demo rule: the model owns every measured value, the painter writes them inline, and the demo never corrects what the kit reports. Bundle with esbuild like `verify/`. Check it by hand at three widths in the built-in browser.
 - [ ] **Step 3: README.** Install (note the Pretext `main` dependency until its next release); one short example per helper; "What's exact" pointing at `verify/RESULTS.md` numbers; "Not in v1" from the spec. Copy no Pretext caveats: link to its README. Also these sections, short:
   - **When to measure with the DOM instead**: a handful of labels on screen. The browser already knows exactly, with icons and padding. The kit pays off for many texts, every resize frame, or before the text exists (virtual lists).
   - **Fonts**: bundle the app's font with `@font-face` and await `document.fonts.load(font)` before preparing. Call `clearCache()` and prepare again after a late font. Never `system-ui`/`-apple-system` on macOS (link Pretext's caveat).
