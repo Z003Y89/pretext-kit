@@ -251,3 +251,9 @@ test('Pretext lays out on the stand-in', () => {
   assert.equal(measureLineStats(prepared, 160).lineCount, 2)
   assert.equal(measureLineStats(prepared, 260).lineCount, 1)
 })
+
+test('LRM, RLM, SHY, U+202A-E, U+FEFF and U+FFFC cut a word like ZWSP', () => {
+  for (const c of ['‎', '‏', '­', '‪', '‫', '‬', '‭', '‮', '﻿', '￼']) {
+    assert.equal(width(`A${c}V`), width('A') + width('V'), `U+${c.codePointAt(0)!.toString(16)}`)
+  }
+})

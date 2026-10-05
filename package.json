@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "test": "node --test --import ./test/setup.ts test/*.test.ts && npm run test:headless",
-    "test:headless": "node --test test/headless/*.test.ts",
+    "test:headless": "node --test test/headless/*.test.ts examples/*.test.ts",
     "check": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "verify": "node verify/run.ts"
@@ -41,9 +41,11 @@
   },
   "devDependencies": {
     "@chenglou/pretext": "file:../pretext",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.4",
     "esbuild": "^0.28.2",
     "harfbuzzjs": "1.6.2",
+    "jsdom": "^29.1.1",
     "playwright": "1.61.0",
     "typescript": "^6.0.2",
     "wawoff2": "2.0.1"
