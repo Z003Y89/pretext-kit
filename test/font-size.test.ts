@@ -23,11 +23,19 @@ test('the answer fits and one size up does not', () => {
   assert.ok(!fitsDirect(r.px + 1, 100, 60, lh))
 })
 test('a local maximum under a non-monotonic line height', () => {
-  const lh2 = (px: number) => (px === 12 ? 1000 : px * 1.2)
+  // Width 100, height 80: sizes 8..28 fit (2 lines at 28), 29+ wrap to 3 lines and do not. The dip at 24 sits on
+  // the first bisection midpoint for 8..40, so the search drops to 8..23 and answers 23 although 25..28 also fit.
+  const lh2 = (px: number) => (px === 24 ? 1000 : px * 1.2)
+  const maxima: number[] = []
+  for (let px = 8; px <= 40; px++) if (fitsDirect(px, 100, 80, lh2) && (px === 40 || !fitsDirect(px + 1, 100, 80, lh2))) maxima.push(px)
+  assert.deepEqual(maxima, [23, 28])
   const r = fitFontSize(prepareSizes(T, font, { min: 8, max: 40 }), { width: 100, height: 80 }, lh2)!
-  assert.ok(fitsDirect(r.px, 100, 80, lh2))
-  assert.ok(r.px === 40 || !fitsDirect(r.px + 1, 100, 80, lh2))
+  assert.ok(maxima.includes(r.px))
+  assert.equal(r.px, 23)
+  assert.ok(fitsDirect(28, 100, 80, lh2))
 })
+test('a NaN line height fits nowhere', () =>
+  assert.equal(fitFontSize(prepareSizes(T, font, { min: 8, max: 40 }), { width: 100, height: 80 }, () => NaN), null))
 test('null when even min does not fit', () =>
   assert.equal(fitFontSize(prepareSizes(T, font, { min: 30, max: 40 }), { width: 10, maxLines: 1 }, lh), null))
 test('empty text fits at max', () =>
@@ -35,6 +43,8 @@ test('empty text fits at max', () =>
 test('a second fit reuses the prepared handle', () => {
   const s = prepareSizes(T, font, { min: 8, max: 40 })
   assert.equal(fitFontSize(s, { width: 100, maxLines: 1 }, lh)!.prepared, fitFontSize(s, { width: 100, maxLines: 1 }, lh)!.prepared)
+  assert.equal(s.handles.length, 40 - 8 + 1)
+  assert.ok(s.handles.some(h => h === undefined))  // sizes the search never visited are never prepared
 })
 test('bad ranges throw', () => {
   assert.throws(() => prepareSizes(T, font, { min: 0, max: 4 }), RangeError)

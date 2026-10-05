@@ -43,9 +43,10 @@ function handleAt(sizes: PreparedSizes, px: number): PreparedTextWithSegments {
 // Returns the line count when the text fits at px, else -1, so the search needs no result object per probe.
 function probe(sizes: PreparedSizes, px: number, box: FitBox, lineHeight: (px: number) => number): number {
   const s = measureLineStats(handleAt(sizes, px), box.width)
-  if (s.maxLineWidth > box.width + FIT_TOLERANCE) return -1
-  if (box.maxLines !== undefined && s.lineCount > box.maxLines) return -1
-  if (box.height !== undefined && s.lineCount * lineHeight(px) > box.height) return -1
+  // Written as negated <= so a NaN (from a caller's lineHeight, height or maxLines) fails closed instead of passing.
+  if (!(s.maxLineWidth <= box.width + FIT_TOLERANCE)) return -1
+  if (box.maxLines !== undefined && !(s.lineCount <= box.maxLines)) return -1
+  if (box.height !== undefined && !(s.lineCount * lineHeight(px) <= box.height)) return -1
   return s.lineCount
 }
 
