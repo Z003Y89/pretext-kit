@@ -61,12 +61,12 @@ export function fitFontSize(
   // Searched, not scaled from one measurement: wrapping makes fit non-monotonic in size, so no formula gives the answer.
   let lo = sizes.min
   let hi = sizes.max
+  // Invariant: lo fits, and hi + 1 is max + 1 or a size probed and found not fitting. When lo === hi, size lo + 1
+  // therefore failed (or lo is max), which is the guarantee even when fit is non-monotonic: the answer is a local maximum.
   while (lo < hi) {
     const mid = lo + Math.ceil((hi - lo) / 2)
     if (probe(sizes, mid, box, lineHeight) >= 0) lo = mid
     else hi = mid - 1
   }
-  // The bisection assumes monotone fit; stepping up guarantees that lo + 1 really doesn't fit (or lo is max).
-  while (lo + 1 <= sizes.max && probe(sizes, lo + 1, box, lineHeight) >= 0) lo++
   return { px: lo, prepared: handleAt(sizes, lo), lineCount: probe(sizes, lo, box, lineHeight) }
 }
