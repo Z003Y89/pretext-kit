@@ -309,3 +309,21 @@ table.grid button[aria-pressed="true"] { outline: 2px solid var(--accent); outli
 .cases li { margin: 3px 0; overflow-wrap: anywhere; }
 .cases .empty { color: var(--muted); font-size: 13px; margin: 0; }
 .meta-line { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+
+/* ------------------------------------------------------------------------------------------- */
+/* Headless parity */
+
+table.parity { border-spacing: 3px; }
+table.parity tbody th { min-width: 180px; max-width: 280px; white-space: normal; vertical-align: top; padding: 6px 8px; }
+table.parity tbody tr.differ th { box-shadow: inset 3px 0 0 var(--bad); }
+table.parity tbody tr.agree th { box-shadow: inset 3px 0 0 var(--good); }
+table.parity .lang { display: inline-block; margin-right: 6px; font: 11px var(--mono); text-transform: uppercase; color: var(--muted); }
+table.parity .label-text { color: var(--ink); font-size: 14px; overflow-wrap: anywhere; }
+table.parity .mark { display: block; margin-top: 2px; font: 11px var(--mono); }
+table.parity .mark.ok { color: var(--good); }
+table.parity .mark.bad { color: var(--bad); }
+table.parity td.empty { padding: 12px; color: var(--muted); font-size: 13px; }
+.pc { min-width: 196px; border-radius: 5px; padding: 6px 8px; font: 12px/1.5 var(--mono); }
+.pc-line { display: flex; gap: 10px; white-space: nowrap; }
+.pc-line .who { min-width: 4ch; opacity: 0.75; }
+.pc-line .off { text-decoration: line-through; font-weight: 600; }

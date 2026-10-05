@@ -1,13 +1,15 @@
 // npm run examples:check (after npm run examples): loads every page in headless Chromium at 360,
 // 768 and 1280px, fails on any console error or page error and on any kit-side box whose content
-// doesn't fit it at the slider settings below. With --screenshots (npm run examples:screenshots) it
+// doesn't fit it at the slider settings below. headless-parity must agree in every row in Chromium;
+// it is also loaded in WebKit and Firefox, whose counts are reported, not judged (the headless claim
+// is Chromium's). With --screenshots (npm run examples:screenshots) it
 // also rewrites the README's screenshots in examples/screenshots/; without it, it leaves them alone.
 
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chromium } from 'playwright'
+import { chromium, firefox, webkit } from 'playwright'
 import type { Page } from 'playwright'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -58,6 +60,13 @@ async function scrollLists(page: Page, at: number): Promise<void> {
   await page.evaluate(at => { for (const s of document.querySelectorAll<HTMLElement>('.vl-scroller')) s.scrollTop = at * (s.scrollHeight - s.clientHeight) }, at)
 }
 
+async function parity(page: Page): Promise<{ agree: number, total: number, browser: string }> {
+  return page.evaluate(() => {
+    const d = document.documentElement.dataset
+    return { agree: Number(d.agree), total: Number(d.total), browser: d.browser ?? '' }
+  })
+}
+
 async function frame(page: Page): Promise<void> {
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
 }
@@ -90,7 +99,7 @@ async function overflow(page: Page): Promise<{ kit: string[], gaps: string[], cs
 }
 
 for (const vw of VIEWPORTS) {
-  for (const p of ['index', 'accuracy', ...SCREEN_PAGES.map(s => s.name)]) {
+  for (const p of ['index', 'accuracy', 'headless-parity', ...SCREEN_PAGES.map(s => s.name)]) {
     const context = await browser.newContext({ viewport: { width: vw, height: 900 }, deviceScaleFactor: 1 })
     const page = await context.newPage()
     const where = `${p} @ ${vw}px`
@@ -187,6 +196,13 @@ for (const vw of VIEWPORTS) {
       const cost = await page.evaluate(() => [...document.querySelectorAll('#readout div')]
         .find(d => d.querySelector('dt')?.textContent?.startsWith('Kit time'))?.querySelector('dd')?.textContent ?? '')
       log.push(`${where}: ${screen.settings.length} settings (${screens} screen layouts): kit boxes overflowing 0, best-effort CSS boxes overflowing ${cssTotal}; CSS toolbars wrapped onto 2+ rows ${wrappedTotal}/${screens}, CSS badges cut ${cutTotal}; after a drag: ${cost}`)
+    } else if (p === 'headless-parity') {
+      const r = await parity(page)
+      if (r.agree !== r.total || r.total === 0) failures.push(`${where}: headless parity ${r.agree} of ${r.total} agree in ${r.browser}`)
+      const o = await overflow(page)
+      for (const k of o.kit) failures.push(`${where}: ${k}`)
+      log.push(`${where}: ${r.agree} of ${r.total} agree in ${r.browser}`)
+      if (SHOTS && vw === 1280) await page.screenshot({ path: join(shots, `${p}.png`), fullPage: false })
     } else if (SHOTS && vw === 1280 && p === 'accuracy') {
       await page.click('#factor-filter button[value="1"]')
       await page.click('table.grid button.c-platform >> nth=0')
@@ -202,6 +218,19 @@ for (const vw of VIEWPORTS) {
 }
 
 await browser.close()
+
+// The other engines: reported, never failed on (outside the headless claim). A page error still fails.
+for (const type of [webkit, firefox]) {
+  const other = await type.launch()
+  const page = await other.newPage({ viewport: { width: 1280, height: 900 } })
+  const where = `headless-parity @ 1280px in ${type.name()}`
+  page.on('pageerror', e => failures.push(`${where}: page error: ${e.message}`))
+  await page.goto(base + 'headless-parity.html')
+  await page.waitForFunction(() => document.documentElement.dataset.ready === 'true')
+  const r = await parity(page)
+  log.push(`${where}: ${r.agree} of ${r.total} agree in ${r.browser} (reported, not judged)`)
+  await other.close()
+}
 server.kill()
 console.log(log.join('\n'))
 console.log(`\n${gapLog.length} kit-side pretext-gaps (the browser wrapped other than Pretext; not the kit's to correct):`)

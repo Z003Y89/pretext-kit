@@ -301,20 +301,26 @@ CSS handles equally well (titles, bodies, row heights):
   word is wider than the room, soft hyphens from TeX patterns only in a title word wider than its card.
 - **Accuracy**: the sweep as a browser × zoom × helper × corpus grid with sample cases
   (`npm run examples:data` re-exports it from `verify/`).
-- **Headless parity**: next, a page comparing `pretext-kit/headless` in Node with the browser live.
+- **Headless parity**: 24 English, German and French UI labels at three widths and two sizes,
+  computed in Node by `pretext-kit/headless` (`examples/build-headless-parity.ts`, Inter and Roboto from
+  `test/fonts`) beside the same numbers computed live in the browser from the same font files: line count, widest
+  line and the `fitFontSize` for a button, row by row, with the browser's name and an agreement count.
 
 Fonts come from `fontFromStyle(getComputedStyle(el))`; the local server sends Inter 1.5 s late so `watchFonts`
 visibly lays the page out again. `npm run examples:check` loads every page in headless Chromium at 360, 768 and
 1280px (`npm run examples:screenshots` also rewrites `examples/screenshots/`) and fails on a console error or on a kit-side box that overflows for any reason other than a pretext-gap
 (a paragraph the browser wraps differently from Pretext's own layout of it). In its last run neither side
 overflowed anywhere; best-effort CSS wrapped the toolbar onto a second row in 8 of 21 settings at 1280px and in
-every setting at 360px.
+every setting at 360px. It also fails unless every headless-parity case agrees in Chromium (288 of 288 in
+its last run, Chromium 149), and reports WebKit and Firefox without judging them: in WebKit 26.5, 274 of 288 (line
+counts all equal, one fitted size and 13 widest lines differing); in Firefox 151, 0 of 288, since Firefox's Canvas
+widths differ from Chromium's in every case, though every line count and fitted size was the same.
 
 | | |
 |---|---|
 | ![Text size at 1.3×](examples/screenshots/text-size.png) | ![Languages, German at 560px](examples/screenshots/languages.png) |
 | ![Responsive UI in German at a 360px viewport: the kit's toolbar keeps one row, three icons and „Tages-/abschlussbericht“ broken at its compound joint](examples/screenshots/responsive-ui-360.png) | ![Accuracy explorer](examples/screenshots/accuracy.png) |
-| ![2,000 rows with heights known before render, beside content-visibility: auto](examples/screenshots/numbers-before-render.png) | |
+| ![2,000 rows with heights known before render, beside content-visibility: auto](examples/screenshots/numbers-before-render.png) | ![Headless parity in Chromium: line counts, widest lines and fitted sizes from pretext-kit/headless in Node beside the browser's own, every row agreeing](examples/screenshots/headless-parity.png) |
 
 ## Versions
 
@@ -451,6 +457,8 @@ A soft hyphen that Pretext breaks at paints the font's own U+2010, or `-` when t
 One case is inherent: a standalone U+2010 segment in a font that lacks that glyph measures with `.notdef` (or the
 generic stand-in) rather than throwing, because Pretext's hyphen probe and a real segment are the same `measureText`
 call, so the two cannot be told apart.
+
+The [headless parity example](#examples) shows the same agreement live, in whichever browser opens it.
 
 ## Not in v1
 
