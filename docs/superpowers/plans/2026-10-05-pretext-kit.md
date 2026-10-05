@@ -319,6 +319,14 @@ test('bad ranges throw', () => assert.throws(() => prepareSizes(T, font, { min: 
   Built with esbuild into `examples/dist` (git-ignored) by `npm run examples`, served by `npm run examples:serve`. The demo rules hold: the model owns every measured value, and nothing corrects what the kit reports. The controller shows them to the user in the built-in browser.
 - [ ] **Step 2: Demo** (superseded by 2a; keep only what 2a doesn't cover) `demo/index.html`: a width slider over sections for bubbles (shrinkwrap vs CSS `fit-content`), headline (balance vs CSS `text-wrap: balance`), card (clamp vs `-webkit-line-clamp`), file list (truncateMiddle vs `text-overflow: ellipsis`), badge (fitFontSize) and a 10,000-row virtual list (stack/findIndexAt/anchorDelta). Follow Pretext's demo rule: the model owns every measured value, the painter writes them inline, and the demo never corrects what the kit reports. Bundle with esbuild like `verify/`. Check it by hand at three widths in the built-in browser.
 - [ ] **Step 3: README.** Install (note the Pretext `main` dependency until its next release); one short example per helper; "What's exact" pointing at `verify/RESULTS.md` numbers; "Not in v1" from the spec. Copy no Pretext caveats: link to its README. Also these sections, short:
+  - **When CSS is enough** (first section after Install, user request 2026-10-05): a table per helper giving the plain-CSS alternative, when it suffices, and when the kit is needed:
+    - balance: `text-wrap: balance` covers display; the kit is for a width number (canvas, layout before render);
+    - clamp: `-webkit-line-clamp` covers display; the kit is for cut text or heights before render;
+    - shrinkwrap: no CSS equivalent for multi-line;
+    - truncateMiddle: no CSS equivalent;
+    - fitFontSize: no exact CSS equivalent; fluid `clamp()`/container units only approximate;
+    - headless: the alternative is a real browser in CI.
+    The pitch leads with headless, fitFontSize(Rich) and truncateMiddle.
   - **When to measure with the DOM instead**: a handful of labels on screen. The browser already knows exactly, with icons and padding. The kit pays off for many texts, every resize frame, or before the text exists (virtual lists).
   - **Fonts**: bundle the app's font with `@font-face` and await `document.fonts.load(font)` before preparing. Call `clearCache()` and prepare again after a late font. Never `system-ui`/`-apple-system` on macOS (link Pretext's caveat).
   - **Hyphenation**: German example with `hyphen/de` → soft hyphens → the same string measured and painted with `hyphens: manual`, citing the german corpus numbers.
