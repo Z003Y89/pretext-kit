@@ -331,6 +331,34 @@ function genericProbeWidth(text: string, parsed: ParsedFont, spacing: number): n
   return null
 }
 
+// Why U+300C gets stand-in widths. Whenever a text holds a character in U+2018-U+301F (curly and
+// German quotes, the ellipsis, CJK marks: han-kerning.ts maybeHanKerningRe) and the profile is
+// Blink, Pretext's getFontData (han-kerning.ts:127-131) first measures '「' and '「「' and takes
+// trim = 2 W(「) - W(「「). When trim <= 1e-3 it stores null for the font and applies no Han
+// kerning at all. Chrome measures that probe in an OS CJK fallback font, which we can't
+// reproduce, and Inter has no U+300C, so without a stand-in „Tagesabschlussbericht“ would throw.
+// The decision doesn't matter for text without CJK: a pair is halted only between types OPEN,
+// MIDDLE, CLOSE or narrow ones (han-kerning.ts haltedSide), and in Latin text the only types are
+// OPEN_NARROW/CLOSE_NARROW (Ps/Pe that are not fullwidth) and the curly quotes, which become
+// OPEN/CLOSE only when quoteFullwidth is true, i.e. when the font's own curly quotes sit in a
+// fullwidth cell (getFontData, from ink bounds of the registered face, never from this stand-in).
+// The pair loop also skips Latin-only neighbours (isCanvasCjkSymbol equal on both sides), and the
+// segment-start and line-end trims need OPEN/CLOSE types, which Latin text lacks. So trim 0 (null,
+// no Han kerning) gives Latin text the widths and breaks Chrome gives with a trim > 0.
+// The stand-in is linear (W(「「) = 2 W(「), trim 0) and applies only to those two exact strings
+// where no registered face in the list has U+300C. Any other text, like '「中文」' or '中文', is
+// shaped with registered faces and throws HeadlessCoverageError. Inherent case: a real lone '「'
+// or '「「' segment in a font lacking it is the same measureText call as the probe, so it measures
+// the stand-in instead of throwing.
+function isHanProbe(text: string): boolean {
+  return text === '\u300C' || text === '\u300C\u300C'
+}
+
+function hanProbeWidth(text: string, faces: FontFace[], parsed: ParsedFont, spacing: number): number | null {
+  for (let i = 0; i < faces.length; i++) if (covers(faces[i]!, 0x300c)) return null
+  return Math.fround(Math.fround(parsed.sizePx * text.length) + spacing * text.length)
+}
+
 // Canvas keeps letterSpacing as the CSS length it was given and ignores what doesn't parse.
 function parseLength(value: string, sizePx: number): { text: string; px: number } | null {
   const match = lengthRe.exec(value)
@@ -407,11 +435,16 @@ function createContext(): HeadlessContext {
         if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
       }
       const { options } = sharedState()
+      const faces = resolveFaces(parsed)
+      if (isHanProbe(content)) {
+        const width = hanProbeWidth(content, faces, parsed, spacing)
+        if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
+      }
       return measure(content, {
         parsed,
         notdef: options.onMissingGlyph === 'notdef' || content === HYPHEN,
         rounding: options.rounding,
-        faces: resolveFaces(parsed),
+        faces,
         features,
         spacing,
         language: lang === 'inherit' || lang === '' ? null : lang,

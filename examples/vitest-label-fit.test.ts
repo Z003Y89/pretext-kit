@@ -15,17 +15,19 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
 import { fitFontSize, prepareSizes } from '../src/index.ts'
-import { HeadlessCoverageError, install, registerFont } from '../src/headless/index.ts'
+import { install, registerFont } from '../src/headless/index.ts'
 
 await registerFont('Inter', new Uint8Array(readFileSync(new URL('../test/fonts/Inter-Regular.ttf', import.meta.url))))
 install()
 
+// Only Inter Regular is available under test/fonts (no Bold, no variable Inter), so '600' measures with
+// the Regular face here. An app registers the bold file its CSS loads, with { weight: 600 }.
 const BUTTON_CONTENT_WIDTH = 160
 const FONT = '600 14px Inter'
 const LABELS = [
   'Speichern',
   'Zahlungspflichtig abonnieren',
-  'Tagesabschlussbericht',
+  '„Tagesabschlussbericht“',
   'Abbrechen und zurückgehen',
   'Save changes',
   'Continue to checkout',
@@ -36,6 +38,7 @@ const LABELS = [
 // change moves a label across the line, this test fails and shows which.
 const EXPECTED_OVERFLOW = new Set([
   'Zahlungspflichtig abonnieren',
+  '„Tagesabschlussbericht“',
   'Abbrechen und zurückgehen',
   'Enregistrer les modifications',
 ])
@@ -62,12 +65,4 @@ test('labels fit a 160px button in one line at 600 14px Inter, except the docume
     // The size search never reports a size larger than 16, and the fitting labels keep at least 14.
     if (r.fits) assert.ok(r.bestPx !== null && r.bestPx >= 14, r.label)
   }
-})
-
-test('curly quotes need a font that covers U+300C, or the measurement throws instead of guessing', () => {
-  // Pretext probes U+300C (for Han punctuation kerning) whenever a text holds U+2018-U+301F, which
-  // includes „ “ ‘ ’ and the ellipsis. Chrome draws that probe with an OS fallback font; Inter has no
-  // such glyph, so the headless canvas throws HeadlessCoverageError. Apps register a font that covers
-  // it (any CJK face, after Inter in the family list) or use plain quotes in labels under test.
-  assert.throws(() => check('„Tagesabschlussbericht“'), (e: unknown) => e instanceof HeadlessCoverageError && /U\+300C/.test(e.message))
 })

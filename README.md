@@ -32,10 +32,10 @@ On macOS, Chrome 154: for code points covered by the registered fonts, `measureT
 
 - **Registered fonts only.** A code point no registered font covers makes `measureText` throw a `HeadlessCoverageError`
   naming the character and the font list (Chrome would use an OS fallback font we can't reproduce). An opt-in
-  `install({ onMissingGlyph: 'notdef' })` measures `.notdef` instead, for apps that accept the error. Note that
-  Pretext probes U+300C whenever a text contains a character in U+2018-U+301F (curly quotes such as „ “ ‘ ’, the
-  ellipsis), so a font list without a glyph for U+300C throws on such texts; add a CJK face to the family list or
-  use `'notdef'`.
+  `install({ onMissingGlyph: 'notdef' })` measures `.notdef` instead, for apps that accept the error. Curly and German
+  quotes and the ellipsis work with Latin fonts: Pretext's Han-kerning probe of U+300C gets a stand-in width (it has no
+  effect on text without CJK), but real CJK text in a font lacking it still throws. Inherent case: a lone `「` or `「「`
+  segment in such a font measures that stand-in rather than throwing, as the probe is the same `measureText` call. Note that
 - **Chromium profile.** `install()` sets a desktop Chrome user agent before Pretext loads, so Pretext uses its Blink
   rules. WebKit and Gecko profiles are not supported.
 - **Platforms.** Parity is measured for macOS Chrome. Windows (DirectWrite) and Linux (FreeType; whole-px advances

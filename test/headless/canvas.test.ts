@@ -257,3 +257,20 @@ test('LRM, RLM, SHY, U+202A-E, U+FEFF and U+FFFC cut a word like ZWSP', () => {
     assert.equal(width(`A${c}V`), width('A') + width('V'), `U+${c.codePointAt(0)!.toString(16)}`)
   }
 })
+
+// Quotes and the ellipsis make Pretext probe U+300C (Han kerning), which Inter lacks.
+const inter16 = '16px Inter'
+
+test('German quotes and the ellipsis prepare in Inter, measured with Inter\'s own glyphs', () => {
+  for (const text of ['„Zahlungspflichtig abonnieren“', '„Tagesabschlussbericht“', 'Wird geladen…']) {
+    const { maxLineWidth } = measureLineStats(prepareWithSegments(text, inter16), 10_000)
+    // The Canvas width of the whole string: Inter's glyphs for the quotes, cut at spaces. No Han trim applies.
+    assert.ok(Math.abs(maxLineWidth - width(text, context(inter16))) < 0.02, text)
+  }
+  assert.ok(width('„', context(inter16)) > 0)
+})
+
+test('real CJK text in Inter still throws, also with the probe stand-in present', () => {
+  assert.throws(() => prepareWithSegments('中文', inter16), HeadlessCoverageError)
+  assert.throws(() => width('「中文」'), HeadlessCoverageError)
+})
