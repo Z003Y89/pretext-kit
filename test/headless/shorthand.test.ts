@@ -27,7 +27,8 @@ test('maps every stretch keyword to a percentage', () => {
     'ultra-condensed': 50, 'extra-condensed': 62.5, condensed: 75, 'semi-condensed': 87.5, normal: 100,
     'semi-expanded': 112.5, expanded: 125, 'extra-expanded': 150, 'ultra-expanded': 200,
   }
-  for (const k of Object.keys(expected)) assert.equal(parseFont(`${k} 10px A`).stretch, expected[k])
+  const keys = Object.keys(expected)
+  for (let i = 0; i < keys.length; i++) assert.equal(parseFont(`${keys[i]} 10px A`).stretch, expected[keys[i]!])
 })
 
 test('accepts numeric weights, oblique, small-caps and normal placeholders', () => {
@@ -49,4 +50,45 @@ test('throws RangeError on a missing size or family', () => {
   assert.throws(() => parseFont(''), RangeError)
   assert.throws(() => parseFont('1001 10px A'), RangeError)
   assert.throws(() => parseFont('10px A,'), RangeError)
+})
+
+test('accepts an oblique angle and drops it', () => {
+  const cases = ['oblique 10deg 16px A', 'oblique -10deg 16px A', 'bold oblique 10deg 16px A', 'oblique 0.5turn 16px A']
+  for (let i = 0; i < cases.length; i++) {
+    const f = parseFont(cases[i]!)
+    assert.equal(f.style, 'oblique')
+    assert.equal(f.sizePx, 16)
+    assert.deepEqual(f.families, ['A'])
+  }
+})
+
+test('allows spaces around the line-height slash', () => {
+  const cases = ['16px / 24px A', '16px /24px A', '16px/ 24px A', '16px/24px A']
+  for (let i = 0; i < cases.length; i++) {
+    const f = parseFont(cases[i]!)
+    assert.equal(f.sizePx, 16)
+    assert.deepEqual(f.families, ['A'])
+  }
+})
+
+test('prefix keywords are order-insensitive and case-insensitive', () => {
+  const a = parseFont('italic 600 condensed 12pt A')
+  assert.deepEqual(parseFont('condensed 600 italic 12pt A'), a)
+  assert.deepEqual(parseFont('600 Italic CONDENSED 12PT A'), a)
+  assert.equal(parseFont('Bold 16PX A').weight, 700)
+})
+
+test('does not treat Object.prototype keys as keywords', () => {
+  assert.throws(() => parseFont('constructor 16px A'), RangeError)
+})
+
+test('splits on any whitespace and accepts exponent sizes', () => {
+  assert.deepEqual(parseFont('bold\t16px\nA').families, ['A'])
+  assert.equal(parseFont('1e1px A').sizePx, 10)
+})
+
+test('parses Pretext probe strings', () => {
+  assert.deepEqual(parseFont('16px monospace').families, ['monospace'])
+  assert.deepEqual(parseFont('16px "Fam", serif').families, ['Fam', 'serif'])
+  assert.deepEqual(parseFont('16px "Fam", monospace').families, ['Fam', 'monospace'])
 })
