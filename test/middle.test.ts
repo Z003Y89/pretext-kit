@@ -93,3 +93,14 @@ test('the start and the end are cut only at grapheme boundaries', () => {
     }
   }
 })
+
+// Evaluation review: found by the sweep's Hangul jamo label in WebKit. The end is measured alone, and
+// joined to a start already down to one grapheme it overran; it now gives up graphemes instead.
+test('an end that overruns once joined to the shortest start is shortened', () => {
+  const label = prepareLabel('yaaaaaaaay', '20px Kern')
+  for (let width = 25; width <= 60; width++) {
+    const out = truncateMiddle(label, width)
+    const w = measureNaturalWidth(prepareWithSegments(out, '20px Kern'))
+    assert.ok(w <= width, `${out} is ${w} wide at ${width}`)
+  }
+})

@@ -123,11 +123,22 @@ export function truncateMiddle(label: PreparedLabel, width: number, keepEnd?: { 
   }
   let end = ''
   let endFrom = label.text.length
+  let endAt = starts.length
   for (let i = starts.length - 1; i > 0; i--) {
     const rest = layoutNextLine(prepared, starts[i]!, Number.POSITIVE_INFINITY)
     if (rest === null || rest.width > room / 2) break
     end = rest.text
     endFrom = offsets[i]!
+    endAt = i
   }
-  return withStart(label, end, endFrom, width).text
+  // The end was measured alone; joined to a start already down to its one grapheme and the ellipsis,
+  // it can still overrun (shaping and kerning across the seam), so the end gives up graphemes then.
+  let result = withStart(label, end, endFrom, width)
+  while (!result.fits && endAt < starts.length) {
+    endAt++
+    endFrom = endAt < starts.length ? offsets[endAt]! : label.text.length
+    end = endAt < starts.length ? layoutNextLine(prepared, starts[endAt]!, Number.POSITIVE_INFINITY)?.text ?? '' : ''
+    result = withStart(label, end, endFrom, width)
+  }
+  return result.text
 }
