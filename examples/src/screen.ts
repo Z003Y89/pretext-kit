@@ -14,9 +14,11 @@ import type { PreparedTextWithSegments } from '@chenglou/pretext'
 import { measureRichInlineStats, prepareRichInline } from '@chenglou/pretext/rich-inline'
 import type { PreparedRichInline, RichInlineBox, RichInlineItem } from '@chenglou/pretext/rich-inline'
 import {
-  FIT_TOLERANCE, balance, clamp, fitFontSize, fitFontSizeRich, fontFromStyle, measureTail, prepareLabel,
+  balance, clamp, fitFontSize, fitFontSizeRich, fontFromStyle, measureTail, prepareLabel,
   prepareSizes, prepareSizesRich, shrinkwrap, shrinkwrapRich, truncateMiddle,
 } from '../../src/index.ts'
+// The kit's internal fit slack, not part of its public API; the example checks its own fits with it.
+import { FIT_TOLERANCE } from '../../src/fit.ts'
 import type { ClampedLine, PreparedLabel, PreparedSizes, PreparedSizesRich, StyleInput, Tail } from '../../src/index.ts'
 import type { Lang, ScreenText } from './strings.ts'
 

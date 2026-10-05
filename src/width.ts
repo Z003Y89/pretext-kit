@@ -1,22 +1,28 @@
 import { measureLineStats } from '@chenglou/pretext'
-import type { PreparedTextWithSegments } from '@chenglou/pretext'
+import type { LineStats, PreparedTextWithSegments } from '@chenglou/pretext'
 import { measureRichInlineStats } from '@chenglou/pretext/rich-inline'
-import { FIT_TOLERANCE } from './fit.ts'
 import type { PreparedRichInline } from '@chenglou/pretext/rich-inline'
+import { FIT_TOLERANCE } from './fit.ts'
 
 export type WidthFit = { width: number, lineCount: number }
 
-type Stats = { lineCount: number, maxLineWidth: number }
-
 // Plain and rich text differ only in how a probe is measured, so the searches take that as a parameter.
-type StatsFn<P> = (prepared: P, maxWidth: number) => Stats
+type StatsFn<P> = (prepared: P, maxWidth: number) => LineStats
+
+// Pretext lays out a NaN width as unbounded and a negative one as narrower than any grapheme, so
+// either would come back as a NaN or negative answer; like Pretext's own bad numbers, it throws.
+function checkMaxWidth(maxWidth: number): void {
+  if (!(maxWidth >= 0)) throw new RangeError(`maxWidth must be a number of CSS px, at least 0, not ${maxWidth}`)
+}
 
 function shrinkwrapWith<P>(stats: StatsFn<P>, prepared: P, maxWidth: number): WidthFit {
+  checkMaxWidth(maxWidth)
   const s = stats(prepared, maxWidth)
   let width = Math.ceil(s.maxLineWidth)
-  // A widest line a hair over a whole pixel (within the slack Pretext gives a line) may still fit
-  // at that pixel, as it does in the browser. Pretext's own layout there decides, since its slack
-  // differs per engine: the pixel is taken only if the lines come out the same.
+  // A widest line a hair over a whole pixel (within FIT_TOLERANCE, the most any engine's layout
+  // accepts) may still fit at that pixel, as it does in the browser. Pretext's own layout there
+  // decides, since its slack differs per engine (lineFitEpsilon): the pixel is taken only if the
+  // lines come out the same.
   const below = width - 1
   if (below >= 1 && s.maxLineWidth - below <= FIT_TOLERANCE) {
     const t = stats(prepared, below)
@@ -29,6 +35,7 @@ function shrinkwrapWith<P>(stats: StatsFn<P>, prepared: P, maxWidth: number): Wi
 }
 
 function balanceWith<P>(stats: StatsFn<P>, prepared: P, maxWidth: number): WidthFit {
+  checkMaxWidth(maxWidth)
   const target = stats(prepared, maxWidth).lineCount
   // An unbounded width has no search range, and one line needs no balancing.
   if (target <= 1 || !Number.isFinite(maxWidth)) return shrinkwrapWith(stats, prepared, maxWidth)

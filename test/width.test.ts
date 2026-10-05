@@ -109,3 +109,16 @@ test('balance caps that grapheme at maxWidth', () => {
   const t = p('…\u0301\u0301\u0301\u0301 xy') // one 50px grapheme
   assert.deepEqual(balance(t, 44), { width: 44, lineCount: 2 })
 })
+
+// Final review: Pretext lays out a NaN maxWidth as unbounded and a negative one as narrower than
+// any grapheme, so the helpers would answer a NaN or negative width; they reject both instead, as
+// Pretext rejects a NaN letterSpacing or a negative box width.
+test('a negative or NaN maxWidth throws a RangeError', () => {
+  const rich = prepareRichInline([{ text: 'aa bb', font: '20px Test' }])
+  for (const bad of [-1, -0.5, Number.NaN, Number.NEGATIVE_INFINITY]) {
+    assert.throws(() => shrinkwrap(p('aa bb'), bad), RangeError, `shrinkwrap ${bad}`)
+    assert.throws(() => balance(p('aa bb'), bad), RangeError, `balance ${bad}`)
+    assert.throws(() => shrinkwrapRich(rich, bad), RangeError, `shrinkwrapRich ${bad}`)
+    assert.throws(() => balanceRich(rich, bad), RangeError, `balanceRich ${bad}`)
+  }
+})

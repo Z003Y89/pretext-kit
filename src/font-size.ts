@@ -1,5 +1,5 @@
 import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
-import type { PrepareOptions, PreparedTextWithSegments } from '@chenglou/pretext'
+import type { LineStats, PrepareOptions, PreparedTextWithSegments } from '@chenglou/pretext'
 import { measureRichInlineStats, prepareRichInline } from '@chenglou/pretext/rich-inline'
 import type { PreparedRichInline, RichInlineBox, RichInlineItem, RichInlineOptions } from '@chenglou/pretext/rich-inline'
 import { FIT_TOLERANCE } from './fit.ts'
@@ -67,12 +67,10 @@ function widestUnit(sizes: PreparedSizes, px: number): number {
   return w
 }
 
-type Stats = { lineCount: number, maxLineWidth: number }
-
 // Returns the line count when the stats fit the box at px, else -1, so the search needs no result object per probe.
 // unit(px) is the widest unbreakable piece at px, called only when a line is reported past the width, so most probes
 // never measure it. Callers build unit once per fit, so the search allocates nothing per probe.
-function judge(s: Stats, unit: (px: number) => number, px: number, box: FitBox, lineHeight: (px: number) => number): number {
+function judge(s: LineStats, unit: (px: number) => number, px: number, box: FitBox, lineHeight: (px: number) => number): number {
   // Written as negated <= so a NaN (from a caller's lineHeight, height or maxLines) fails closed instead of passing.
   // A line Pretext laid out past the width either overflows, holding a piece wider than the width that no break
   // can split, or is one Pretext fitted there and reports wider than it paints (one ending at a soft hyphen whose
