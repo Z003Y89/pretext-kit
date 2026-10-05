@@ -339,7 +339,7 @@ function genericProbeWidth(text: string, parsed: ParsedFont, spacing: number): n
 // reproduce, and Inter has no U+300C, so without a stand-in „Tagesabschlussbericht“ would throw.
 // The decision doesn't matter for text without CJK: a pair is halted only between types OPEN,
 // MIDDLE, CLOSE or narrow ones (han-kerning.ts haltedSide), and in Latin text the only types are
-// OPEN_NARROW/CLOSE_NARROW (Ps/Pe that are not fullwidth) and the curly quotes, which become
+// MIDDLE (U+00B7, U+2027: it halts only before an OPEN, which Latin lacks), OPEN_NARROW/CLOSE_NARROW (Ps/Pe that are not fullwidth) and the curly quotes, which become
 // OPEN/CLOSE only when quoteFullwidth is true, i.e. when the font's own curly quotes sit in a
 // fullwidth cell (getFontData, from ink bounds of the registered face, never from this stand-in).
 // The pair loop also skips Latin-only neighbours (isCanvasCjkSymbol equal on both sides), and the
@@ -357,6 +357,25 @@ function isHanProbe(text: string): boolean {
 function hanProbeWidth(text: string, faces: FontFace[], parsed: ParsedFont, spacing: number): number | null {
   for (let i = 0; i < faces.length; i++) if (covers(faces[i]!, 0x300c)) return null
   return Math.fround(Math.fround(parsed.sizePx * text.length) + spacing * text.length)
+}
+
+// Why U+1F600 gets a stand-in width. Any Extended_Pictographic character in a text (©, ®, ™, ↔, ▶,
+// ♥, ✔, ‼ …) makes Pretext's getEmojiCorrection measure '\u{1F600}' once per font (measurement.js
+// emojiWidth) and compare it with a DOM span's width; a width of at most size + 0.5 means Canvas and
+// the DOM agree, so no correction is computed and the DOM is never touched. Chrome measures it in
+// an emoji fallback font, which we can't reproduce, and Inter lacks it, so without a stand-in
+// '© 2026 Acme' would throw. The stand-in is exactly the font size in px (the em of Apple Color
+// Emoji), applied only to that exact string where no registered face in the list covers it. Any
+// other uncovered emoji, or U+1F600 inside a longer segment, is shaped with registered faces and
+// throws. Inherent case: a real standalone '\u{1F600}' segment in such a font is the same
+// measureText call as the probe, so it measures the stand-in instead of throwing.
+function isEmojiProbe(text: string): boolean {
+  return text === '\u{1F600}'
+}
+
+function emojiProbeWidth(faces: FontFace[], parsed: ParsedFont): number | null {
+  for (let i = 0; i < faces.length; i++) if (covers(faces[i]!, 0x1f600)) return null
+  return Math.fround(parsed.sizePx)
 }
 
 // Canvas keeps letterSpacing as the CSS length it was given and ignores what doesn't parse.
@@ -438,6 +457,10 @@ function createContext(): HeadlessContext {
       const faces = resolveFaces(parsed)
       if (isHanProbe(content)) {
         const width = hanProbeWidth(content, faces, parsed, spacing)
+        if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
+      }
+      if (isEmojiProbe(content)) {
+        const width = emojiProbeWidth(faces, parsed)
         if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
       }
       return measure(content, {

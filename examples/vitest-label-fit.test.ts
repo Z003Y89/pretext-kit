@@ -3,13 +3,14 @@
 //
 // This file uses node:test so it runs in this repo. In vitest (or jest) the same test reads:
 //
-//   import { describe, expect, it, beforeAll } from 'vitest'
+//   import { beforeAll, expect, it } from 'vitest'
 //   beforeAll(async () => { await registerFont('Inter', fontBytes); install() })
-//   it('Speichern fits', () => { expect(fits('Speichern').ok).toBe(true) })
+//   it('Speichern fits one line', () => { expect(check('Speichern').fits).toBe(true) })
 //
-// install() must run before the first prepare(): Pretext fixes its engine profile on first use.
-// So import Pretext/pretext-kit dynamically after install(), or run install() in a setup file
-// (vitest `setupFiles`), as done here with top-level await.
+// Import rule: install() must run before the first prepare() (Pretext fixes its engine profile on
+// first use, not on import), so plain static imports are fine here, with registerFont and install()
+// at the top of the file or in a setup file. Only when jsdom globals must exist before Pretext
+// loads (see the README) do you import Pretext dynamically after setting them.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'

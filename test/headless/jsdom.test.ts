@@ -38,5 +38,5 @@ test('a covered string measures as it does without jsdom', () => {
 
 test('an emoji Inter does not cover throws instead of measuring 0 through the DOM correction', () => {
   // Without the coverage error, Pretext would replace the emoji's width with the jsdom span's 0.
-  assert.throws(() => prepare('Weiter 😀', FONT), HeadlessCoverageError)
+  assert.throws(() => prepare('Weiter 🎉', FONT), HeadlessCoverageError)
 })

@@ -274,3 +274,21 @@ test('real CJK text in Inter still throws, also with the probe stand-in present'
   assert.throws(() => prepareWithSegments('中文', inter16), HeadlessCoverageError)
   assert.throws(() => width('「中文」'), HeadlessCoverageError)
 })
+
+// Extended_Pictographic text makes Pretext probe U+1F600 (emoji correction), which Inter lacks.
+test('symbols that are Extended_Pictographic prepare in Inter and measure with its glyphs', () => {
+  for (const text of ['© 2026 Acme', 'Acme®', 'Brand™', 'A ↔ B', 'Play ▶', 'I ♥ it', '‼']) {
+    const { maxLineWidth } = measureLineStats(prepareWithSegments(text, inter16), 10_000)
+    assert.ok(Math.abs(maxLineWidth - width(text, context(inter16))) < 0.02, text)
+  }
+})
+
+test('Inter lacks U+2714, so "Done ✔" throws for that glyph, not for the emoji probe', () => {
+  assert.throws(() => prepareWithSegments('Done ✔', inter16), (e: unknown) => e instanceof HeadlessCoverageError && e.codePoint === 0x2714)
+})
+
+test('an uncovered emoji, alone or in a longer segment, still throws', () => {
+  assert.throws(() => prepareWithSegments('🎉', inter16), HeadlessCoverageError)
+  assert.throws(() => prepareWithSegments('Weiter 🎉', inter16), HeadlessCoverageError)
+  assert.throws(() => width('a😀'), HeadlessCoverageError)
+})
