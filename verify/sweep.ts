@@ -463,7 +463,8 @@ const tailCache = new Map<string, Tail>()
 function tailOf(f: StyleFont): Tail {
   let t = tailCache.get(f.font)
   if (t === undefined) {
-    t = measureTail(ELLIPSIS, f.font)
+    // With the paragraph's own prepare options, so the cut is measured as the paragraph is.
+    t = measureTail(ELLIPSIS, f.font, { letterSpacing: f.letterSpacing })
     tailCache.set(f.font, t)
   }
   return t
@@ -474,7 +475,7 @@ function judgeClampModel(p: PreparedTextWithSegments, f: StyleFont, width: numbe
   // The tail is the kit's measurement too, so it is checked against Pretext's widths first.
   const ellipsis = naturalWidth(ELLIPSIS, f)
   const nbsp = naturalWidth('\u00A0', f)
-  if (tail.text !== ELLIPSIS || tail.font !== f.font || tail.width !== ellipsis || tail.spaceWidth !== nbsp) {
+  if (tail.text !== ELLIPSIS || tail.font !== f.font || tail.options?.letterSpacing !== f.letterSpacing || tail.width !== ellipsis || tail.spaceWidth !== nbsp) {
     return `measureTail gave ${JSON.stringify(tail)}, Pretext measures '…' ${ellipsis} and a no-break space ${nbsp}`
   }
   const total = layout(p, width, LINE_HEIGHT).lineCount
@@ -555,7 +556,8 @@ function clampCase(stack: FontStack, text: string, width: number, maxLines: numb
     const shown = isCut ? line.text + ELLIPSIS : line.text.trimEnd()
     const dom = paintedWidth(stack, shown)
     if (dom <= width + FIT) continue
-    const model = joinedWidth(shown, f)
+    // A cut line is reported as the one text it paints as; a full line by Pretext's own width.
+    const model = isCut ? joinedWidth(shown, f) : line.width
     if (isCut && graphemeCount(line.text) === 1 && model > width + FIT) continue
     return {
       outcome: 'pretext-gap',

@@ -31,33 +31,38 @@ export function measureTail(text: string, font: string, options?: PrepareOptions
 // line_truncator.cc): the line breaks where it would without the clamp, the tail follows it if
 // both fit, and otherwise the line is cut after the last grapheme that leaves the tail room,
 // keeping one grapheme whatever the room, as Blink's LineTruncator keeps one character. The
-// cut and the tail are measured as the one text they paint as, so a cut fits as painted
-// however its graphemes shape and kern, and is the longest that does. A line Pretext ended at a
+// cut and the tail are measured as one text prepared alone (kerning applies within its segments,
+// not across them), so the cut fits however its graphemes shape, and the next grapheme would
+// overrun: it is locally the longest cut, not necessarily globally. A line Pretext ended at a
 // soft hyphen paints a hyphen there; a cut runs on past it and paints none, since a browser
 // cuts a truncated line between graphemes without hyphenating it.
 export function clamp(prepared: PreparedTextWithSegments, width: number, maxLines: number, tail: Tail = NO_TAIL): Clamped {
   if (!(maxLines >= 1)) throw new RangeError('maxLines must be at least 1')
   const lines: ClampedLine[] = []
   let cursor = START
-  let lastEnd = START
   for (let i = 0; i < maxLines; i++) {
     const line = layoutNextLine(prepared, cursor, width)
     if (line === null) return { truncated: false, lineCount: lines.length, lines }
     lines.push({ text: line.text, width: line.width })
     cursor = line.end
-    lastEnd = line.end
   }
   if (layoutNextLineRange(prepared, cursor, width) === null) return { truncated: false, lineCount: lines.length, lines }
   const last = lines.length - 1
   const line = lines[last]!
-  const whole = line.text.trimEnd()
-  if (tail.text === '' || measureText(tail, whole + tail.text) <= width + FIT_TOLERANCE) {
+  // White space the line ends with goes, unless it is all the line holds (a pre-wrap line of
+  // spaces): the last line keeps at least one grapheme.
+  const whole = trimCut(line.text)
+  if (tail.text === '') {
     lines[last] = { text: whole, width: line.width }
     return { truncated: true, lineCount: lines.length, lines }
   }
-  const hyphenated = lastEnd.graphemeIndex === 0 && prepared.kinds[lastEnd.segmentIndex - 1] === 'soft-hyphen' && whole.endsWith('-')
-  const base = hyphenated ? whole.slice(0, -1) : whole
-  const cut = trimCut(longestPrefix(tail, base, graphemeEnds(base), width, prefix => prefix + tail.text))
+  if (measureText(tail, whole + tail.text) <= width + FIT_TOLERANCE) {
+    lines[last] = { text: whole, width: paintedWidth(tail, whole) }
+    return { truncated: true, lineCount: lines.length, lines }
+  }
+  // The whole line does not fit with the tail, so the search never returns all of it; a line
+  // ending at a soft hyphen loses its hyphen with its last grapheme.
+  const cut = trimCut(longestPrefix(tail, whole, graphemeEnds(whole), width, prefix => prefix + tail.text))
   lines[last] = { text: cut, width: paintedWidth(tail, cut) }
   return { truncated: true, lineCount: lines.length, lines }
 }

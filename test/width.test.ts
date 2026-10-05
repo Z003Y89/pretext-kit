@@ -102,10 +102,10 @@ test('balance keeps the narrowest width Pretext fits a soft-hyphen line at', () 
 // Review round 1: the soft-hyphen fix above returned lo for any lo > 1, so a grapheme wider than
 // lo overflowed the answer. Whether to round up is decided by the widest unbreakable piece.
 test('balance still contains a grapheme wider than the narrowest fitting width', () => {
-  const t = p('a' + '́'.repeat(9) + ' xyz uvw') // one 100px grapheme
+  const t = p('a' + '\u0301'.repeat(9) + ' xyz uvw') // one 100px grapheme
   assert.deepEqual(balance(t, 100), { width: 100, lineCount: 2 })
 })
 test('balance caps that grapheme at maxWidth', () => {
-  const t = p('…́́́́ xy') // one 50px grapheme
+  const t = p('…\u0301\u0301\u0301\u0301 xy') // one 50px grapheme
   assert.deepEqual(balance(t, 44), { width: 44, lineCount: 2 })
 })

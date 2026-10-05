@@ -56,4 +56,4 @@ test('the start is the longest that fits before the end', () => {
 // Review round 1: a start holding soft hyphens measured as syllables apart, wider than it paints
 // joined (here 'ts' kerns across them), so the start stopped a grapheme short.
 test('a start is measured without its soft hyphens', () =>
-  assert.equal(truncateMiddle(prepareLabel('at­sat­sat­s zz yy', '20px Kern'), 100), 'atsat…zz yy'))
+  assert.equal(truncateMiddle(prepareLabel('at\u00ADsat\u00ADsat\u00ADs zz yy', '20px Kern'), 100), 'atsat…zz yy'))

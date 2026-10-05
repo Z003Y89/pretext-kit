@@ -68,8 +68,9 @@ export function prepareLabel(text: string, font: string): PreparedLabel {
   }
 }
 
-// The longest start of the label, before the end at `endFrom`, that fits around an ellipsis
-// with `end`, measured as the one text the result paints as: the start keeps one grapheme
+// The start of the label, before the end at `endFrom`, that fits around an ellipsis with `end`
+// and is locally longest (one grapheme more would overrun), the whole result measured as one
+// text prepared alone, as it paints: the start keeps one grapheme
 // whatever the room, so `fits` is false only when even that overruns. Soft hyphens paint
 // nothing inside the line, so the start drops them before it is measured: kept, they would
 // split its words into syllables measured apart.

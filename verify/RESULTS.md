@@ -54,6 +54,12 @@ with `hyphens: manual`. Every helper sweeps them.
 other than the factor asked for, and when a browser×factor×helper's pretext-gap or unreliable count exceeds
 `verify/baseline.json` by more than max(5, 5%).
 
+The clamp paint check paints each line in a `white-space: pre` span on its own, which is an upper bound on what
+the clamped paragraph paints: Blink trims CJK punctuation at a line's edges (text-spacing-trim) in the paragraph,
+but not in an unconstrained span. So CJK clamp gaps such as "Zhufu quotes" (a line Pretext fits at 368px painting
+376px in the span) are false positives of the span, never missed ones; their details give Pretext's own line
+width for full lines and the joined width for a cut line with its `…`.
+
 Zoom is Playwright's deviceScaleFactor emulation on macOS: it shows that a finer device grid changes nothing
 here, not that Windows (DirectWrite) or Linux (FreeType hinting) measure alike, nor exactly what a user's page
 zoom does (which also changes CSS px per device pixel through the layout viewport).
@@ -86,7 +92,7 @@ By helper:
 | shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
 | balance (13s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
 | fitFontSize (21s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| clamp (54s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
+| clamp (56s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
 | truncateMiddle (5s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -111,10 +117,10 @@ By helper:
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (4s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
+| shrinkwrap (5s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
 | balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
 | fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| clamp (15s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -132,7 +138,7 @@ By corpus (sweep helpers):
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 0.6 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 0.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -142,7 +148,7 @@ By helper:
 | shrinkwrap (4s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
 | balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
 | fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| clamp (15s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -160,17 +166,17 @@ By corpus (sweep helpers):
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 4.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 4.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (74s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (38s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (44s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| clamp (88s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
+| shrinkwrap (76s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
+| balance (39s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
+| fitFontSize (42s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
+| clamp (85s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
 | truncateMiddle (5s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -198,7 +204,7 @@ By helper:
 | shrinkwrap (20s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
 | balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
 | fitFontSize (13s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| clamp (25s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| clamp (24s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -223,9 +229,9 @@ By helper:
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (21s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| shrinkwrap (20s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
 | balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSize (13s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
 | clamp (26s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
@@ -252,9 +258,9 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
 | shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (23s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
+| balance (24s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
 | fitFontSize (27s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| clamp (88s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
+| clamp (87s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
 | truncateMiddle (8s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -279,7 +285,7 @@ By helper:
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (6s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
+| shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
 | balance (7s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
 | fitFontSize (8s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
 | clamp (24s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
@@ -307,9 +313,9 @@ By helper:
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
-| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
-| fitFontSize (10s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| shrinkwrap (6s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
+| balance (7s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
 | clamp (25s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
 | truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
@@ -562,7 +568,7 @@ None.
 - clamp latin "Latin hyphenation": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1, chromium@1.25 1, chromium@2 1; Helvetica Neue; 492-492px). E.g. chromium@1 Helvetica Neue @ 492px maxLines 1: line 1 "One thing I noticed is that the line breaking algorithm doesn't hand…" paints 492.0234375px, Pretext 492.0155792236328px, box 492px
 - clamp latin "Gatsby reserve": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1, chromium@1.25 1, chromium@2 1; Georgia; 592-592px). E.g. chromium@1 Georgia @ 592px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
 - clamp latin "Gatsby reserve": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 3, chromium@1.25 3, chromium@2 3; Georgia; 592-592px). E.g. chromium@1 Georgia @ 592px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- clamp cjk "Zhufu quotes": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 144, chromium@1.25 36, chromium@2 36; Helvetica Neue, Arial, Georgia; 128-375px). E.g. chromium@1 Helvetica Neue @ 368px maxLines 2: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 376px, box 368px
+- clamp cjk "Zhufu quotes": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 144, chromium@1.25 36, chromium@2 36; Helvetica Neue, Arial, Georgia; 128-375px). E.g. chromium@1 Helvetica Neue @ 368px maxLines 2: line 1 "一見面是寒暄，寒暄之後說我「胖了」，說我「胖了」" paints 376px, Pretext 368px, box 368px
 - clamp cjk "Japanese": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 4; Georgia; 159-381px). E.g. chromium@1 Georgia @ 381px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
 - clamp cjk "Japanese": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 6; Georgia; 191-381px). E.g. chromium@1 Georgia @ 381px maxLines 3: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 3 (truncated false; 3 unclamped)
 - clamp cjk "Japanese short": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 2; Georgia; 191-381px). E.g. chromium@1 Georgia @ 381px maxLines 2: DOM clamps to 2 lines (truncated false: scrollHeight 48, clientHeight 48; 2 unclamped), Pretext 2 (truncated true; 3 unclamped)
@@ -595,11 +601,11 @@ None.
 - clamp german "Datenschutz": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 1; Helvetica Neue; 402-402px). E.g. chromium@1 Helvetica Neue @ 402px maxLines 2: line 2 "vollziehbare Einwilligungsverwaltung für alle Benutzer-…" paints 402.0234375px, Pretext 402.0155944824219px, box 402px
 - clamp german "Fehlermeldung": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 3, firefox@1.25 2, firefox@2 2; Helvetica Neue; 128-594px). E.g. chromium@1 Helvetica Neue @ 212px maxLines 3: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 3 (truncated true; 4 unclamped)
 - clamp german "Fehlermeldung": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, chromium@1.25 2, chromium@2 2, firefox@1 6, firefox@1.25 2, firefox@2 2; Helvetica Neue; 212-594px). E.g. chromium@1 Helvetica Neue @ 212px maxLines 4: DOM clamps to 3 lines (truncated false: scrollHeight 72, clientHeight 72; 3 unclamped), Pretext 4 (truncated false; 4 unclamped)
-- clamp german "Förderung": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 7, firefox@1 5; Helvetica Neue, Arial, Times New Roman; 263-362px). E.g. chromium@1 Helvetica Neue @ 265px maxLines 4: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 265.0625px, Pretext 265.0557556152344px, box 265px
+- clamp german "Förderung": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 7, firefox@1 5; Helvetica Neue, Arial, Times New Roman; 263-362px). E.g. chromium@1 Helvetica Neue @ 265px maxLines 4: line 3 "Kraft, Übergangsregelungen inbegrif-" paints 265.0625px, Pretext 265.5037536621094px, box 265px
 - clamp german "Kapitän": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 3, chromium@1.25 3, chromium@2 3, firefox@1 4, firefox@1.25 4, firefox@2 4; Arial; 164-164px). E.g. chromium@1 Arial @ 164px maxLines 2: line 1 "Der Donaudampfschiff-" paints 164.2265625px, Pretext 164.2265625px, box 164px
 - clamp german "Kapitän": DOM clamps to N lines (truncated true: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 1, chromium@1.25 1, chromium@2 1, firefox@1 1; Arial, Helvetica Neue; 164-262px). E.g. chromium@1 Arial @ 164px maxLines 5: DOM clamps to 5 lines (truncated true: scrollHeight 144, clientHeight 120; 6 unclamped), Pretext 5 (truncated false; 5 unclamped)
 - clamp french "Synchroniser": DOM clamps to N lines (truncated true: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, chromium@1.25 1, chromium@2 1, firefox@1 2, firefox@1.25 1, firefox@2 1; Helvetica Neue; 140-231px). E.g. chromium@1 Helvetica Neue @ 231px maxLines 3: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
-- clamp french "Synchroniser": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 6, webkit@1 10, webkit@1.25 1, webkit@2 1, firefox@1 10; Helvetica Neue; 140-569px). E.g. chromium@1 Helvetica Neue @ 285px maxLines 3: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 285.05577087402344px, box 285px
+- clamp french "Synchroniser": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 6, webkit@1 10, webkit@1.25 1, webkit@2 1, firefox@1 10; Helvetica Neue; 140-569px). E.g. chromium@1 Helvetica Neue @ 285px maxLines 3: line 2 "ments : vérifiez votre connexion internet" paints 285.0625px, Pretext 284.7677764892578px, box 285px
 - clamp french "Synchroniser": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, firefox@1 2; Helvetica Neue; 231-231px). E.g. chromium@1 Helvetica Neue @ 231px maxLines 4: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
 - clamp french "Responsabilité": line N "…" paints Npx, Pretext Npx, box Npx (chromium@1 21, chromium@1.25 9, chromium@2 9, webkit@1 24, webkit@1.25 9, webkit@2 9, firefox@1 13, firefox@1.25 5, firefox@2 5; Helvetica Neue; 178-567px). E.g. chromium@1 Helvetica Neue @ 454px maxLines 1: line 1 "La responsabilité environnementale des entreprises internatio…" paints 454.0234375px, Pretext 454.015625px, box 454px
 - clamp french "Responsabilité": DOM clamps to N lines (truncated true: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (chromium@1 2, firefox@1 2; Helvetica Neue; 178-286px). E.g. chromium@1 Helvetica Neue @ 286px maxLines 3: DOM clamps to 3 lines (truncated true: scrollHeight 96, clientHeight 72; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
@@ -614,16 +620,16 @@ None.
 - shrinkwrap german "Portal": widest line: DOM Npx (wants N), Pretext Npx (gave N) (webkit@1 7, webkit@1.25 2, webkit@2 2; Times New Roman; 188-194px). E.g. webkit@1 Times New Roman @ 188px: widest line: DOM 187px (wants 187), Pretext 187.0625px (gave 188)
 - shrinkwrap french "Autorisations": widest line: DOM Npx (wants N), Pretext Npx (gave N) (webkit@1 41, webkit@1.25 11, webkit@2 11; Times New Roman; 315-385px). E.g. webkit@1 Times New Roman @ 315px: widest line: DOM 314px (wants 314), Pretext 314.09375px (gave 315)
 - shrinkwrap french "Mot de passe": widest line: DOM Npx (wants N), Pretext Npx (gave N) (webkit@1 19, webkit@1.25 5, webkit@2 5; Times New Roman; 354-372px). E.g. webkit@1 Times New Roman @ 354px: widest line: DOM 353px (wants 353), Pretext 353.2421875px (gave 354)
-- clamp emoji-chat "Keycaps": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 11, webkit@1.25 8, webkit@2 8; Arial, Times New Roman; 193-380px). E.g. webkit@1 Arial @ 380px maxLines 2: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 380.765625px, Pretext 380.765625px, box 380px
-- clamp urls "Windows path": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 2; Helvetica Neue; 321-321px). E.g. webkit@1 Helvetica Neue @ 321px maxLines 4: line 3 "osoft\\Windows\\INetCache\\IE\\settings.ini and" paints 321.171875px, Pretext 321.16795349121094px, box 321px
-- clamp urls "Data URI": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 35, webkit@1.25 7, webkit@2 7, firefox@1 25, firefox@1.25 8, firefox@2 8; Helvetica Neue, Arial, Times New Roman; 175-542px). E.g. webkit@1 Helvetica Neue @ 531px maxLines 3: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E" paints 531.5625px, Pretext 531.552001953125px, box 531px
-- clamp urls "Snake case": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 1, firefox@1 1; Helvetica Neue; 182-182px). E.g. webkit@1 Helvetica Neue @ 182px maxLines 5: line 4 "TION_JOBS_PER_WORK" paints 182.546875px, Pretext 182.54400634765625px, box 182px
+- clamp emoji-chat "Keycaps": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 11, webkit@1.25 8, webkit@2 8; Arial, Times New Roman; 193-380px). E.g. webkit@1 Arial @ 380px maxLines 2: line 1 "Vote: 1️⃣ ship Friday, 2️⃣ ship Monday, 3️⃣ wait for QA" paints 380.765625px, Pretext 379.8828125px, box 380px
+- clamp urls "Windows path": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 2; Helvetica Neue; 321-321px). E.g. webkit@1 Helvetica Neue @ 321px maxLines 4: line 3 "osoft\\Windows\\INetCache\\IE\\settings.ini and" paints 321.171875px, Pretext 320.88002014160156px, box 321px
+- clamp urls "Data URI": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 35, webkit@1.25 7, webkit@2 7, firefox@1 25, firefox@1.25 8, firefox@2 8; Helvetica Neue, Arial, Times New Roman; 175-542px). E.g. webkit@1 Helvetica Neue @ 531px maxLines 3: line 2 "YAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5E" paints 531.5625px, Pretext 530.3680019378662px, box 531px
+- clamp urls "Snake case": line N "…" paints Npx, Pretext Npx, box Npx (webkit@1 1, firefox@1 1; Helvetica Neue; 182-182px). E.g. webkit@1 Helvetica Neue @ 182px maxLines 5: line 4 "TION_JOBS_PER_WORK" paints 182.546875px, Pretext 181.07199096679688px, box 182px
 - shrinkwrap german "Kapitän": at returned Npx: DOM N lines, Pretext N (firefox@1 22, firefox@1.25 6, firefox@2 6; Helvetica Neue; 263-284px). E.g. firefox@1 Helvetica Neue @ 263px: at returned 262px: DOM 4 lines, Pretext 3
 - shrinkwrap german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
 - balance german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
 - balance german "One word": at Npx: DOM N lines, Pretext N (firefox@1 62, firefox@1.25 16, firefox@2 16; Helvetica Neue; 539-600px). E.g. firefox@1 Helvetica Neue @ 539px: at 538px: DOM 1 lines, Pretext 2
 - fitFontSize german "One word": baseline: DOM N lines, Pretext N (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px: baseline: DOM 1 lines, Pretext 2
-- clamp urls "Query string": line N "…" paints Npx, Pretext Npx, box Npx (firefox@1 1; Helvetica Neue; 213-213px). E.g. firefox@1 Helvetica Neue @ 213px maxLines 5: line 4 "elevance&page=3&utm_sourc" paints 213.28334045410156px, Pretext 213.28334045410156px, box 213px
+- clamp urls "Query string": line N "…" paints Npx, Pretext Npx, box Npx (firefox@1 1; Helvetica Neue; 213-213px). E.g. firefox@1 Helvetica Neue @ 213px maxLines 5: line 4 "elevance&page=3&utm_sourc" paints 213.28334045410156px, Pretext 212.9833221435547px, box 213px
 - clamp german "Kapitän": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (firefox@1 2; Helvetica Neue; 262-262px). E.g. firefox@1 Helvetica Neue @ 262px maxLines 4: DOM clamps to 4 lines (truncated false: scrollHeight 96, clientHeight 96; 4 unclamped), Pretext 3 (truncated false; 3 unclamped)
 - clamp german "One word": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated true; N unclamped) (firefox@1 1; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px maxLines 1: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 1 (truncated true; 2 unclamped)
 - clamp german "One word": DOM clamps to N lines (truncated false: scrollHeight N, clientHeight N; N unclamped), Pretext N (truncated false; N unclamped) (firefox@1 4; Helvetica Neue; 538-538px). E.g. firefox@1 Helvetica Neue @ 538px maxLines 2: DOM clamps to 1 lines (truncated false: scrollHeight 24, clientHeight 24; 1 unclamped), Pretext 2 (truncated false; 2 unclamped)
