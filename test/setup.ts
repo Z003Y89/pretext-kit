@@ -1,5 +1,7 @@
 // Pretext measures through OffscreenCanvas; Node has none, and real font metrics would make
-// expected widths machine-dependent. A fixed-width stand-in keeps every assertion exact.
+// expected widths machine-dependent. A fixed-width stand-in keeps every assertion exact. A font
+// named Kern also kerns, as real fonts do, so a run measures other than its graphemes summed:
+// each "ts" a quarter em tighter and each "y…" a quarter em looser.
 class StandInContext {
   font = ''
 
@@ -8,7 +10,11 @@ class StandInContext {
     const size = match === null ? 16 : Number(match[1])
     let width = 0
     for (const ch of text) {
-      width += ch === ' ' || ch === ' ' ? 0.25 * size : 0.5 * size
+      width += ch === ' ' || ch === '\u00A0' ? 0.25 * size : 0.5 * size
+    }
+    if (this.font.includes('Kern')) {
+      width -= 0.25 * size * (text.split('ts').length - 1)
+      width += 0.25 * size * (text.split('y…').length - 1)
     }
     return { width }
   }

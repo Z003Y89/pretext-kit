@@ -6,7 +6,7 @@
 <style>
   /* Every property Pretext models is pinned here or set per case, so the probe paints only what was measured. */
   body { margin: 0; }
-  #probe {
+  #probe, #clamp, #line {
     position: absolute;
     top: 0;
     left: 0;
@@ -28,10 +28,22 @@
     -webkit-text-size-adjust: none;
     text-size-adjust: none;
   }
+  /* A CSS line clamp: -webkit-line-clamp is set per case. */
+  #clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* One line exactly as given: no wrapping, no collapsing, width from its own box. */
+  #line {
+    white-space: pre;
+  }
 </style>
 </head>
 <body>
 <div id="probe"></div>
+<div id="clamp"></div>
+<span id="line"></span>
 <script src="dist/sweep.js"></script>
 </body>
 </html>

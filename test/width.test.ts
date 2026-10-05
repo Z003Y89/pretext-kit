@@ -89,3 +89,13 @@ test('returned widths reproduce their line count and never exceed maxWidth', () 
     }
   }
 })
+
+// Found by the browser sweep's German corpus: Pretext fits a line ending at a soft hyphen whose
+// syllables measure narrower joined than apart (here 'ts' kerns), and reports its width apart,
+// past the width it fits at. Balance rounded that width up, a pixel or more wider than needed.
+test('balance keeps the narrowest width Pretext fits a soft-hyphen line at', () => {
+  const t = prepareWithSegments('aat­saa­bb cc', '20px Kern')
+  assert.equal(measureLineStats(t, 65).lineCount, 2)
+  assert.equal(measureLineStats(t, 64).lineCount, 3)
+  assert.deepEqual(balance(t, 100), { width: 65, lineCount: 2 })
+})

@@ -10,6 +10,8 @@ export type PreparedSizes = {
   options: PrepareOptions | undefined
   // handles[px - min], created on first use: preparing every size up front would measure sizes the search never visits.
   handles: (PreparedTextWithSegments | undefined)[]
+  // units[px - min]: the widest piece no width breaks (a grapheme), measured on first need.
+  units: (number | undefined)[]
 }
 export type FitBox = { width: number, height?: number, maxLines?: number }
 export type FitResult = { px: number, prepared: PreparedTextWithSegments, lineCount: number }
@@ -26,8 +28,12 @@ export function prepareSizes(
     throw new RangeError('font size range needs integers with 1 <= min <= max')
   }
   const handles: (PreparedTextWithSegments | undefined)[] = []
-  for (let i = 0; i <= max - min; i++) handles.push(undefined)
-  return { text, font, min, max, options, handles }
+  const units: (number | undefined)[] = []
+  for (let i = 0; i <= max - min; i++) {
+    handles.push(undefined)
+    units.push(undefined)
+  }
+  return { text, font, min, max, options, handles, units }
 }
 
 function handleAt(sizes: PreparedSizes, px: number): PreparedTextWithSegments {
@@ -40,11 +46,25 @@ function handleAt(sizes: PreparedSizes, px: number): PreparedTextWithSegments {
   return h
 }
 
+// A line no wider than 0 holds one unbreakable piece, so the widest such line is the widest piece.
+function widestUnit(sizes: PreparedSizes, px: number): number {
+  const i = px - sizes.min
+  let w = sizes.units[i]
+  if (w === undefined) {
+    w = measureLineStats(handleAt(sizes, px), 0).maxLineWidth
+    sizes.units[i] = w
+  }
+  return w
+}
+
 // Returns the line count when the text fits at px, else -1, so the search needs no result object per probe.
 function probe(sizes: PreparedSizes, px: number, box: FitBox, lineHeight: (px: number) => number): number {
   const s = measureLineStats(handleAt(sizes, px), box.width)
   // Written as negated <= so a NaN (from a caller's lineHeight, height or maxLines) fails closed instead of passing.
-  if (!(s.maxLineWidth <= box.width + FIT_TOLERANCE)) return -1
+  // A line Pretext laid out past the width either overflows, holding a piece wider than the width that no break
+  // can split, or fits: Pretext keeps a line ending at a soft hyphen whose syllables measure narrower joined than
+  // apart, and reports its width apart. Only the first fails to fit.
+  if (!(s.maxLineWidth <= box.width + FIT_TOLERANCE) && !(widestUnit(sizes, px) <= box.width + FIT_TOLERANCE)) return -1
   if (box.maxLines !== undefined && !(s.lineCount <= box.maxLines)) return -1
   if (box.height !== undefined && !(s.lineCount * lineHeight(px) <= box.height)) return -1
   return s.lineCount

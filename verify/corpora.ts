@@ -3,6 +3,9 @@
 // src/test-data.ts and "corpora/<file>" from Pretext's corpora (public-domain prose); the
 // kit may not import either, since they are not part of Pretext's published package.
 
+import de from 'hyphen/de/index.js'
+import fr from 'hyphen/fr/index.js'
+
 export type Text = { label: string, text: string }
 export type Corpus = { name: string, texts: Text[] }
 // family is CSS font-family syntax: the sweep sets it on an element and reads the font back
@@ -23,11 +26,21 @@ export const FONT_STACKS: FontStack[] = [
 
 export const WIDTH_MIN = 120
 export const WIDTH_MAX = 600
+// truncateMiddle's widths: labels sit in narrow cells, so the range starts lower and ends sooner.
+export const LABEL_WIDTH_MIN = 80
+export const LABEL_WIDTH_MAX = 400
 
-export function widths(step: number): number[] {
+export function widths(step: number, min = WIDTH_MIN, max = WIDTH_MAX): number[] {
   const out: number[] = []
-  for (let w = WIDTH_MIN; w <= WIDTH_MAX; w += step) out.push(w)
+  for (let w = min; w <= max; w += step) out.push(w)
   return out
+}
+
+// Soft hyphens (U+00AD) are put in once, here, by TeX patterns, and painted with hyphens: manual:
+// each browser's own hyphens: auto dictionary differs, so only explicit soft hyphens give every
+// engine and Pretext the same break opportunities.
+function hyphenated(hyphenateSync: (text: string) => string, texts: Text[]): Text[] {
+  return texts.map(({ label, text }) => ({ label, text: hyphenateSync(text) }))
 }
 
 export const CORPORA: Corpus[] = [
@@ -133,4 +146,68 @@ export const CORPORA: Corpus[] = [
       { label: 'Path with spaces', text: '~/Documents/Client Projects/2026 Q3 Rebrand/Final Final v7 (approved)/export@2x.png' },
     ],
   },
+  {
+    name: 'german',
+    // Written for the sweep: compound-dense UI and production text, hyphenated with hyphen/de.
+    texts: hyphenated(de.hyphenateSync, [
+      { label: 'Tagesabschluss', text: 'Der Tagesabschlussbericht der Synchronsprecherinnen liegt seit gestern Abend im Projektordner.' },
+      { label: 'Nebenrollen', text: 'Bitte die Nebenrollen-Takes vor der Endabmischung noch einmal mit der Regieassistentin durchhören.' },
+      { label: 'Datenschutz', text: 'Die Datenschutzgrundverordnung verlangt eine nachvollziehbare Einwilligungsverwaltung für alle Benutzerkonten.' },
+      { label: 'Umfrage', text: 'Kundenzufriedenheitsumfrage: Rückmeldungen bitte bis Monatsende an die Qualitätssicherungsabteilung.' },
+      { label: 'Versicherung', text: 'Haftpflichtversicherungsbedingungen und Rechtsschutzversicherungsunterlagen bitte getrennt ablegen.' },
+      { label: 'Kapitän', text: 'Der Donaudampfschifffahrtskapitän verschob die Hafenrundfahrt wegen anhaltender Hochwasserwarnungen.' },
+      { label: 'Fehlermeldung', text: 'Fehlermeldung: Die Benutzerkontoeinstellungen konnten nicht gespeichert werden.' },
+      { label: 'Baustellen', text: 'Geschwindigkeitsbegrenzungen auf Autobahnbaustellen gelten ausdrücklich auch während der Nachtarbeiten.' },
+      { label: 'Förderung', text: 'Die Ausbildungsförderungsgesetzänderung tritt zum Wintersemester in Kraft, Übergangsregelungen inbegriffen.' },
+      { label: 'Produktion', text: 'Aufnahmeleiterin, Tonmeister und Cutterin besprechen am Freitag die Wochenendproduktionsplanung.' },
+      { label: 'One word', text: 'Grundstücksverkehrsgenehmigungszuständigkeitsübertragungsverordnung' },
+      { label: 'Portal', text: 'Arbeitszeiterfassung, Urlaubsantragsformulare und Reisekostenabrechnungen findest du im Mitarbeiterportal.' },
+    ]),
+  },
+  {
+    name: 'french',
+    // Written for the sweep: UI labels and prose, which run 20-40% longer than English, hyphenated with hyphen/fr.
+    texts: hyphenated(fr.hyphenateSync, [
+      { label: 'Confidentialité', text: 'Paramètres de confidentialité avancés' },
+      { label: 'Enregistrer', text: 'Enregistrer les modifications avant de quitter l’application ?' },
+      { label: 'Synchroniser', text: 'Impossible de synchroniser vos documents : vérifiez votre connexion internet et réessayez.' },
+      { label: 'Rappels', text: 'Notifications de rappel pour les rendez-vous hebdomadaires et les échéances contractuelles' },
+      { label: 'Justificatifs', text: 'Télécharger l’intégralité des pièces justificatives de remboursement' },
+      { label: 'Autorisations', text: 'Gestionnaire des autorisations d’accès aux répertoires partagés' },
+      { label: 'Responsabilité', text: 'La responsabilité environnementale des entreprises internationales est devenue incontournable dans les appels d’offres.' },
+      { label: 'Syndicats', text: 'Les représentantes syndicales ont présenté une contre-proposition particulièrement circonstanciée.' },
+      { label: 'Anticonstitutionnalité', text: 'L’anticonstitutionnalité de la mesure a été soulevée par plusieurs parlementaires expérimentés.' },
+      { label: 'Conditions', text: 'Conditions générales d’utilisation et politique de protection des données personnelles' },
+      { label: 'Mot de passe', text: 'Réinitialisation du mot de passe : un courriel de confirmation vous a été envoyé.' },
+      { label: 'Récit', text: 'Au petit matin, les marchandes installaient leurs étals sur la place, et l’odeur du pain chaud remontait jusqu’aux mansardes.' },
+    ]),
+  },
 ]
+
+// truncateMiddle's labels: paths and file names, each with a slash, so keepEnd can keep the name.
+// Written for the sweep. Not hyphenated: a file name is not a word.
+export const LABELS: Corpus = {
+  name: 'labels',
+  texts: [
+    { label: 'Component', text: 'src/components/Button/Button.tsx' },
+    { label: 'VS Code settings', text: '/Users/someone/Library/Application Support/Code/User/settings.json' },
+    { label: 'Typings', text: 'node_modules/@chenglou/pretext/dist/rich-inline.d.ts' },
+    { label: 'Export', text: '~/Documents/Client Projects/2026 Q3 Rebrand/export@2x.png' },
+    { label: 'Route', text: 'packages/server/src/routes/api/v2/users/[id]/preferences.ts' },
+    { label: 'ADR', text: 'docs/architecture/decisions/0042-use-event-sourcing-for-the-audit-log.md' },
+    { label: 'Log', text: '/var/log/nginx/access.log.2026-10-04.gz' },
+    { label: 'Font file', text: 'assets/fonts/NotoSansJP-VariableFont_wght.ttf' },
+    { label: 'German take', text: 'Projekte/Synchronisation/Staffel 3/Folge 07 – Nebenrollen-Takes.wav' },
+    { label: 'French invoice', text: 'Documents/Factures/2026/Facture fournisseur n° 1842 – réglée.pdf' },
+    { label: 'Windows temp', text: 'C:/Users/Administrator/AppData/Local/Temp/installer-log.txt' },
+    { label: 'Photo', text: 'Photos/2026/Summer trip 🏖️/IMG_20260714_183245.HEIC' },
+    { label: 'Xcode', text: 'apps/mobile/ios/Runner.xcodeproj/project.pbxproj' },
+    { label: 'Fixture', text: 'tests/fixtures/very-long-fixture-name-that-goes-on-and-on-and-on.json' },
+    { label: 'Deep', text: 'a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/index.ts' },
+    { label: 'Brand', text: 'design/Brand Refresh/Final Final v7 (approved)/logo-horizontal-dark.svg' },
+    { label: 'Chinese', text: 'src/中文文档/排版测试/标点挤压与避头尾规则.md' },
+    { label: 'Arabic', text: 'وثائق/التقارير السنوية/التقرير المالي للربع الثالث.pdf' },
+    { label: 'Unbroken name', text: 'lib/extremely_long_filename_without_any_breaks_whatsoever_v2_final.config.js' },
+    { label: 'Short', text: 'docs/README.md' },
+  ],
+}

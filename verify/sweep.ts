@@ -1,8 +1,10 @@
-import { layout, measureLineStats, prepareWithSegments } from '@chenglou/pretext'
-import type { PreparedTextWithSegments } from '@chenglou/pretext'
-import { balance, FIT_TOLERANCE, fitFontSize, fontFromStyle, prepareSizes, shrinkwrap } from '../src/index.ts'
-import type { FitResult, StyleFont } from '../src/index.ts'
-import { CORPORA, FONT_SIZE, FONT_STACKS, LINE_HEIGHT, widths } from './corpora.ts'
+import { layout, layoutNextLine, measureLineStats, measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
+import type { LayoutCursor, PreparedTextWithSegments } from '@chenglou/pretext'
+import {
+  balance, clamp, clampStats, fitFontSize, fontFromStyle, measureTail, prepareLabel, prepareSizes, shrinkwrap, truncateMiddle,
+} from '../src/index.ts'
+import type { Clamped, FitResult, PreparedLabel, StyleFont, Tail } from '../src/index.ts'
+import { CORPORA, FONT_SIZE, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, LINE_HEIGHT, widths } from './corpora.ts'
 import type { FontStack } from './corpora.ts'
 import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
 
@@ -16,6 +18,8 @@ export type CaseResult = {
   corpus: string
   font: string
   width: number
+  // clamp only: the maxLines the case was run with.
+  maxLines?: number
   lines?: number
   outcome: Outcome
   detail?: string
@@ -25,7 +29,9 @@ export type FontPresence = { family: string, present: boolean }
 
 declare global {
   interface Window {
-    sweep: (helper: Helper) => Promise<CaseResult[]>
+    // One corpus per call when named: a whole clamp sweep is too large to hand back at once.
+    sweep: (helper: Helper, corpus?: string) => Promise<CaseResult[]>
+    sweepCorpora: (helper: Helper) => string[]
     sweepWidthStep: Record<string, number>
     // Set by run.ts: a platform cause is only credited in the engine known to have it.
     sweepBrowser: string
@@ -41,20 +47,31 @@ const FIT_MAX = 48
 const FIT_LINE_HEIGHT_RATIO = 1.5
 // Line boxes sit on at most a 1/64 px grid in every engine, so a height within this of n lines is n lines.
 const GRID = 1 / 64
+// Pretext lets a line exceed its width by this much. The harness pins its own copy rather than
+// importing the kit's, so a changed constant in src cannot move the kit and its judge together.
+const FIT = 1 / 64
+const ELLIPSIS = '…'
+const CLAMP_MAX_LINES = 5
 
 // Step 1 everywhere unless a run overrides it; run.ts sets this when a browser is too slow at step 1.
-window.sweepWidthStep = { shrinkwrap: 1, balance: 1, fitFontSize: 1 }
+window.sweepWidthStep = { shrinkwrap: 1, balance: 1, fitFontSize: 1, clamp: 1, truncateMiddle: 1 }
 window.sweepBrowser = ''
 
 const probe = document.getElementById('probe') as HTMLDivElement
+// A -webkit-line-clamp box, and a white-space: pre span that paints one line as given.
+const clampBox = document.getElementById('clamp') as HTMLDivElement
+const lineSpan = document.getElementById('line') as HTMLSpanElement
 
 // Only what varies per case is set here; sweep.html pins every other property Pretext models,
 // so nothing inherited separates what is painted from what was measured.
-function styleProbe(stack: FontStack, px: number, lineHeight: number): void {
-  const s = probe.style
-  s.fontFamily = stack.family
+function styleEl(el: HTMLElement, stack: FontStack, px: number, lineHeight: number): void {
+  const s = el.style
+  if (s.fontFamily !== stack.family) s.fontFamily = stack.family
   s.fontSize = `${px}px`
   s.lineHeight = `${lineHeight}px`
+}
+function styleProbe(stack: FontStack, px: number, lineHeight: number): void {
+  styleEl(probe, stack, px, lineHeight)
 }
 
 // Each font comes from computed style, as the kit's users are told to get it, so a sweep that
@@ -153,7 +170,7 @@ function gapAt(dom: number, model: number, where: string): string | undefined {
 function modelShrinkwrap(p: PreparedTextWithSegments, width: number): number {
   const m = measureLineStats(p, width)
   let w = Math.ceil(m.maxLineWidth)
-  if (w - 1 >= 1 && m.maxLineWidth - (w - 1) <= FIT_TOLERANCE) {
+  if (w - 1 >= 1 && m.maxLineWidth - (w - 1) <= FIT) {
     const t = measureLineStats(p, w - 1)
     if (t.lineCount === m.lineCount && Math.abs(t.maxLineWidth - m.maxLineWidth) < 1e-6) w -= 1
   }
@@ -261,9 +278,12 @@ type Verdict = {
 }
 
 // The kit is judged against Pretext's own numbers first, with the box's rule from the kit's
-// contract: fits means every line within the width (Pretext's slack included) and lines × line
-// height within the height. A failure here is the kit's whatever the browser paints, so no kit
-// bug can pass as a Pretext gap.
+// contract: fits means no line overflows the width and lines × line height within the height. A
+// line overflows only where Pretext could not break it: every line within the width (Pretext's
+// slack included), or else no unbreakable piece (a line at width 0) wider than the width, since
+// Pretext keeps a line ending at a soft hyphen whose syllables measure narrower joined than apart
+// and reports it at its width apart. A failure here is the kit's whatever the browser paints, so
+// no kit bug can pass as a Pretext gap.
 function judgeModel(
   result: FitResult | null,
   stack: FontStack,
@@ -272,8 +292,10 @@ function judgeModel(
   lhOf: (px: number) => number,
 ): Verdict | undefined {
   const modelFits = (px: number): boolean => {
-    const s = measureLineStats(prepared(text, fontAt(stack, px, px * FIT_LINE_HEIGHT_RATIO)), width)
-    return s.maxLineWidth <= width + FIT_TOLERANCE && s.lineCount * lhOf(px) <= FIT_HEIGHT
+    const p = prepared(text, fontAt(stack, px, px * FIT_LINE_HEIGHT_RATIO))
+    const s = measureLineStats(p, width)
+    const overflows = s.maxLineWidth > width + FIT && measureLineStats(p, 0).maxLineWidth > width + FIT
+    return !overflows && s.lineCount * lhOf(px) <= FIT_HEIGHT
   }
   if (result === null) {
     return modelFits(FIT_MIN) ? { outcome: 'kit-mismatch', detail: `null, but Pretext fits ${FIT_MIN}px` } : undefined
@@ -358,6 +380,219 @@ function fitCase(stack: FontStack, text: string, width: number): Verdict & { cau
   return { ...v, outcome: 'platform', cause: WEBKIT_LINE_HEIGHT_FLOOR }
 }
 
+// ---- clamp and truncateMiddle ----
+
+type CaseVerdict = { outcome: Outcome, lines?: number, detail?: string, cause?: string }
+
+const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 }
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+function graphemeCount(text: string): number {
+  let n = 0
+  for (const _ of graphemes.segment(text)) n++
+  return n
+}
+function firstGrapheme(text: string): string {
+  for (const g of graphemes.segment(text)) return g.segment
+  return ''
+}
+
+// Pretext's width of a text set alone on one line, in the case's font.
+function naturalWidth(text: string, f: StyleFont): number {
+  return measureNaturalWidth(prepared(text, f))
+}
+
+// What a painted line measures: the text in a white-space: pre span, so it neither wraps nor
+// collapses, read from its box. Widths repeat across widths and maxLines, so they are cached.
+const spanCache = new Map<string, number>()
+function paintedWidth(stack: FontStack, text: string): number {
+  const key = `${stack.label}|${text}`
+  let w = spanCache.get(key)
+  if (w === undefined) {
+    styleEl(lineSpan, stack, FONT_SIZE, LINE_HEIGHT)
+    lineSpan.textContent = text
+    w = lineSpan.getBoundingClientRect().width
+    spanCache.set(key, w)
+  }
+  return w
+}
+
+type ClampPaint = { lines: number, height: number, truncated: boolean, scrollHeight: number, clientHeight: number }
+function paintClamp(stack: FontStack, text: string, width: number, maxLines: number): ClampPaint {
+  styleEl(clampBox, stack, FONT_SIZE, LINE_HEIGHT)
+  clampBox.style.width = `${width}px`
+  clampBox.style.webkitLineClamp = String(maxLines)
+  if (clampBox.textContent !== text) clampBox.textContent = text
+  const height = clampBox.getBoundingClientRect().height
+  const { scrollHeight, clientHeight } = clampBox
+  return { ...countLines(height, LINE_HEIGHT), height, truncated: scrollHeight > clientHeight, scrollHeight, clientHeight }
+}
+
+// The hyphen Pretext paints where a line ends at a soft hyphen: the width of such a line less
+// the run before it, read with a probe of the harness's own rather than the kit's.
+const hyphenCache = new Map<string, number>()
+function hyphenOf(f: StyleFont): number {
+  let h = hyphenCache.get(f.font)
+  if (h === undefined) {
+    const run = naturalWidth('xxxxxx', f)
+    const line = layoutNextLine(prepared('xxxxxx\u00ADxxxxxx', f), START, 1.5 * run)
+    if (line === null || !line.text.endsWith('-')) throw new Error(`no soft-hyphen break in ${f.font}`)
+    h = line.width - run
+    hyphenCache.set(f.font, h)
+  }
+  return h
+}
+
+const tailCache = new Map<string, Tail>()
+function tailOf(f: StyleFont): Tail {
+  let t = tailCache.get(f.font)
+  if (t === undefined) {
+    t = measureTail(ELLIPSIS, f.font)
+    tailCache.set(f.font, t)
+  }
+  return t
+}
+
+// clamp by Pretext's own numbers, every one computed here from Pretext rather than by the kit.
+function judgeClampModel(p: PreparedTextWithSegments, f: StyleFont, width: number, maxLines: number, tail: Tail, c: Clamped): string | undefined {
+  // The tail is the kit's measurement too, so it is checked against Pretext's widths first.
+  const ellipsis = naturalWidth(ELLIPSIS, f)
+  const nbsp = naturalWidth('\u00A0', f)
+  const hyphen = hyphenOf(f)
+  if (tail.width !== ellipsis || tail.spaceWidth !== nbsp || Math.abs(tail.hyphenWidth - hyphen) > 1e-9) {
+    return `measureTail gave ${JSON.stringify(tail)}, Pretext measures '…' ${ellipsis}, a no-break space ${nbsp} and a soft hyphen's hyphen ${hyphen}`
+  }
+  const total = layout(p, width, LINE_HEIGHT).lineCount
+  const said = `returned ${c.lineCount} lines, truncated ${c.truncated}`
+  if (c.lineCount !== Math.min(total, maxLines) || c.truncated !== total > maxLines || c.lines.length !== c.lineCount) {
+    return `${said} (${c.lines.length} built), Pretext lays out ${total} lines`
+  }
+  const stats = clampStats(p, width, maxLines)
+  if (stats.truncated !== c.truncated || stats.lineCount !== c.lineCount) {
+    return `clampStats gave ${JSON.stringify(stats)}, clamp ${said}`
+  }
+  let cursor = START
+  for (let i = 0; i < c.lines.length; i++) {
+    const full = layoutNextLine(p, cursor, width)
+    if (full === null) return `line ${i + 1}: Pretext has no line there`
+    const got = c.lines[i]!
+    const isCut = c.truncated && i === c.lines.length - 1
+    if (!isCut) {
+      if (got.text.trimEnd() !== full.text.trimEnd()) return `line ${i + 1} is ${JSON.stringify(got.text)}, Pretext's is ${JSON.stringify(full.text)}`
+      cursor = full.end
+      continue
+    }
+    if (graphemeCount(got.text) < 1) return `the last line is empty, Pretext's is ${JSON.stringify(full.text)}`
+    if (full.width + tail.width <= width + FIT) {
+      if (got.text.trimEnd() !== full.text.trimEnd()) {
+        return `the tail fits after Pretext's last line ${JSON.stringify(full.text)} (${full.width} + ${tail.width}), but the kit cut it to ${JSON.stringify(got.text)}`
+      }
+    } else if (!full.text.startsWith(got.text)) {
+      return `the last line ${JSON.stringify(got.text)} is no prefix of Pretext's ${JSON.stringify(full.text)}`
+    }
+    // A single kept grapheme may overrun: there is nothing left to cut.
+    const lone = graphemeCount(got.text) === 1 && naturalWidth(got.text, f) + tail.width > width + FIT
+    if (!lone && got.width + tail.width > width + FIT) {
+      return `the last line ${JSON.stringify(got.text)} is ${got.width} wide, and with the ${tail.width} tail overruns ${width}`
+    }
+  }
+  return undefined
+}
+
+function clampCase(stack: FontStack, text: string, width: number, maxLines: number): CaseVerdict {
+  const f = fontAt(stack, FONT_SIZE, LINE_HEIGHT)
+  const p = prepared(text, f)
+  const tail = tailOf(f)
+  const c = clamp(p, width, maxLines, tail)
+  const wrong = judgeClampModel(p, f, width, maxLines, tail, c)
+  if (wrong !== undefined) return { outcome: 'kit-mismatch', detail: wrong }
+
+  // Then the browser: what it truncates and how tall the clamped box is, then each line as painted.
+  const box = paintClamp(stack, text, width, maxLines)
+  if (box.truncated !== c.truncated || box.lines !== c.lineCount) {
+    const unclamped = paint(stack, text, FONT_SIZE, LINE_HEIGHT, width).lines
+    return {
+      outcome: 'pretext-gap',
+      lines: box.lines,
+      detail: `DOM clamps to ${box.lines} lines (truncated ${box.truncated}: scrollHeight ${box.scrollHeight}, clientHeight ${box.clientHeight}; ${unclamped} unclamped), `
+        + `Pretext ${c.lineCount} (truncated ${c.truncated}; ${layout(p, width, LINE_HEIGHT).lineCount} unclamped)`,
+    }
+  }
+  for (let i = 0; i < c.lines.length; i++) {
+    const line = c.lines[i]!
+    const isCut = c.truncated && i === c.lines.length - 1
+    // A full line's trailing space hangs past the box, so only the cut line keeps what it ends with.
+    const shown = isCut ? line.text + ELLIPSIS : line.text.trimEnd()
+    const dom = paintedWidth(stack, shown)
+    if (dom <= width + FIT) continue
+    if (isCut && graphemeCount(line.text) === 1 && naturalWidth(line.text, f) + tail.width > width + FIT) continue
+    return {
+      outcome: 'pretext-gap',
+      lines: box.lines,
+      detail: `line ${i + 1} ${JSON.stringify(shown)} paints ${dom}px, Pretext ${line.width + (isCut ? tail.width : 0)}px, box ${width}px`,
+    }
+  }
+  return { outcome: 'pass', lines: box.lines }
+}
+
+const labelCache = new Map<string, PreparedLabel>()
+function labelOf(text: string, f: StyleFont): PreparedLabel {
+  const key = `${f.font}|${text}`
+  let l = labelCache.get(key)
+  if (l === undefined) {
+    l = prepareLabel(text, f.font)
+    labelCache.set(key, l)
+  }
+  return l
+}
+
+// Pretext's line text leaves soft hyphens out (they show only as a line-end hyphen), and so does
+// what the kit builds from it; the label is compared without them. No label holds one.
+const SOFT_HYPHEN = /\u00AD/g
+
+function truncateMiddleCase(stack: FontStack, text: string, width: number): CaseVerdict {
+  const f = fontAt(stack, FONT_SIZE, LINE_HEIGHT)
+  const from = text.lastIndexOf('/')
+  const keepEnd = from >= 0 ? { from } : undefined
+  const out = truncateMiddle(labelOf(text, f), width, keepEnd)
+  const said = `returned ${JSON.stringify(out)}`
+
+  // By Pretext's numbers first.
+  const whole = naturalWidth(text, f)
+  if (whole <= width) {
+    return out === text ? { outcome: 'pass' } : { outcome: 'kit-mismatch', detail: `${said}, but the whole label is ${whole} wide` }
+  }
+  const plain = text.replace(SOFT_HYPHEN, '')
+  const cut = out.replace(SOFT_HYPHEN, '')
+  const at = cut.indexOf(ELLIPSIS)
+  if (out === text || at < 0) return { outcome: 'kit-mismatch', detail: `${said}, but the whole label is ${whole} wide` }
+  const head = cut.slice(0, at)
+  const tail = cut.slice(at + ELLIPSIS.length)
+  if (!plain.startsWith(head) || !plain.endsWith(tail) || head.length + tail.length >= plain.length) {
+    return { outcome: 'kit-mismatch', detail: `${said}: not a start, '…' and an end of the label` }
+  }
+  const outWidth = naturalWidth(out, f)
+  if (outWidth > width + FIT) return { outcome: 'kit-mismatch', detail: `${said}, ${outWidth} wide` }
+  // The shortest result that keeps the name: one grapheme, the ellipsis and the name, measured
+  // as the one text it would be, as the result's own width is.
+  const name = from >= 0 ? text.slice(from) : ''
+  const shortest = firstGrapheme(text) + ELLIPSIS + name
+  const shortestWidth = naturalWidth(shortest, f)
+  if (from >= 0 && shortestWidth <= width + FIT && tail.length < name.length) {
+    return { outcome: 'kit-mismatch', detail: `${said}, but ${JSON.stringify(shortest)} is ${shortestWidth} wide and fits` }
+  }
+
+  // Then the painting.
+  const dom = paintedWidth(stack, out)
+  if (dom > width + FIT) return { outcome: 'pretext-gap', detail: `${said} paints ${dom}px, Pretext ${outWidth}px, box ${width}px` }
+  if (from >= 0 && tail.length < name.length) {
+    const domShortest = paintedWidth(stack, shortest)
+    if (domShortest <= width + FIT) {
+      return { outcome: 'pretext-gap', detail: `${said}, but ${JSON.stringify(shortest)} paints ${domShortest}px in ${width}px, Pretext ${shortestWidth}px` }
+    }
+  }
+  return { outcome: 'pass' }
+}
+
 // fontFromStyle is what every other case's font comes from, so a wrong font would show up only
 // as Pretext gaps; it is checked directly against what the pinned style says it should be.
 // Canvas normalises a font string, so both sides go through one context to be compared.
@@ -420,30 +655,43 @@ window.fontPresence = async (): Promise<FontPresence[]> => {
   return out
 }
 
-window.sweep = async (helper: Helper): Promise<CaseResult[]> => {
-  if (helper === 'clamp' || helper === 'truncateMiddle') throw new Error(`sweep: ${helper} has no cases yet`)
+// truncateMiddle sweeps the labels it is for, and the soft-hyphenated corpora as every helper does.
+const MIDDLE_CORPORA = [LABELS, ...CORPORA.filter(c => c.name === 'german' || c.name === 'french')]
+
+const corporaFor = (helper: Helper) => helper === 'truncateMiddle' ? MIDDLE_CORPORA : helper === 'fontFromStyle' ? [] : CORPORA
+window.sweepCorpora = (helper: Helper): string[] => corporaFor(helper).map(c => c.name)
+
+window.sweep = async (helper: Helper, only?: string): Promise<CaseResult[]> => {
   await document.fonts.ready
   if (helper === 'fontFromStyle') return fontFromStyleCases()
-  const ws = widths(window.sweepWidthStep[helper] ?? 1)
+  const step = window.sweepWidthStep[helper] ?? 1
+  const ws = helper === 'truncateMiddle' ? widths(step, LABEL_WIDTH_MIN, LABEL_WIDTH_MAX) : widths(step)
+  const maxLinesList = helper === 'clamp' ? Array.from({ length: CLAMP_MAX_LINES }, (_, i) => i + 1) : [undefined]
   const out: CaseResult[] = []
-  for (const corpus of CORPORA) {
+  for (const corpus of corporaFor(helper).filter(c => only === undefined || c.name === only)) {
     for (const stack of FONT_STACKS) {
       for (const { label, text } of corpus.texts) {
-        for (const w of ws) {
-          const base = { helper, corpus: corpus.name, font: stack.label, width: w }
-          let v: { outcome: Outcome, lines?: number, detail?: string, cause?: string }
-          try {
-            v = helper === 'fitFontSize' ? fitCase(stack, text, w) : widthCase(helper, stack, text, w)
-          } catch (e) {
-            if (!(e instanceof Unreliable)) throw e
-            v = { outcome: 'unreliable', detail: e.message }
+        for (const maxLines of maxLinesList) {
+          for (const w of ws) {
+            const base: CaseResult = { helper, corpus: corpus.name, font: stack.label, width: w, outcome: 'pass' }
+            if (maxLines !== undefined) base.maxLines = maxLines
+            let v: CaseVerdict
+            try {
+              if (helper === 'fitFontSize') v = fitCase(stack, text, w)
+              else if (helper === 'clamp') v = clampCase(stack, text, w, maxLines!)
+              else if (helper === 'truncateMiddle') v = truncateMiddleCase(stack, text, w)
+              else v = widthCase(helper, stack, text, w)
+            } catch (e) {
+              if (!(e instanceof Unreliable)) throw e
+              v = { outcome: 'unreliable', detail: e.message }
+            }
+            const r: CaseResult = { ...base, outcome: v.outcome }
+            if (v.lines !== undefined) r.lines = v.lines
+            // Every non-pass case names its text first, so listings can group by it.
+            if (v.detail !== undefined) r.detail = `${label}: ${v.detail}`
+            if (v.cause !== undefined) r.cause = v.cause
+            out.push(r)
           }
-          const r: CaseResult = { ...base, outcome: v.outcome }
-          if (v.lines !== undefined) r.lines = v.lines
-          // Every non-pass case names its text first, so listings can group by it.
-          if (v.detail !== undefined) r.detail = `${label}: ${v.detail}`
-          if (v.cause !== undefined) r.cause = v.cause
-          out.push(r)
         }
         // Yield between texts so a headed browser stays responsive and does not flag the page as hung.
         await new Promise(resolve => setTimeout(resolve, 0))

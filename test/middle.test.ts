@@ -22,3 +22,14 @@ test('the result never exceeds the width', () => {
     }
   }
 })
+// Found by the browser sweep: the name was measured grapheme by grapheme from inside the label's
+// segment, wider than it paints, so a name that fits with the ellipsis and a grapheme was dropped.
+test('the kept end is measured as the text it paints', () =>
+  assert.equal(truncateMiddle(prepareLabel('src/text/layout.ts', '20px Kern'), 115, { from: 8 }), 's…/layout.ts'))
+// Found by the browser sweep's German corpus: the start was cut at a soft hyphen and kept its hyphen.
+test('the start holds no hyphen where it passes a soft hyphen', () =>
+  assert.equal(truncateMiddle(prepareLabel('aaaa\u00ADbbbb\u00ADcccc', '20px Test'), 100), 'aaaab…cccc'))
+// Found by the browser sweep: the start and end were measured apart, and the joined result,
+// which kerns across the ellipsis, came out up to a quarter pixel wider than the width.
+test('the result is measured whole, and the start gives up what kerning adds', () =>
+  assert.equal(truncateMiddle(prepareLabel('yyyyyyyy zzzzzzzz', '20px Kern'), 100), 'yyyy…zzzz'))

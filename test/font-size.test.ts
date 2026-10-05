@@ -55,3 +55,17 @@ test('a NaN width throws', () =>
   assert.throws(() => fitFontSize(prepareSizes(T, font, { min: 8, max: 40 }), { width: NaN }, lh), RangeError))
 test('an infinite width never constrains', () =>
   assert.equal(fitFontSize(prepareSizes(T, font, { min: 8, max: 40 }), { width: Infinity, maxLines: 1 }, lh)!.px, 40))
+
+// Found by the browser sweep's German corpus: Pretext fits a line ending at a soft hyphen whose
+// syllables measure narrower joined than apart (here 'ts' kerns) and reports its width apart, past
+// the box, so the size was refused though the line fits; the browser paints it fitting.
+test('a soft-hyphen line Pretext fits counts as fitting though its width apart is wider', () => {
+  const sizes = prepareSizes('aat­saa­bb cc', px => `${px}px Kern`, { min: 10, max: 20 })
+  const fit = fitFontSize(sizes, { width: 65, height: 60 }, () => 30)
+  assert.equal(fit?.px, 20)
+  assert.equal(fit?.lineCount, 2)
+})
+test('a grapheme wider than the box still does not fit', () => {
+  const sizes = prepareSizes('ab', px => `${px}px Test`, { min: 10, max: 20 })
+  assert.equal(fitFontSize(sizes, { width: 7 }, () => 30)?.px, 14)
+})
