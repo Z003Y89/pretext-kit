@@ -24,7 +24,9 @@
   <p class="legend">
     <span class="l-pass">pass: the kit agreed with Pretext and the browser painted it</span>
     <span class="l-gap">pretext-gap: Pretext itself differs from the browser there, so the kit can't be judged</span>
-    <span class="l-platform">platform: a proven browser painting quirk (WebKit 26 floors line heights)</span>
+    <span class="l-platform">platform: a proven browser quirk (WebKit 26 floors fractional line heights); safe: the
+      kit answers one size smaller than would fit, never one that overflows</span>
+    <span class="l-gap">unreliable: a painted height that is no whole number of lines, so lines can't be counted</span>
     <span class="l-mismatch">kit-mismatch: the kit wrong where Pretext was right</span>
   </p>
   <dl id="summary" class="readout"></dl>

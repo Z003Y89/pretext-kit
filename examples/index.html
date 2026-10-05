@@ -17,20 +17,21 @@
   <div class="cards-index">
     <a href="responsive-ui.html">
       <h2>Responsive UI</h2>
-      <p>A billing screen from 320 to 1440px: toolbar labels and badges that refit, balanced titles, clamped bodies,
-        file names cut in the middle.</p>
-      <span class="tag">fitFontSizeRich · fitFontSize · balance · clamp · truncateMiddle</span>
+      <p>A billing screen from 320 to 1440px: a toolbar and buttons in one shared size, badges that fit, file
+        names cut in the middle, and a 2,000-row list whose heights are known before render.</p>
+      <span class="tag">fitFontSizeRich · fitFontSize · truncateMiddle · stack · anchorDelta</span>
     </a>
     <a href="text-size.html">
       <h2>Text size</h2>
-      <p>An app-wide text-size setting from 0.8× to 1.5×. The kit refits within the scaled ranges; the layout holds.</p>
-      <span class="tag">prepareSizes · fitFontSize</span>
+      <p>An app-wide text-size setting from 0.8× to 1.5×. The kit honours it: it reflows first and shrinks text by
+        at most 10%.</p>
+      <span class="tag">prepareSizes · fitFontSize · fitFontSizeRich</span>
     </a>
     <a href="languages.html">
       <h2>Languages</h2>
-      <p>The same screen in English, German and French, with compounds soft-hyphenated once by TeX patterns, beside
-        CSS <code>hyphens: auto</code>.</p>
-      <span class="tag">hyphen · fitFontSize · balance</span>
+      <p>The same screen in English, German and French: labels that fit without hyphens, and a title word
+        hyphenated only when it is wider than its card.</p>
+      <span class="tag">fitFontSizeRich · fitFontSize · balance · hyphen</span>
     </a>
     <a href="accuracy.html">
       <h2>Accuracy</h2>

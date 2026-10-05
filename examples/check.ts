@@ -52,27 +52,38 @@ const SCREEN_PAGES: { name: string, settings: Setting[] }[] = [
   { name: 'languages', settings: [320, 380, 480, 600, 760].map(w => ({ label: `${w}px`, apply: slider('width', w) })) },
 ]
 
+async function scrollLists(page: Page, at: number): Promise<void> {
+  await page.evaluate(at => { for (const s of document.querySelectorAll<HTMLElement>('.vl-scroller')) s.scrollTop = at * (s.scrollHeight - s.clientHeight) }, at)
+}
+
 async function frame(page: Page): Promise<void> {
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
 }
 
 // The pages measure their own overflow after each paint (src/screen.ts, measureOverflow) and leave
 // it on each frame; a kit-side box that overflows for any reason but a pretext-gap fails the check.
-async function overflow(page: Page): Promise<{ kit: string[], gaps: string[], css: number }> {
+async function overflow(page: Page): Promise<{ kit: string[], gaps: string[], css: number, wrapped: number, cut: number }> {
   return page.evaluate(() => {
     const kit: string[] = []
     const gaps: string[] = []
     let css = 0
     for (const f of document.querySelectorAll<HTMLElement>('.frame')) {
       const detail: string[] = JSON.parse(f.dataset.detail ?? '[]')
-      if (f.dataset.side === 'kit') {
+      if (f.dataset.side?.startsWith('kit')) {
         for (const d of detail) (d.startsWith('pretext-gap') ? gaps : kit).push(d)
-      } else css += Number(f.dataset.boxes ?? 0)
+      } else if (f.dataset.side === 'css') css += Number(f.dataset.boxes ?? 0)
     }
     if (document.documentElement.scrollWidth > document.documentElement.clientWidth) {
       kit.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${document.documentElement.clientWidth}`)
     }
-    return { kit, gaps, css }
+    // What the best-effort CSS did instead of overflowing: toolbars wrapped onto more rows, badges cut.
+    let wrapped = 0
+    let cut = 0
+    for (const sc of document.querySelectorAll<HTMLElement>('.screen.css')) {
+      if (new Set([...sc.querySelectorAll<HTMLElement>('.tb')].map(e => e.offsetTop)).size > 1) wrapped++
+      cut += [...sc.querySelectorAll<HTMLElement>('.badge-text')].filter(e => e.scrollWidth > e.clientWidth + 0.5).length
+    }
+    return { kit, gaps, css, wrapped, cut }
   })
 }
 
@@ -105,14 +116,30 @@ for (const vw of VIEWPORTS) {
         await frame(page)
         await page.evaluate(p => (document.querySelector(p === 'languages' ? '.lang-block:nth-child(2)' : '#stage') as HTMLElement).scrollIntoView(), p)
         await page.screenshot({ path: join(shots, `${p}${vw === 360 ? '-360' : ''}.png`), fullPage: false })
+        if (p === 'responsive-ui' && vw === 1280) {
+          await scrollLists(page, 0.3)
+          await frame(page)
+          await page.evaluate(() => document.querySelector('.numbers')!.scrollIntoView())
+          await frame(page)
+          await page.waitForTimeout(300)
+          await page.screenshot({ path: join(shots, 'numbers-before-render.png'), fullPage: false })
+        }
         await page.evaluate(() => window.scrollTo(0, 0))
       }
       let cssTotal = 0
+      let wrappedTotal = 0
+      let cutTotal = 0
+      let screens = 0
       for (const s of screen.settings) {
         await s.apply(page)
+        await scrollLists(page, (screen.settings.indexOf(s) % 5) / 4)
+        await frame(page)
         await frame(page)
         const o = await overflow(page)
         cssTotal += o.css
+        wrappedTotal += o.wrapped
+        cutTotal += o.cut
+        screens += await page.evaluate(() => document.querySelectorAll('.screen.css').length)
         for (const k of o.kit) failures.push(`${where} ${s.label}: kit overflow: ${k}`)
         for (const g of o.gaps) gapLog.push(`${where} ${s.label}: ${g}`)
       }
@@ -121,7 +148,7 @@ for (const vw of VIEWPORTS) {
       else for (let x = 0.8; x <= 1.5; x += 0.05) { await slider('scale', x.toFixed(2))(page); await frame(page) }
       const cost = await page.evaluate(() => [...document.querySelectorAll('#readout div')]
         .find(d => d.querySelector('dt')?.textContent?.startsWith('Kit time'))?.querySelector('dd')?.textContent ?? '')
-      log.push(`${where}: ${screen.settings.length} settings, kit boxes overflowing 0, CSS boxes overflowing (summed) ${cssTotal}; after a drag: ${cost}`)
+      log.push(`${where}: ${screen.settings.length} settings (${screens} screen layouts): kit boxes overflowing 0, best-effort CSS boxes overflowing ${cssTotal}; CSS toolbars wrapped onto 2+ rows ${wrappedTotal}/${screens}, CSS badges cut ${cutTotal}; after a drag: ${cost}`)
     } else if (vw === 1280 && p === 'accuracy') {
       await page.click('#factor-filter button[value="1"]')
       await page.click('table.grid button.c-platform >> nth=0')

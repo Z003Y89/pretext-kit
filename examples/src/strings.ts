@@ -1,9 +1,7 @@
 // The app screen's strings in three languages. Real UI copy, not lorem ipsum: German compounds and
 // French phrases are what break fixed-size layouts in practice.
 //
-// The German and French strings are hyphenated once, at build time, by the `hyphen` package
-// (examples/build.ts puts the result in __HYPHENATED__); the kit side paints those soft hyphens with
-// `hyphens: manual`, the CSS side paints the plain strings with `hyphens: auto`.
+// Both sides get the same strings; see hyphenatedTitles below for the one place soft hyphens enter.
 
 export type Lang = 'en' | 'de' | 'fr'
 export const LANGS: Lang[] = ['en', 'de', 'fr']
@@ -126,22 +124,13 @@ export const STRINGS: Record<Lang, ScreenText> = {
   },
 }
 
-// The fields a hyphenator may touch: labels, badges, buttons and titles, which sit in narrow boxes.
-// Never IDs, names or file names; and not the body paragraphs, which are wide enough without, since
-// hyphenation in app text is best kept to where it is needed (Pretext's README says as much).
-export function mapWords(text: ScreenText, f: (s: string) => string): ScreenText {
-  return {
-    app: text.app,
-    toolbar: text.toolbar.map(s => f(s)) as ScreenText['toolbar'],
-    cards: text.cards.map(c => ({ ...c, badge: f(c.badge), title: f(c.title) })) as ScreenText['cards'],
-    secondary: f(text.secondary),
-    primary: f(text.primary),
-  }
-}
+// Hyphenation policy, the same on both sides: labels, badges, buttons and bodies carry no soft
+// hyphens. Titles get them only in a word wider than the card, where the alternative is an arbitrary
+// overflow-wrap break; the kit knows which words those are because it measures them. The hyphenated
+// titles come from the build (examples/build.ts, `hyphen` TeX patterns: en-us, de-1996, fr), one
+// string per card, the same words as the plain title with U+00AD inside some of them.
+declare const __HYPHENATED_TITLES__: Record<Lang, string[]>
 
-declare const __HYPHENATED__: Record<'de' | 'fr', ScreenText>
-
-// The strings the kit side prepares: soft-hyphenated German and French, plain English.
-export function kitStrings(lang: Lang): ScreenText {
-  return lang === 'en' ? STRINGS.en : __HYPHENATED__[lang]
+export function hyphenatedTitles(lang: Lang): string[] {
+  return __HYPHENATED_TITLES__[lang]
 }

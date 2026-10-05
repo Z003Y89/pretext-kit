@@ -11,10 +11,25 @@
 <main class="page">
   <nav class="crumbs"><a href="./">pretext-kit examples</a></nav>
   <h1>Responsive UI</h1>
-  <p class="intro">One billing screen, laid out twice at the width you drag to. On the left (or top), pretext-kit
-    chooses every font size, width and line count before anything paints. On the right (or below), the same screen
-    with the fixed sizes a stylesheet would give it. Drag the width down, or switch to German, and watch where each
-    one gives.</p>
+  <p class="intro">One billing screen at the width you drag to, laid out by pretext-kit beside the same screen in
+    best-effort CSS: rows that wrap, auto heights, <code>text-wrap: balance</code>, <code>line-clamp</code>, a
+    two-span middle cut and <code>clamp()</code> sizes. Good CSS doesn't overflow here, and the counters say so.
+    The difference is in what CSS can't decide.</p>
+
+  <section class="wins">
+    <h2>What CSS can't match here</h2>
+    <ul>
+      <li><b>A toolbar and a button pair in one shared size</b>, chosen by measuring: full size with content-based
+        widths, else one smaller size (never below 90%), else icon-only for just the widest labels, else two lines
+        broken at spaces, else all icons. CSS wraps the row onto a second line instead.</li>
+      <li><b>Badges whose text fits</b> instead of an ellipsis: one badge size for the list, as wide as its text, and
+        the case row wraps before a badge is cut.</li>
+      <li><b>A middle cut without a known split point</b>: <code>truncateMiddle</code> keeps as much of each end of a
+        file name as fits, measured, for any name. CSS needs to know where to split.</li>
+      <li><b>Numbers before render</b>: every card's height, and below, the heights of 2,000 rows, before anything
+        paints.</li>
+    </ul>
+  </section>
 
   <div class="controls">
     <label class="control"><span>Screen width</span>
@@ -26,28 +41,43 @@
       <button type="button" value="fr" aria-pressed="false">FR</button>
     </div>
   </div>
-  <p id="font-status" class="status">Inter, a web font, is still loading: until it arrives, both screens measure and
+  <p id="font-status" class="status">Inter, a web font, is still loading: until it arrives, both sides measure and
     paint the fallback, Helvetica Neue.</p>
   <dl id="readout" class="readout"></dl>
   <div id="stage" class="stage"></div>
 
+  <section class="numbers">
+    <h2>Numbers before render</h2>
+    <p>2,000 messages at 40% of the screen width (drag the slider). The kit knows every row's height before any row
+      exists, so it renders only the rows in view, its scrollbar is exact from the start, and when the width
+      changes the row at the top of the view stays put (<code>stack</code>, <code>findIndexAt</code>,
+      <code>anchorDelta</code>). CSS has to render a row to know its height: the best it can do is put all 2,000
+      in the DOM with <code>content-visibility: auto</code> and an estimated size.</p>
+    <div id="list-stage" class="stage"></div>
+  </section>
+
   <section class="notes">
     <h2>What each box uses</h2>
     <ul>
-      <li><b>Toolbar</b>: <code>fitFontSizeRich</code> sizes each icon and label as one row, 11–14px, on one line
-        if any size allows, else two, else the button shows only its icon. CSS: 14px, <code>nowrap</code>, clipped.</li>
+      <li><b>Toolbar</b>: <code>fitFontSizeRich</code> over the whole row as one line (each icon and label an item
+        that never breaks), then each button as wide as its content, then <code>fitFontSizeRich</code> per button
+        for two lines, with every break at a space. Icon-only buttons keep their label as
+        <code>aria-label</code> and tooltip. CSS: <code>flex-wrap</code>, a <code>clamp()</code> label size.</li>
+      <li><b>Badges</b>: <code>fitFontSize</code> only when a badge's natural width passes its cap (40% of the
+        card), one shared size, then <code>shrinkwrap</code> for its width. CSS: the head wraps, an ellipsis as a
+        last resort.</li>
       <li><b>Case row</b> (icon, the chip <code>207/0011</code>, a name): <code>fitFontSizeRich</code> with the chip
-        as <code>break: 'never'</code>. CSS: 13px, one line, clipped.</li>
-      <li><b>Badge</b>: <code>fitFontSize</code>, 9–12px in a box a third of the card wide. CSS: 12px, ellipsis.</li>
-      <li><b>Title</b>: <code>balance</code> gives the narrowest width that keeps the line count, so there are no
-        orphans, and the line count the card height needs. (CSS <code>text-wrap: balance</code> would fix the
-        orphans too; it cannot give the height before painting.)</li>
-      <li><b>Body</b>: <code>clamp</code> to three lines with an ellipsis measured in the body font; the card's height
-        is known before it paints, so each row is as tall as its tallest card. CSS: <code>-webkit-line-clamp: 3</code>
-        in a card of fixed height.</li>
-      <li><b>Attachment</b>: <code>truncateMiddle</code> keeps the date and extension. CSS:
-        <code>text-overflow: ellipsis</code> keeps the start only.</li>
-      <li><b>Buttons</b>: <code>fitFontSize</code>, 12–15px. CSS: 15px in a 40px-high button.</li>
+        as <code>break: 'never'</code>.</li>
+      <li><b>Titles</b>: <code>balance</code>; soft hyphens only inside a word wider than the card. <b>CSS handles
+        this equally well</b> for display with <code>text-wrap: balance</code>; the kit adds the width and line
+        count as numbers.</li>
+      <li><b>Bodies</b>: <code>clamp</code> to three lines. <b>CSS handles this equally well</b> with
+        <code>line-clamp</code>; the kit adds the cut text and the height before render.</li>
+      <li><b>Card rows</b>: as tall as the tallest card. <b>CSS handles this equally well</b> with grid rows and
+        auto heights; the kit knows the heights first.</li>
+      <li><b>Attachments</b>: <code>truncateMiddle</code> with no split point. CSS: a start span with
+        <code>text-overflow: ellipsis</code> and an end span from the last <code>_</code>, which <b>matches the kit
+        when the split point is known</b>, as it is for these names.</li>
       <li>Fonts come from <code>fontFromStyle(getComputedStyle(el))</code> on probe elements styled like each role;
         <code>watchFonts</code> clears Pretext's cache when Inter arrives, and the page prepares again.</li>
     </ul>

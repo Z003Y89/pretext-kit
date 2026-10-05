@@ -24,6 +24,8 @@ export function createTimer(size = 30): { add(us: number): void, mean(): number,
 export type Shared = {
   model: Model
   fonts(): Fonts
+  // Bumped each time a web font arrives, for prepared state kept outside the model.
+  epoch(): number
   schedule(): void
 }
 
@@ -34,6 +36,7 @@ export function startPage(render: () => void): Shared {
   const model = createModel()
   const probes = createProbes()
   let fonts = readFonts(probes)
+  let epoch = 0
   let raf: number | null = null
   const schedule = () => {
     if (raf !== null) return
@@ -46,6 +49,7 @@ export function startPage(render: () => void): Shared {
   watchFonts(() => {
     const t = performance.now()
     model.reset()
+    epoch++
     fonts = readFonts(probes)
     root.dataset.fontState = 'loaded'
     schedule()
@@ -63,7 +67,7 @@ export function startPage(render: () => void): Shared {
     }
   })
   window.addEventListener('resize', schedule)
-  return { model, fonts: () => fonts, schedule }
+  return { model, fonts: () => fonts, epoch: () => epoch, schedule }
 }
 
 // Each label and value pair sits in its own <div> inside the <dl>, so the grid keeps them together.

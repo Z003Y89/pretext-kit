@@ -12,9 +12,22 @@
   <nav class="crumbs"><a href="./">pretext-kit examples</a></nav>
   <h1>Text size</h1>
   <p class="intro">An app-wide text-size setting, like the one in iOS, Android and most desktop apps, from 0.8× to
-    1.5×. A text-size setting is a different font size in CSS px, so the kit prepares each size it needs
-    (<code>prepareSizes</code> keeps them) and fits every label again within the scaled range. The fixed-size CSS
-    scales its fonts by the same factor and keeps its boxes.</p>
+    1.5×. The kit honours the size the reader asked for: it reflows first (content-width buttons, icon-only
+    buttons, a second line, a badge on its own row) and shrinks text only within a small band, never below 90% of
+    the requested size. That is a trade-off: shrinking more would keep the layout tighter, but text that ignores a
+    text-size setting fails the reader it is for (cf. WCAG 1.4.4, Resize text). The best-effort CSS side scales
+    its fonts by the same factor and wraps.</p>
+
+  <section class="wins">
+    <h2>What CSS can't match here</h2>
+    <ul>
+      <li><b>One shared size for a row</b> that holds as text grows: the toolbar and the buttons switch layout
+        (shared size, icon-only, two lines) at the exact text size where the current one stops fitting.</li>
+      <li><b>Badges that fit</b> at the reader's size, moving under the case row rather than being cut.</li>
+      <li><b>Every height before render</b>, for any text size: a text-size setting is a new font size, so the
+        kit prepares each size it needs once (<code>prepareSizes</code> keeps them).</li>
+    </ul>
+  </section>
 
   <div class="controls">
     <label class="control"><span>Text size</span>
@@ -26,7 +39,7 @@
       <button type="button" value="fr" aria-pressed="false">FR</button>
     </div>
   </div>
-  <p id="font-status" class="status">Inter, a web font, is still loading: until it arrives, both screens measure and
+  <p id="font-status" class="status">Inter, a web font, is still loading: until it arrives, both sides measure and
     paint the fallback, Helvetica Neue.</p>
   <dl id="readout" class="readout"></dl>
   <div id="stage" class="stage"></div>
@@ -40,7 +53,9 @@
         step), with the same counts at 1.25 and 2. That is emulation on one OS, not proof for Windows or Linux font
         rendering; see RESULTS.md.</li>
       <li>A text-size setting changes CSS px, so it is a new font: prepare per size. The kit's fit ranges scale with the
-        setting (toolbar 11–14px becomes 14–18px at 1.25×) and line heights stay whole pixels.</li>
+        setting (the toolbar's 13–14px becomes 16–18px at 1.25×) and line heights stay whole pixels.</li>
+      <li>Titles, bodies and card heights: <b>CSS handles these equally well</b> here (balance, line-clamp, auto
+        heights); the kit adds the numbers before render.</li>
       <li>Boxes keep their padding; only text scales. Icons scale with the text they sit next to.</li>
     </ul>
   </section>

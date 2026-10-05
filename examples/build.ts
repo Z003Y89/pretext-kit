@@ -6,18 +6,20 @@ import { cpSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import de from 'hyphen/de/index.js'
+import en from 'hyphen/en-us/index.js'
 import fr from 'hyphen/fr/index.js'
-import { STRINGS, mapWords } from './src/strings.ts'
+import { STRINGS } from './src/strings.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const dist = join(here, 'dist')
 const PAGES = ['responsive-ui', 'text-size', 'languages', 'accuracy']
 
-// German and French are hyphenated once, here, by TeX patterns (hyphen/de is de-1996), and shipped
-// as soft hyphens; the 750 KB of German patterns stay out of the pages.
-const hyphenated = {
-  de: mapWords(STRINGS.de, de.hyphenateSync),
-  fr: mapWords(STRINGS.fr, fr.hyphenateSync),
+// Card titles are hyphenated once, here, by TeX patterns (hyphen/de is de-1996), and shipped as soft
+// hyphens; the pages use them only for a word wider than its card. The patterns stay out of the pages.
+const hyphenatedTitles = {
+  en: STRINGS.en.cards.map(c => en.hyphenateSync(c.title)),
+  de: STRINGS.de.cards.map(c => de.hyphenateSync(c.title)),
+  fr: STRINGS.fr.cards.map(c => fr.hyphenateSync(c.title)),
 }
 
 rmSync(dist, { recursive: true, force: true })
@@ -32,7 +34,7 @@ await build({
   target: 'es2022',
   minify: true,
   sourcemap: 'linked',
-  define: { __HYPHENATED__: JSON.stringify(hyphenated) },
+  define: { __HYPHENATED_TITLES__: JSON.stringify(hyphenatedTitles) },
   logLevel: 'warning',
 })
 

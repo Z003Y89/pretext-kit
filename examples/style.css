@@ -182,9 +182,13 @@ h1 { margin: 0; font: 600 28px/1.15 var(--ui); letter-spacing: -0.01em; }
 .screen .btn.primary { background: var(--accent); color: var(--accent-ink); }
 .screen .btn-label { text-align: center; }
 
-/* The kit side: every size is written inline by the painter. Text wraps as Pretext models it,
-   with the build's soft hyphens and nothing else. */
-.kit .tb, .kit .meta, .kit .card { flex: none; }
+/* The kit side: every size is written inline by the painter. Text wraps as Pretext models it, with
+   no hyphenation but the soft hyphens a title word was given. */
+.kit .tb, .kit .meta, .kit .badge { flex: none; }
+.kit .card-head { flex-wrap: wrap; column-gap: 8px; row-gap: 6px; }
+/* The chip is set in another weight; top-aligned, its box can't push the line past the line height
+   the model counted (baseline alignment of mixed fonts can round a line a pixel taller). */
+.kit .chip { vertical-align: top; }
 .kit .tb-content, .kit .meta, .kit .badge-text, .kit .title, .kit .btn-label {
   white-space: normal; overflow-wrap: break-word; word-break: normal; line-break: auto;
   -webkit-hyphens: manual; hyphens: manual;
@@ -193,9 +197,12 @@ h1 { margin: 0; font: 600 28px/1.15 var(--ui); letter-spacing: -0.01em; }
    breaks after collapses at its end instead of taking room as it would under pre. */
 .kit .body .line, .kit .file-name { white-space: nowrap; }
 .kit .tb-content, .kit .file-name { display: block; }
+.kit .footer[data-mode="stacked"] { flex-direction: column; align-items: stretch; }
 
-/* The fixed-size CSS side: what a stylesheet written for one width and one language does. */
-.css { --s: 1; -webkit-hyphens: auto; hyphens: auto; overflow-wrap: break-word; }
+/* The best-effort CSS side: what a competent stylesheet does without measuring. Rows wrap, heights
+   are auto, titles balance, bodies clamp, the file name is cut in the middle where its date starts,
+   and labels scale a little with the container. */
+.css { --s: 1; -webkit-hyphens: manual; hyphens: manual; overflow-wrap: break-word; }
 .css .role-app { font-size: calc(18px * var(--s)); line-height: calc(24px * var(--s)); }
 .css .role-label { font-size: calc(14px * var(--s)); line-height: calc(20px * var(--s)); }
 .css .role-chip { font-size: calc(13px * var(--s)); }
@@ -205,20 +212,49 @@ h1 { margin: 0; font: 600 28px/1.15 var(--ui); letter-spacing: -0.01em; }
 .css .role-body { font-size: calc(14px * var(--s)); line-height: calc(20px * var(--s)); }
 .css .role-file { font-size: calc(13px * var(--s)); line-height: calc(18px * var(--s)); }
 .css .role-button { font-size: calc(15px * var(--s)); line-height: calc(20px * var(--s)); }
-.css .tb { flex: 1 1 0; min-width: 0; height: 36px; white-space: nowrap; overflow: hidden; }
+.css .toolbar { flex-wrap: wrap; }
+.css .tb { flex: 1 1 auto; min-width: 0; }
+.css .tb .tb-content { font-size: clamp(calc(13px * var(--s)), calc(1.5cqi * var(--s)), calc(14px * var(--s))); }
 .css .tb .icon { width: 16px; height: 16px; margin: 2px 6px 0 0; }
 .css .cards { grid-template-columns: 1fr; }
 @container (min-width: 668px) { .css .cards { grid-template-columns: repeat(2, 1fr); } }
 @container (min-width: 1008px) { .css .cards { grid-template-columns: repeat(3, 1fr); } }
-.css .card { height: 228px; overflow: hidden; }
-.css .card-head { height: 20px; }
-.css .meta { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
+.css .card-head { flex-wrap: wrap; row-gap: 6px; }
+.css .meta { flex: 1 1 10em; min-width: 0; }
 .css .meta .icon { width: 14px; height: 14px; margin: 2px 6px 0 0; }
-.css .badge { max-width: 40%; }
+.css .badge { max-width: 100%; }
 .css .badge-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.css .body { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-.css .file-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.css .btn { width: min(260px, calc(50% - 4px)); height: 40px; overflow: hidden; }
+.css .title { text-wrap: balance; -webkit-hyphens: auto; hyphens: auto; }
+.css .body { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.css .file-name { display: flex; flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+.css .file-start { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.css .file-end { flex: none; }
+.css .footer { flex-wrap: wrap; }
+.css .btn { flex: 0 1 auto; min-width: 0; }
+
+/* ------------------------------------------------------------------------------------------- */
+/* Numbers before render: the 2,000-row list */
+
+.numbers { margin-top: 40px; }
+.numbers h2, .wins h2 { margin: 0 0 6px; font: 600 18px/1.3 var(--ui); }
+.numbers > p { margin: 0 0 14px; max-width: 80ch; color: var(--muted); font-size: 14px; }
+.list-frame { flex: none; max-width: 100%; }
+.list-readout { margin: 0 0 8px; min-height: 4.5em; font-size: 13px; color: var(--muted); }
+.vl-scroller {
+  height: 360px; overflow-y: auto; overscroll-behavior: contain; border-radius: 10px;
+  background: var(--card); box-shadow: inset 0 0 0 1px var(--line);
+}
+.vl-inner { position: relative; }
+.vl-inner .vl-row { position: absolute; left: 0; }
+.vl-row {
+  padding: 8px 12px; box-shadow: inset 0 -1px 0 var(--line);
+  white-space: normal; overflow-wrap: break-word; -webkit-hyphens: manual; hyphens: manual;
+}
+.vl-css .vl-row { content-visibility: auto; contain-intrinsic-size: auto 60px; }
+
+.wins { margin: 0 0 20px; padding: 14px 16px; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); max-width: 96ch; }
+.wins ul { margin: 0; padding-left: 18px; font-size: 14px; }
+.wins li { margin: 4px 0; }
 
 /* ------------------------------------------------------------------------------------------- */
 /* Index */

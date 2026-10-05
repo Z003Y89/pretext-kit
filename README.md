@@ -8,15 +8,22 @@ list heights. Every helper is checked against what Chromium, WebKit and Firefox 
 
 What it adds that CSS can't do:
 
-- **Headless**: the same answers in Node and CI, with no browser ([below](#headless)).
 - **`fitFontSize` / `fitFontSizeRich`**: the largest whole-pixel size at which a label, or an icon and a label
-  together, fits a box: on one line, in N lines, or in a height. CSS has no exact equivalent.
-- **`truncateMiddle`**: `~/Projects/atlas/…/line-breaker.test.ts`, keeping a file name's end. CSS can only cut the
-  end.
+  together, fits a box: on one line, in N lines, or in a height; and so one shared size for a whole toolbar or
+  button row. CSS has no exact equivalent.
+- **`truncateMiddle`**: `~/Projects/atlas/…/line-breaker.test.ts`, keeping as much of each end as fits, for any
+  string. CSS can cut the middle only where you already know the split point.
+- **Numbers before render**: heights, widths and line counts for text that isn't in the DOM yet (virtual lists,
+  canvas, layout decided ahead of paint).
 
-![A billing screen in German, side by side: pretext-kit's side fits every label, the fixed-size CSS side clips the toolbar](examples/screenshots/responsive-ui.png)
+Coming, not shipped yet: **pretext-kit/headless**, the same answers in Node and CI with no browser
+([below](#headless-coming)).
 
-*The [examples](#examples): one screen laid out by the kit (left) and by fixed-size CSS (right).*
+![A billing screen in German, side by side: pretext-kit puts the toolbar in one row with one label collapsed to its icon; best-effort CSS wraps the toolbar onto a second row](examples/screenshots/responsive-ui.png)
+
+*The [examples](#examples): one screen laid out by the kit (left) and by best-effort CSS (right). Good CSS doesn't
+overflow either; the kit decides things CSS can't, such as one shared size for the toolbar and which labels
+collapse to icons.*
 
 ## Install
 
@@ -36,12 +43,12 @@ npm install ./pretext ./pretext-kit
 
 | Helper | Plain-CSS alternative | When CSS suffices | When you need the kit |
 |---|---|---|---|
-| `balance` | `text-wrap: balance` | Displaying a headline with even lines | You need the width as a number: canvas, SVG, or layout decided before render |
-| `clamp` | `-webkit-line-clamp` | Displaying "3 lines then …" | You need the cut text itself, or the clamped height before render (virtual lists, cards) |
+| `balance` | `text-wrap: balance` (Chrome 114, Safari 17.5, Firefox 121) | Displaying a headline with even lines; engines balance only short blocks (each caps the line count it will balance) | You need the width as a number (canvas, SVG, layout decided before render), or longer blocks, or older engines |
+| `clamp` | `-webkit-line-clamp` (all three engines; the unprefixed `line-clamp` isn't everywhere yet, so ship both) | Displaying "3 lines then …" | You need the cut text itself, or the clamped height before render (virtual lists, cards) |
 | `shrinkwrap` | none for multi-line (`fit-content` stays at the full width once text wraps) | Single-line bubbles | Multi-line bubbles and tooltips that hug their text |
-| `truncateMiddle` | none (`text-overflow` cuts the end only) | Never, for middle cuts | File names, paths, IDs that must keep their end |
-| `fitFontSize(Rich)` | none exact; fluid `clamp()` and container units only approximate | When "about right" is fine | Labels, badges and buttons that must fit, in every language and text size |
-| headless | a real browser in CI (Playwright) | You already run one | Unit tests and servers without a browser |
+| `truncateMiddle` | two spans in a flex row: the start with `min-width: 0; overflow: hidden; text-overflow: ellipsis`, the end `flex: none` | The split point is known (the extension, a date after the last `_`) and the end always fits | Any string, where the cut should keep as much of each end as fits, measured |
+| `fitFontSize(Rich)` | none exact; fluid `clamp()` and container units only approximate | When "about right" is fine, or wrapping the row is acceptable | Labels, badges and buttons that must fit, one shared size per row, in every language and text size |
+| headless (coming) | a real browser in CI (Playwright) | You already run one | Unit tests and servers without a browser |
 
 ## When to measure with the DOM instead
 
@@ -89,11 +96,6 @@ fitFontSize(sizes, { width: 180, maxLines: 1 }, px => Math.round(px * 1.3))   //
 The browser reproduces every answer: a helper returns a width, a font size, a line count or the cut text of a line,
 and the browser's own wrapping at that value paints the predicted lines.
 
-## Headless
-
-**pretext-kit/headless — coming in this repo.** A Node-side measurer so Pretext and every helper run in tests and
-on servers without a browser.
-
 ## What's exact
 
 `npm run verify` sweeps every helper in Chromium, WebKit and Firefox (Playwright 1.61.0, macOS), at
@@ -123,21 +125,29 @@ as a grid.
 ## Hyphenation
 
 Browsers' `hyphens: auto` dictionaries differ per engine, so no measurer can know where they break. Put soft
-hyphens (U+00AD) in once, measure that string, and paint the same string with `hyphens: manual`:
+hyphens (U+00AD) in once, measure that string, and paint the same string with `hyphens: manual`. Hyphenate only
+where it's needed: a label or button can usually reflow or take a shared size instead, and a title needs soft
+hyphens only in a word wider than its box, which the kit can measure:
 
 ```ts
+import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
+import { balance } from 'pretext-kit'
 import de from 'hyphen/de/index.js'   // TeX patterns (de-1996), the hyphen package
 
-const label = de.hyphenateSync('Zahlungspflichtig abonnieren')   // 'Zah\u00ADlungs\u00ADpflich\u00ADtig abon\u00ADnie\u00ADren'
-const sizes = prepareSizes(label, px => `500 ${px}px Inter`, { min: 12, max: 15 })
-const fit = fitFontSize(sizes, { width: 140, maxLines: 2 }, px => Math.round(px * 1.33))
-// paint `label`, soft hyphens included, at fit.px with `hyphens: manual`
+const title = 'Datenschutzeinstellungen geändert'
+const hyphenated = de.hyphenateSync(title).split(' ')   // 'Da\u00ADten\u00ADschutz…'
+const text = title.split(' ')
+  .map((w, i) => measureNaturalWidth(prepareWithSegments(w, font)) > boxWidth ? hyphenated[i] : w)
+  .join(' ')
+const { width, lineCount } = balance(prepareWithSegments(text, font), boxWidth)
+// paint `text`, soft hyphens included, at `width` with `hyphens: manual`
 ```
 
-The sweep's German and French corpora are hyphenated this way and run through every helper: zero kit-mismatch in
-all three browsers, with pretext-gaps under 0.5% of their cases ([RESULTS.md](verify/RESULTS.md)). Hyphenate where
-it's needed (narrow labels, buttons, titles), not every paragraph: Pretext's README recommends conservative
-insertion for app text.
+The sweep's German and French corpora are hyphenated throughout and run through every helper: zero kit-mismatch
+in all three browsers. Their pretext-gaps are under 0.5% of the German cases and under 1% of the French ones in
+every browser and zoom factor (WebKit also has line-height `platform` cases, which are safe). See
+[RESULTS.md](verify/RESULTS.md) for the per-browser counts. Pretext's README
+also recommends conservative insertion for app text.
 
 ## Zoom and scale
 
@@ -265,24 +275,35 @@ const rowHeight = Math.max(...row.map(cardHeight))
 
 `npm run examples` builds them into `examples/dist`; `npm run examples:serve` serves them on
 http://localhost:4173. They cover only what the kit adds (Pretext's own demos show bubbles, ellipsis and a chat list),
-each beside the same UI in fixed-size CSS, with live sizes and timings, in light and dark:
+each beside the same UI in best-effort CSS (wrapping rows, auto heights, `text-wrap: balance`, `line-clamp`, a
+two-span middle cut, `clamp()` sizes), with live sizes and timings, in light and dark. Each page says which boxes
+CSS handles equally well (titles, bodies, row heights):
 
-- **Responsive UI**: a billing screen from 320 to 1440px (toolbar via `fitFontSizeRich`, badges via `fitFontSize`,
-  titles via `balance`, bodies via `clamp`, attachments via `truncateMiddle`).
-- **Text size**: an app-wide text-size setting from 0.8× to 1.5×.
-- **Languages**: English, German and French, soft-hyphenated with `hyphen`, beside CSS `hyphens: auto`.
+- **Responsive UI**: a billing screen from 320 to 1440px: a toolbar and button pair in one shared size
+  (`fitFontSizeRich`, content widths, then icon-only for the widest labels, then two lines broken at spaces),
+  badges that fit (`fitFontSize`, `shrinkwrap`), file names cut in the middle with no split point
+  (`truncateMiddle`), and a 2,000-row list with exact heights and a scroll anchor (`stack`, `findIndexAt`,
+  `anchorDelta`) beside CSS `content-visibility: auto`.
+- **Text size**: an app-wide text-size setting from 0.8× to 1.5×. The kit reflows first and shrinks text by at
+  most 10% (cf. WCAG 1.4.4).
+- **Languages**: English, German and French; no hyphens in labels, soft hyphens only in a title word wider than
+  its card.
 - **Accuracy**: the sweep as a browser × zoom × helper × corpus grid with sample cases
   (`npm run examples:data` re-exports it from `verify/`).
 - **Headless parity**: coming with pretext-kit/headless.
 
 Fonts come from `fontFromStyle(getComputedStyle(el))`; the local server sends Inter 1.5 s late so `watchFonts`
 visibly lays the page out again. `npm run examples:check` loads every page in headless Chromium at 360, 768 and
-1280px and fails on a console error or on a kit-side box that overflows for any reason other than a pretext-gap.
+1280px and fails on a console error or on a kit-side box that overflows for any reason other than a pretext-gap
+(a paragraph the browser wraps differently from Pretext's own layout of it). In its last run neither side
+overflowed anywhere; best-effort CSS wrapped the toolbar onto a second row in 8 of 21 settings at 1280px and in
+every setting at 360px.
 
 | | |
 |---|---|
 | ![Text size at 1.3×](examples/screenshots/text-size.png) | ![Languages, German at 560px](examples/screenshots/languages.png) |
 | ![Responsive UI at a 360px viewport](examples/screenshots/responsive-ui-360.png) | ![Accuracy explorer](examples/screenshots/accuracy.png) |
+| ![2,000 rows with heights known before render, beside content-visibility: auto](examples/screenshots/numbers-before-render.png) | |
 
 ## Versions
 
@@ -292,6 +313,11 @@ Pretext's next release. It uses only Pretext's public exports: `prepareWithSegme
 `layoutNextLineRange`, `layoutWithLines`, `measureLineStats`, `measureNaturalWidth` and `clearCache`, and from
 `@chenglou/pretext/rich-inline`, `prepareRichInline` and `measureRichInlineStats`. Of a prepared handle's fields it
 reads only the documented `segments`.
+
+## Headless (coming)
+
+**pretext-kit/headless — coming in this repo; not shipped yet.** A Node-side measurer so Pretext and every helper
+run in tests and on servers without a browser.
 
 ## Not in v1
 
