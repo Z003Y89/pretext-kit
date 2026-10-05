@@ -22,11 +22,19 @@ export type OpInfo = { id: string, group: string, label: string, unit: string, n
 export type Sample = { op: string, ms: number, units: number, focused: boolean }
 export type SetupInfo = {
   font: string, lineHeight: number, timerStep: number, crossOriginIsolated: boolean, dpr: number, userAgent: string,
-  helveticaNeue: boolean, messages: { n: number, medianLength: number, short: number, medium: number, long: number, byCorpus: Record<string, number> },
+  messages: { n: number, medianLength: number, short: number, medium: number, long: number, byCorpus: Record<string, number> },
 }
-export type FirstPass = { n: number, prepareMs: number, layoutMs: number }
+// The first batch a fresh browser prepares, and, as a control, a second batch of new strings right after it with
+// Pretext's caches cleared again: the gap between them is everything a browser warms on first use (JIT, the canvas,
+// font loading, its shaping caches), which this bench does not take apart.
+export type FirstPass = { n: number, prepareMs: number, layoutMs: number, secondPrepareMs: number }
+// The DOM's equivalent in another freshly launched browser: create, append and read 1,000 new message divs, then a
+// second batch right after as the control.
+export type DomFirstPass = { n: number, firstMs: number, secondMs: number }
+export type CallStats = { n: number, p50: number, p95: number, max: number }
+export type PerCall = Record<string, CallStats>
 export type Check = {
-  heightsAgree: number, heightsN: number, fitAgree: number, fitN: number, fitLoopAgree: number,
+  heightsAgree: number, heightsN: number, fitAgree: number, fitN: number, fitLoopAgree: number, fitWarmAgree: number, fitWarmDomAgree: number, domWarmSteps: number,
   clampTruncated: number, middleTruncated399: number, middleTruncated200: number, labelsN: number,
 }
 export type CountSummary = { mean: number, min: number, max: number }
@@ -41,6 +49,9 @@ declare global {
   interface Window {
     benchSetup: (session: number) => Promise<SetupInfo>
     benchFirstPass: () => FirstPass
+    benchDomFirstPass: () => DomFirstPass
+    benchFontPresence: () => boolean
+    benchPerCall: () => PerCall
     benchInit: () => OpInfo[]
     benchCalibrate: (targetMs: number) => Promise<Record<string, number>>
     benchRound: (round: number) => Promise<Sample[]>
@@ -61,6 +72,20 @@ const FIT = { min: 8, max: 48, height: 96 }
 const RICH = { min: 8, max: 32, height: 72 }
 const fitLh = (px: number): number => Math.round(px * 1.5)
 const MIN_CALIBRATION_MS = 5
+// A new width per call for the helpers whose cut texts Pretext caches (clamp, truncateMiddle): stepping down a pixel a
+// call from the start, and a 1/64 px lower on each pass through the range, so no width repeats within a session.
+// Nearby widths can still cut the same text, as they do while a user drags a window edge.
+function stepper(start: number, span: number): () => number {
+  let k = 0
+  return () => {
+    const w = start - (k % span) - Math.floor(k / span) / 64
+    k++
+    return w
+  }
+}
+const clampWidth = stepper(RESIZED, 100)
+const middleWidth = stepper(RESIZED, 100)
+const narrowWidth = stepper(NARROW, 50)
 
 // --- Seeded randomness (mulberry32), so a session's workload is reproducible from its seed. ---
 function rngFrom(seed: number): () => number {
@@ -238,7 +263,7 @@ window.benchSetup = async (s: number): Promise<SetupInfo> => {
   for (const m of base) byCorpus[m.corpus] = (byCorpus[m.corpus] ?? 0) + 1
   return {
     font, lineHeight: style.lineHeight, timerStep: timerStep(), crossOriginIsolated: window.crossOriginIsolated === true,
-    dpr: devicePixelRatio, userAgent: navigator.userAgent, helveticaNeue: helveticaNeuePresent(),
+    dpr: devicePixelRatio, userAgent: navigator.userAgent,
     messages: {
       n: base.length, medianLength: lengths[lengths.length >> 1]!,
       short: lengths.filter(l => l < 20).length, medium: lengths.filter(l => l >= 20 && l <= 100).length, long: lengths.filter(l => l > 100).length,
@@ -247,8 +272,9 @@ window.benchSetup = async (s: number): Promise<SetupInfo> => {
   }
 }
 
-// The first prepare a fresh browser makes: no Pretext cache, no canvas yet, the browser's font caches cold. Run once,
-// right after benchSetup in a newly launched browser, before anything else measures text.
+// The first prepare a fresh browser makes: no Pretext cache, no canvas yet. Run once, right after benchSetup in a
+// newly launched browser, before anything else measures text (benchSetup reads computed styles only; the page holds
+// no text; the font-presence probe runs after this).
 window.benchFirstPass = (): FirstPass => {
   const batch = messages(freshRng, N)
   const t0 = performance.now()
@@ -256,8 +282,40 @@ window.benchFirstPass = (): FirstPass => {
   const t1 = performance.now()
   for (const h of hs) sink += layout(h, RESIZED, LINE_HEIGHT).height
   const t2 = performance.now()
-  return { n: N, prepareMs: t1 - t0, layoutMs: t2 - t1 }
+  const second = messages(freshRng, N)
+  clearCache()
+  const t3 = performance.now()
+  for (const m of second) sink += prepareWithSegments(m.text, font).segments.length
+  const t4 = performance.now()
+  return { n: N, prepareMs: t1 - t0, layoutMs: t2 - t1, secondPrepareMs: t4 - t3 }
 }
+
+// In a browser of its own, launched for this alone: the first 1,000 new messages the DOM lays out and reads.
+window.benchDomFirstPass = (): DomFirstPass => {
+  const pass = (): number => {
+    const batch = messages(freshRng, N)
+    freshBox.replaceChildren()
+    freshBox.style.width = `${RESIZED}px`
+    sink += freshBox.offsetHeight
+    const t = performance.now()
+    const frag = document.createDocumentFragment()
+    const els: HTMLDivElement[] = []
+    for (const m of batch) {
+      const d = document.createElement('div')
+      d.textContent = m.text
+      frag.appendChild(d)
+      els.push(d)
+    }
+    freshBox.appendChild(frag)
+    for (const d of els) sink += d.getBoundingClientRect().height
+    return performance.now() - t
+  }
+  const firstMs = pass()
+  const secondMs = pass()
+  return { n: N, firstMs, secondMs }
+}
+
+window.benchFontPresence = (): boolean => helveticaNeuePresent()
 
 // --- Operations. A repeat op runs its body `reps` times in one timed span; a fresh op times `reps` passes, each after
 // an untimed setup that hands it new state (new strings, new PreparedSizes, cleared caches). ---
@@ -293,8 +351,8 @@ function rewarm(): void {
 }
 
 // DOM: does the box fit at its current font size, checked the usual way.
-function domFits(el: HTMLElement): boolean {
-  return el.scrollHeight <= FIT.height && el.scrollWidth <= RESIZED
+function domFits(el: HTMLElement, width = RESIZED): boolean {
+  return el.scrollHeight <= FIT.height && el.scrollWidth <= width
 }
 function setPx(el: HTMLElement, px: number): void {
   el.style.fontSize = `${px}px`
@@ -318,30 +376,67 @@ function domFitLoop(text: string): number {
 }
 // The same search for every box at once: all sizes written, then all boxes read, so each step costs one layout of
 // the boxes rather than one per box, as a competent batched implementation would do.
-function domFitLockstep(els: HTMLElement[]): Int32Array {
+function domFitLockstep(els: HTMLElement[], width = RESIZED): Int32Array {
   const n = els.length
   const lo = new Int32Array(n)
   const hi = new Int32Array(n)
   for (const el of els) setPx(el, FIT.min)
-  let active = 0
   for (let i = 0; i < n; i++) {
-    if (domFits(els[i]!)) { lo[i] = FIT.min; hi[i] = FIT.max; if (FIT.min < FIT.max) active++ }
+    if (domFits(els[i]!, width)) { lo[i] = FIT.min; hi[i] = FIT.max }
     else { lo[i] = -1; hi[i] = -1 }
   }
+  bisectLockstep(els, lo, hi, width)
+  return lo
+}
+// Halves every box's range [lo, hi] at once, lo a size known to fit (or min - 1, standing for none), until lo === hi:
+// all sizes written, then all boxes read, one reflow a step. Returns the number of steps.
+function bisectLockstep(els: HTMLElement[], lo: Int32Array, hi: Int32Array, width: number): number {
+  const n = els.length
   const mid = new Int32Array(n)
-  while (active > 0) {
+  let steps = 0
+  for (;;) {
+    let active = 0
     for (let i = 0; i < n; i++) {
-      if (lo[i]! < hi[i]!) { mid[i] = lo[i]! + Math.ceil((hi[i]! - lo[i]!) / 2); setPx(els[i]!, mid[i]!) }
+      if (lo[i]! < hi[i]!) { mid[i] = lo[i]! + Math.ceil((hi[i]! - lo[i]!) / 2); setPx(els[i]!, mid[i]!); active++ }
     }
-    active = 0
+    if (active === 0) return steps
+    steps++
     for (let i = 0; i < n; i++) {
       if (lo[i]! < hi[i]!) {
-        if (domFits(els[i]!)) lo[i] = mid[i]!
+        if (domFits(els[i]!, width)) lo[i] = mid[i]!
         else hi[i] = mid[i]! - 1
-        if (lo[i]! < hi[i]!) active++
       }
     }
   }
+}
+// The warm-started DOM search a careful app makes on a resize: every box tries the size it had before; one that still
+// fits and does not fit a pixel larger is done in those two reflows, and the rest bisect the range on their side.
+let warmSteps = 0
+function domFitWarm(els: HTMLElement[], seeds: Int32Array, width: number): Int32Array {
+  const n = els.length
+  const lo = new Int32Array(n)
+  const hi = new Int32Array(n)
+  const at = new Int32Array(n)
+  for (let i = 0; i < n; i++) { at[i] = seeds[i]! < 0 ? FIT.min : seeds[i]!; setPx(els[i]!, at[i]!) }
+  const fitsAt = new Uint8Array(n)
+  for (let i = 0; i < n; i++) fitsAt[i] = domFits(els[i]!, width) ? 1 : 0
+  let up = 0
+  for (let i = 0; i < n; i++) {
+    if (fitsAt[i] === 1 && at[i]! < FIT.max) { setPx(els[i]!, at[i]! + 1); up++ }
+  }
+  for (let i = 0; i < n; i++) {
+    const a = at[i]!
+    if (fitsAt[i] === 1) {
+      if (a === FIT.max || !domFits(els[i]!, width)) { lo[i] = a; hi[i] = a }
+      else { lo[i] = a + 1; hi[i] = FIT.max }
+    } else {
+      // min - 1 stands for "no size fits" and comes back as min - 1, read as null.
+      lo[i] = FIT.min - 1
+      hi[i] = a - 1
+    }
+  }
+  warmSteps = 1 + (up > 0 ? 1 : 0) + bisectLockstep(els, lo, hi, width)
+  for (let i = 0; i < n; i++) if (lo[i]! < FIT.min) lo[i] = -1
   return lo
 }
 
@@ -379,6 +474,8 @@ window.benchInit = (): OpInfo[] => {
 
   // a) prepare
   let batch: Message[] = []
+  // The handles a prepare pass makes are kept, as an app keeps them, so the engine cannot drop the work; the next
+  // pass's untimed setup releases them, though their collection may land in a later timed span of any op.
   let kept: PreparedTextWithSegments[] = []
   fresh('prepare.cold', 'prepare', 'prepareWithSegments, first sight (Pretext caches cleared, new strings)', 'message', N,
     () => { kept = []; batch = messages(freshRng, N); clearCache() },
@@ -406,17 +503,28 @@ window.benchInit = (): OpInfo[] => {
   repeat('balance.399', 'helpers', 'balance at 399', 'message', N, r => {
     for (let k = 0; k < r; k++) for (const h of handles) sink += balance(h, RESIZED).width
   })
-  repeat('clamp.399', 'helpers', 'clamp(…, 399, 3, measureTail(\'…\'))', 'message', N, r => {
-    for (let k = 0; k < r; k++) for (const h of handles) sink += clamp(h, RESIZED, 3, tail).lineCount
+  // clamp and truncateMiddle measure their cut text through Pretext, whose caches would hold a width's cuts after one
+  // repetition, so every repetition takes a width the session has not used (stepper above).
+  repeat('clamp.399', 'helpers', 'clamp(…, 3, measureTail(\'…\')) at a new width each repetition, 399 down', 'message', N, r => {
+    for (let k = 0; k < r; k++) {
+      const w = clampWidth()
+      for (const h of handles) sink += clamp(h, w, 3, tail).lineCount
+    }
   })
   repeat('prepareLabel', 'helpers', 'prepareLabel (path labels, Pretext caches warm)', 'label', LABEL_N, r => {
     for (let k = 0; k < r; k++) for (const l of labels) sink += prepareLabel(l, font).starts.length
   })
-  repeat('truncateMiddle.399', 'helpers', 'truncateMiddle at 399, keepEnd at the last /', 'label', LABEL_N, r => {
-    for (let k = 0; k < r; k++) for (const p of prepLabels) sink += truncateMiddle(p, RESIZED, { from: p.text.lastIndexOf('/') }).length
+  repeat('truncateMiddle.399', 'helpers', 'truncateMiddle at a new width each repetition, 399 down; keepEnd at the last /', 'label', LABEL_N, r => {
+    for (let k = 0; k < r; k++) {
+      const w = middleWidth()
+      for (const p of prepLabels) sink += truncateMiddle(p, w, { from: p.text.lastIndexOf('/') }).length
+    }
   })
-  repeat('truncateMiddle.200', 'helpers', 'truncateMiddle at 200, keepEnd at the last /', 'label', LABEL_N, r => {
-    for (let k = 0; k < r; k++) for (const p of prepLabels) sink += truncateMiddle(p, NARROW, { from: p.text.lastIndexOf('/') }).length
+  repeat('truncateMiddle.200', 'helpers', 'truncateMiddle at a new width each repetition, 200 down; keepEnd at the last /', 'label', LABEL_N, r => {
+    for (let k = 0; k < r; k++) {
+      const w = narrowWidth()
+      for (const p of prepLabels) sink += truncateMiddle(p, w, { from: p.text.lastIndexOf('/') }).length
+    }
   })
   let sizes: PreparedSizes[] = []
   fresh('fit.cleared', 'helpers', 'fitFontSize, new PreparedSizes, Pretext caches cleared', 'message', N,
@@ -473,11 +581,22 @@ window.benchInit = (): OpInfo[] => {
   repeat('dom.fit.loop', 'dom', 'DOM fitFontSize: the common loop, one box, a read per size tried', 'message', N, r => {
     for (let k = 0; k < r; k++) for (const m of base) sink += domFitLoop(m.text)
   })
-  repeat('dom.fit.lockstep', 'dom', 'DOM fitFontSize: all boxes searched in lockstep (a reflow per step)', 'message', N, r => {
-    for (let k = 0; k < r; k++) sink += domFitLockstep(fitEls)[0]!
+  repeat('dom.fit.lockstep', 'dom', 'DOM fitFontSize: all boxes searched in lockstep from scratch (a reflow per step)', 'message', N, r => {
+    for (let k = 0; k < r; k++) {
+      setWidths(fitEls, RESIZED)
+      sink += domFitLockstep(fitEls)[0]!
+    }
   })
+  let seeds: Int32Array = new Int32Array(0)
+  fresh('dom.fit.warm', 'dom', 'DOM fitFontSize warm-started on a resize, 400 then 399: each box tries its previous size first', 'message', N,
+    () => { setWidths(fitEls, WIDTH); seeds = domFitLockstep(fitEls, WIDTH); sink += fitBox.offsetHeight },
+    () => { setWidths(fitEls, RESIZED); sink += domFitWarm(fitEls, seeds, RESIZED)[0]! })
   for (const op of ops) reps.set(op.id, 1)
   return ops.map(({ id, group, label, unit, n }) => ({ id, group, label, unit, n }))
+}
+
+function setWidths(els: HTMLElement[], width: number): void {
+  for (const el of els) el.style.width = `${width}px`
 }
 
 const pause = (): Promise<void> => new Promise(done => {
@@ -539,19 +658,74 @@ window.benchRound = async (round: number): Promise<Sample[]> => {
 }
 
 // Whether the kit and the DOM baselines answer alike on this workload, so the timings compare like with like.
+// Per-call cost, outside the timed rounds: each call timed alone, so each reading is quantised to the timer step and
+// the distribution, not any one reading, is the result. Widths come from steppers of their own, offset by 1/128 px
+// from the timed rows', so these calls also meet widths the session has not used.
+window.benchPerCall = (): PerCall => {
+  const stats = (xs: number[]): CallStats => {
+    const v = xs.map(x => x * 1000).sort((a, b) => a - b)
+    const q = (f: number): number => v[Math.max(0, Math.ceil(f * v.length) - 1)]!
+    return { n: v.length, p50: q(0.5), p95: q(0.95), max: v[v.length - 1]! }
+  }
+  const time = (f: () => number): number => {
+    const t = performance.now()
+    sink += f()
+    return performance.now() - t
+  }
+  const cw = stepper(RESIZED - 1 / 128, 100)
+  const mw = stepper(RESIZED - 1 / 128, 100)
+  const nw = stepper(NARROW - 1 / 128, 50)
+  const clampMs: number[] = [], middleMs: number[] = [], narrowMs: number[] = [], coldMs: number[] = [], warmMs: number[] = []
+  for (let pass = 0; pass < 3; pass++) {
+    const w = cw()
+    for (const h of handles) clampMs.push(time(() => clamp(h, w, 3, tail).lineCount))
+  }
+  for (let pass = 0; pass < 5; pass++) {
+    const w = mw()
+    const v = nw()
+    for (const p of prepLabels) {
+      middleMs.push(time(() => truncateMiddle(p, w, { from: p.text.lastIndexOf('/') }).length))
+      narrowMs.push(time(() => truncateMiddle(p, v, { from: p.text.lastIndexOf('/') }).length))
+    }
+  }
+  for (const m of base) {
+    const sz = sizesFor(m.text)
+    coldMs.push(time(() => fitFontSize(sz, fitAt(RESIZED), fitLh)?.px ?? 0))
+    const s2 = sizesFor(m.text)
+    sink += fitFontSize(s2, fitAt(WIDTH), fitLh)?.px ?? 0
+    warmMs.push(time(() => fitFontSize(s2, fitAt(RESIZED), fitLh)?.px ?? 0))
+  }
+  return {
+    'clamp': stats(clampMs), 'truncateMiddle ≈399': stats(middleMs), 'truncateMiddle ≈200': stats(narrowMs),
+    'fitFontSize, new PreparedSizes (Pretext caches warm)': stats(coldMs), 'fitFontSize, second call 400 then 399': stats(warmMs),
+  }
+}
+
 window.benchCheck = (): Check => {
   messagesBox.style.width = `${RESIZED}px`
   let heightsAgree = 0
   for (let i = 0; i < N; i++) {
     if (Math.abs(messageEls[i]!.getBoundingClientRect().height - layout(handles[i]!, RESIZED, LINE_HEIGHT).height) < 0.5) heightsAgree++
   }
+  setWidths(fitEls, RESIZED)
   const dom = domFitLockstep(fitEls)
   let fitAgree = 0
   let fitLoopAgree = 0
+  let fitWarmAgree = 0
+  let fitWarmDomAgree = 0
+  setWidths(fitEls, WIDTH)
+  const seeds = domFitLockstep(fitEls, WIDTH)
+  setWidths(fitEls, RESIZED)
+  const warmDom = domFitWarm(fitEls, seeds, RESIZED)
+  const domWarmSteps = warmSteps
   for (let i = 0; i < N; i++) {
     const kit = fitFontSize(sizesFor(base[i]!.text), fitAt(RESIZED), fitLh)?.px ?? -1
     if (kit === dom[i]) fitAgree++
     if (domFitLoop(base[i]!.text) === dom[i]) fitLoopAgree++
+    const s = sizesFor(base[i]!.text)
+    fitFontSize(s, fitAt(WIDTH), fitLh)
+    if ((fitFontSize(s, fitAt(RESIZED), fitLh)?.px ?? -1) === dom[i]) fitWarmAgree++
+    if (warmDom[i] === dom[i]) fitWarmDomAgree++
   }
   let clampTruncated = 0
   for (const h of handles) if (clamp(h, RESIZED, 3, tail).truncated) clampTruncated++
@@ -561,7 +735,7 @@ window.benchCheck = (): Check => {
     if (truncateMiddle(p, RESIZED, { from: p.text.lastIndexOf('/') }) !== p.text) middleTruncated399++
     if (truncateMiddle(p, NARROW, { from: p.text.lastIndexOf('/') }) !== p.text) middleTruncated200++
   }
-  return { heightsAgree, heightsN: N, fitAgree, fitN: N, fitLoopAgree, clampTruncated, middleTruncated399, middleTruncated200, labelsN: LABEL_N }
+  return { heightsAgree, heightsN: N, fitAgree, fitN: N, fitLoopAgree, fitWarmAgree, fitWarmDomAgree, domWarmSteps, clampTruncated, middleTruncated399, middleTruncated200, labelsN: LABEL_N }
 }
 
 // Count bundle only: Pretext calls per kit call, read from the wrappers bench-run.ts swaps in for Pretext's entries.
