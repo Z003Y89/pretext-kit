@@ -36,8 +36,9 @@ registerFont(family: string, data: Uint8Array, face?: { weight?: number | [min: 
 // TTF/OTF/TTC, WOFF (node:zlib) or WOFF2 (wawoff2), detected by signature; async only because WOFF2 decompresses.
 // A variable font registers its weight range; registration of the same family/weight/style twice throws.
 install(options?: { onMissingGlyph?: 'throw' | 'notdef', rounding?: 'none' | 'whole-px' }): void
-// Sets globalThis.OffscreenCanvas and a desktop Chrome navigator.userAgent. Must run before the first prepare();
-// throws if Pretext already prepared text (detected by a probe), since its engine profile is fixed by then.
+// Sets globalThis.OffscreenCanvas and a desktop Chrome navigator.userAgent. Must run before the first prepare(),
+// since Pretext fixes its engine profile and canvas then; this order is documented, not detected (a load-time probe
+// misfired on other libraries' feature detection). Throws if a non-headless OffscreenCanvas is already installed.
 ```
 
 Apps register the same font files their CSS loads (`@font-face` sources), under the same family names, then use Pretext

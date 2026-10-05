@@ -27,7 +27,7 @@ and `registerFont`/`install`. Parity is checked by measuring the same strings in
 
 1. **A font family with quotes and fallbacks** (`600 16px "Inter Display", Inter, sans-serif`): each character uses the first registered family that covers it; unregistered names are skipped. → H1.
 2. **WOFF2 given as raw bytes**: it must be decompressed, never silently shaped as garbage. → H2 test with a WOFF2 Inter that measures equal to the TTF.
-3. **`install()` after Pretext already prepared text**: the engine profile is already fixed, so it throws with a message saying to call it first. → H3.
+3. **Soft hyphens** (`Zahlungs\u00ADpflichtig`): Pretext probes generic `monospace`/`serif` to choose a hyphen glyph, and that probe must never throw. The stand-in steers it to Chrome's choice. → H3 (amended, Ruling H-2).
 4. **Letter spacing round trip** (`ctx.letterSpacing = '0.5px'` reads back `'0.5px'`, `parseFloat` equal): Pretext turns spacing support off otherwise. → H3.
 5. **jsdom present** (`document.body` exists): emoji measured within size + 0.5 never trigger Pretext's DOM correction; an uncovered emoji throws the coverage error. → H4.
 
@@ -88,6 +88,6 @@ Registering the same family/weight/style twice throws.
 
 **Files:** Create `verify/headless.ts`, `verify/HEADLESS_RESULTS.md`; Modify `package.json` (script `verify:headless`).
 - [ ] Measure in Node (the stand-in) and in Playwright Chromium (Canvas `measureText` with `@font-face` loading the same Inter files): 40 strings (German compounds, French, digits, punctuation, kerning pairs, ligatures) × weights 400/600/700 × sizes 12/14/16/20 × letter spacing 0/0.5px. Pass bar: |Δ| ≤ 0.02px.
-- [ ] Line counts: the v1 Latin, German and French corpora (covered text only) at widths 120–600 step 2, laid out by Pretext in Node and compared with Chromium's painted DOM. Use v1's attribution order: first Pretext-in-Chromium vs Node, where a difference is a `headless-mismatch`; then Pretext vs DOM, where a difference is a `pretext-gap`.
+- [ ] Line counts: the v1 Latin, German (with its soft hyphens) and French corpora (covered text only) at widths 120–600 step 2, laid out by Pretext in Node and compared with Chromium's painted DOM. Use v1's attribution order: first Pretext-in-Chromium vs Node, where a difference is a `headless-mismatch`; then Pretext vs DOM, where a difference is a `pretext-gap`.
 - [ ] Mutants: drop kerning; ignore the weight. Each must produce headless-mismatches; revert both.
 - [ ] Write `HEADLESS_RESULTS.md` with builds, OS and date. Exit 1 on any headless-mismatch. Commit `test(headless): parity sweep against Chromium`.
