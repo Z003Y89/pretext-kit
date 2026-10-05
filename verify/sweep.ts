@@ -406,7 +406,8 @@ function fitCase(stack: FontStack, text: string, width: number): Verdict & { cau
 
 // Sizes 8-32 with whole-px line heights, so the WebKit 26 floor (a fractional line height) has
 // nothing to act on here. The height box holds three lines of the sweep's base 16px/24px text, so it
-// is fixed across the sizes searched, as a real box is.
+// is fixed across the sizes searched, as a real box is. Three times each size's own line height would
+// make it the same test as maxLines 3.
 const RICH_MIN = 8
 const RICH_MAX = 32
 const RICH_HEIGHT = 3 * LINE_HEIGHT
@@ -424,7 +425,9 @@ const richIcon = document.getElementById('rich-icon') as HTMLSpanElement
 const richLabel = document.getElementById('rich-label') as HTMLSpanElement
 
 // The row as the kit is handed it and as the harness measures it: the icon's box, then the label
-// with its gap as extraWidth, in the font computed style gives at that size.
+// with its gap as extraWidth, in the font computed style gives at that size. The kit and the model
+// judge share this row, so a bug here (a width or font that does not match what paintRich paints)
+// cannot show as a kit-mismatch: Pretext's count then disagrees with the painting, a pretext-gap.
 function richRow(stack: FontStack, text: string, px: number): Array<RichInlineItem | RichInlineBox> {
   const f = fontAt(stack, px, richLh(px))
   return [{ width: iconWidth(px) }, { text, font: f.font, letterSpacing: f.letterSpacing, extraWidth: iconGap(px) }]

@@ -28,6 +28,8 @@ each width probed, shrinkwrap's width against the ceiling of the widest painted 
 text's non-white-space fragments; one pixel less passes only if the browser paints the identical layout there,
 since engines let a line overshoot by up to 1/64 px), and balance one pixel narrower painting more lines.
 
+In 23 cases the browser paints more lines at fitFontSize's own answer than Pretext lays out there, so the answer visibly overflows its box: Kapitän 6 (Helvetica Neue/Arial; chromium, firefox); Synchroniser 11 (Helvetica Neue; chromium, firefox); Responsabilité 6 (Helvetica Neue; chromium, firefox). They are pretext-gaps, since Pretext's own line count is the cause and the kit agreed with it, but they are overflows a user sees.
+
 clamp runs at maxLines 1-5 with the tail `measureTail('…', font)`. By Pretext: the tail must match Pretext's
 widths of `…` and a no-break space; the line count must be min(Pretext's, maxLines) and truncated exactly when
 Pretext lays out more; clampStats must agree; every line but a cut one must be Pretext's line at the same cursor;
@@ -42,7 +44,9 @@ fitFontSizeRich sizes an icon and its label as one row, at 8-32px with line heig
 `inline-block; vertical-align: top` icon round(1.25·px) wide and px tall, then the label with
 `margin-left: round(0.5·px)px` (the row's `extraWidth`, and `box-decoration-break: clone`, since Pretext charges
 a wrapped item's extraWidth on every line), in a `white-space: normal; overflow-wrap: break-word` box of width W,
-with the boxes { width: W, maxLines: 1 } and { width: W, height: 72 } (three 24px lines). Corpora: latin, german,
+with the boxes { width: W, maxLines: 1 } and { width: W, height: 72 }. The height is three lines of the sweep's base
+16px/24px text, fixed across the sizes searched as a real box is; three times each size's own line height would
+make the height box the same test as maxLines 3. Corpora: latin, german,
 french, emoji-chat and ui-labels (real labels such as "Zahlungspflichtig abonnieren", not hyphenated). By Pretext,
 computed in the harness from `prepareRichInline` and `measureRichInlineStats` (never the kit): the handle and
 lineCount must match Pretext's count at W, the size must fit (no line past W + 1/64 unless no unbreakable piece,
@@ -51,6 +55,23 @@ the next size must not; null only when 8px does not fit. Then the painting: at t
 painted line count must match Pretext's (else pretext-gap), and the answer must fit the box (lines or height,
 scrollWidth ≤ W and, where Pretext reports a line past W, the widest painted line, from the box's left edge to
 the rightmost icon or text fragment on it, within W + 1/64) while the next size must not.
+
+In 66 cases the browser paints more lines at fitFontSizeRich's own answer than Pretext lays out there, so the answer visibly overflows its box: Kapitän 8 (Helvetica Neue; chromium, firefox); Nebenrollen 30 (Georgia/Times New Roman; chromium); Synchroniser 12 (Helvetica Neue; chromium, firefox); Responsabilité 13 (Helvetica Neue; chromium, firefox); Anticonstitutionnalité 3 (Arial; chromium). They are pretext-gaps, since Pretext's own line count is the cause and the kit agreed with it, but they are overflows a user sees.
+
+A next-size gap where the browser paints more lines than Pretext, such as "Speichern" (Helvetica Neue, 25px in a
+126px box), is harmless: the answer fits. Pretext's README (the extraWidth note) warns that a padded span the
+browser wraps itself can break elsewhere, with `clone` too.
+
+**Painting.** A one-off probe, not part of the gated tallies: fitFontSizeRich in Chromium 149 at factor 1, the
+same 203,944 cases, with the label painted as a plain `margin-left` (the default `box-decoration-break: slice`,
+which pads only the first line). Checked at the kit's answer: browser lines > maxLines, height > 72,
+scrollWidth > W, or (where Pretext reports a line past W) the widest painted line > W + 1/64. With slice, 11
+answers overflow, all on painted lines or height and none on scrollWidth: Nebenrollen (Georgia, height) 5,
+Responsabilité 3, Kapitän 1, Synchroniser 1, Anticonstitutionnalité 1, the same soft-hyphen texts as above.
+11,253 answers fit where the next size also does, and 24 nulls where 8px fits, so they err small. With clone the
+same probe gives 32 overflows (the Chromium factor-1 cases counted above) and 168 + 1 that err small. So slice
+painting mostly errs small, by up to the margin Pretext charges on later lines, but it does not remove the
+soft-hyphen overflows.
 
 truncateMiddle runs on path labels, and on the German and French corpora, at widths 80-400px, with
 keepEnd from the last `/` where there is one. By Pretext: the whole label exactly when its natural width fits;
@@ -96,7 +117,7 @@ For exact fits in Safari 26, use whole-px line heights.
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 2.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 2.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -104,11 +125,11 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
 | shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
-| balance (12s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
-| fitFontSize (22s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| fitFontSizeRich (20s) | 203944 | 203723 | 221 | 0 | 0 | 0 |
-| clamp (57s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
-| truncateMiddle (5s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
+| balance (15s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
+| fitFontSize (30s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
+| fitFontSizeRich (27s) | 203944 | 203723 | 221 | 0 | 0 | 0 |
+| clamp (76s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
+| truncateMiddle (6s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -126,7 +147,7 @@ By corpus (sweep helpers):
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 0.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 0.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
@@ -134,10 +155,10 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
 | shrinkwrap (5s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
-| balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
-| fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
-| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| balance (5s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
+| fitFontSize (9s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
+| fitFontSizeRich (7s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
+| clamp (20s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -156,18 +177,18 @@ By corpus (sweep helpers):
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 0.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 0.9 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (5s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
-| balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
-| fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
-| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| shrinkwrap (7s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
+| balance (6s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
+| fitFontSize (9s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
+| fitFontSizeRich (7s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
+| clamp (20s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -186,19 +207,19 @@ By corpus (sweep helpers):
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 7.2 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 5.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (80s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (56s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (91s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| fitFontSizeRich (55s) | 203944 | 203944 | 0 | 0 | 0 | 0 |
-| clamp (142s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
-| truncateMiddle (7s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+| shrinkwrap (96s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
+| balance (47s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
+| fitFontSize (53s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
+| fitFontSizeRich (34s) | 203944 | 203944 | 0 | 0 | 0 | 0 |
+| clamp (102s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
+| truncateMiddle (6s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -216,18 +237,18 @@ By corpus (sweep helpers):
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 2.0 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 1.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (30s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
-| balance (17s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (21s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| fitFontSizeRich (13s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
-| clamp (38s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| shrinkwrap (23s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (14s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSizeRich (9s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
+| clamp (28s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
 | truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -246,17 +267,17 @@ By corpus (sweep helpers):
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 1.6 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 1.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (26s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
-| balance (13s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (16s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| fitFontSizeRich (10s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
+| shrinkwrap (22s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (12s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSizeRich (9s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
 | clamp (28s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
@@ -276,18 +297,18 @@ By corpus (sweep helpers):
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 3.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 3.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (23s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (25s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
-| fitFontSize (28s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| fitFontSizeRich (27s) | 203944 | 203718 | 226 | 0 | 0 | 0 |
-| clamp (98s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
+| shrinkwrap (27s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
+| balance (27s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
+| fitFontSize (30s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
+| fitFontSizeRich (30s) | 203944 | 203718 | 226 | 0 | 0 | 0 |
+| clamp (106s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
 | truncateMiddle (9s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -315,10 +336,10 @@ By helper:
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
 | shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
 | balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
-| fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
-| fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
-| clamp (29s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
-| truncateMiddle (4s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| fitFontSize (10s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| fitFontSizeRich (9s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
+| clamp (30s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -344,10 +365,10 @@ By helper:
 |---|---:|---:|---:|---:|---:|---:|
 | fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
 | shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
-| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
-| fitFontSize (10s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| balance (9s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
 | fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
-| clamp (28s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| clamp (27s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
 | truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):

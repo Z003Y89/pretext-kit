@@ -153,6 +153,33 @@ function casesOf(outcome: string): Located[] {
 const mismatches = casesOf('kit-mismatch')
 if (mismatches.length > 0) failures.push(`${mismatches.length} kit-mismatch cases`)
 
+// Cases where the browser paints more lines at the kit's own answer than Pretext lays out there. They are
+// pretext-gaps (Pretext's count is the cause and the kit agreed with it), but each is an overflow a user sees.
+const AT_ANSWER = /^returned (\d+)px, at (\d+)px: DOM (\d+) lines, Pretext (\d+)$/
+function overflowsAtAnswer(helper: Helper): string {
+  const byText = new Map<string, { n: number, fonts: Set<string>, where: Set<string> }>()
+  let n = 0
+  for (const { browser, factor, c } of casesOf('pretext-gap')) {
+    if (c.helper !== helper || c.detail === undefined) continue
+    const colon = c.detail.indexOf(': ')
+    const m = AT_ANSWER.exec(c.detail.slice(colon + 2))
+    if (m === null || m[1] !== m[2] || Number(m[3]) <= Number(m[4])) continue
+    n++
+    const label = c.detail.slice(0, colon)
+    let e = byText.get(label)
+    if (e === undefined) byText.set(label, e = { n: 0, fonts: new Set(), where: new Set() })
+    e.n++
+    e.fonts.add(c.font)
+    e.where.add(browser)
+  }
+  const parts = [...byText].map(([label, e]) => `${label} ${e.n} (${[...e.fonts].join('/')}; ${[...e.where].join(', ')})`)
+  return n === 0
+    ? `In no case does the browser paint more lines at ${helper}'s answer than Pretext.`
+    : `In ${n} cases the browser paints more lines at ${helper}'s own answer than Pretext lays out there, so the answer `
+      + `visibly overflows its box: ${parts.join('; ')}. They are pretext-gaps, since Pretext's own line count is the `
+      + 'cause and the kit agreed with it, but they are overflows a user sees.'
+}
+
 const full = only === undefined && helperArg === undefined && factorArg === undefined
 
 // Gap and unreliable counts may drift a little with a browser update, but a jump is a finding.
@@ -213,6 +240,8 @@ if (full) {
     'text\'s non-white-space fragments; one pixel less passes only if the browser paints the identical layout there,',
     'since engines let a line overshoot by up to 1/64 px), and balance one pixel narrower painting more lines.',
     '',
+    overflowsAtAnswer('fitFontSize'),
+    '',
     'clamp runs at maxLines 1-5 with the tail `measureTail(\'…\', font)`. By Pretext: the tail must match Pretext\'s',
     'widths of `…` and a no-break space; the line count must be min(Pretext\'s, maxLines) and truncated exactly when',
     'Pretext lays out more; clampStats must agree; every line but a cut one must be Pretext\'s line at the same cursor;',
@@ -227,7 +256,9 @@ if (full) {
     '`inline-block; vertical-align: top` icon round(1.25·px) wide and px tall, then the label with',
     '`margin-left: round(0.5·px)px` (the row\'s `extraWidth`, and `box-decoration-break: clone`, since Pretext charges',
     'a wrapped item\'s extraWidth on every line), in a `white-space: normal; overflow-wrap: break-word` box of width W,',
-    `with the boxes { width: W, maxLines: 1 } and { width: W, height: 72 } (three 24px lines). Corpora: latin, german,`,
+    `with the boxes { width: W, maxLines: 1 } and { width: W, height: 72 }. The height is three lines of the sweep's base`,
+    '16px/24px text, fixed across the sizes searched as a real box is; three times each size\'s own line height would',
+    'make the height box the same test as maxLines 3. Corpora: latin, german,',
     'french, emoji-chat and ui-labels (real labels such as "Zahlungspflichtig abonnieren", not hyphenated). By Pretext,',
     'computed in the harness from `prepareRichInline` and `measureRichInlineStats` (never the kit): the handle and',
     'lineCount must match Pretext\'s count at W, the size must fit (no line past W + 1/64 unless no unbreakable piece,',
@@ -236,6 +267,23 @@ if (full) {
     'painted line count must match Pretext\'s (else pretext-gap), and the answer must fit the box (lines or height,',
     'scrollWidth ≤ W and, where Pretext reports a line past W, the widest painted line, from the box\'s left edge to',
     'the rightmost icon or text fragment on it, within W + 1/64) while the next size must not.',
+    '',
+    overflowsAtAnswer('fitFontSizeRich'),
+    '',
+    'A next-size gap where the browser paints more lines than Pretext, such as "Speichern" (Helvetica Neue, 25px in a',
+    '126px box), is harmless: the answer fits. Pretext\'s README (the extraWidth note) warns that a padded span the',
+    'browser wraps itself can break elsewhere, with `clone` too.',
+    '',
+    '**Painting.** A one-off probe, not part of the gated tallies: fitFontSizeRich in Chromium 149 at factor 1, the',
+    'same 203,944 cases, with the label painted as a plain `margin-left` (the default `box-decoration-break: slice`,',
+    'which pads only the first line). Checked at the kit\'s answer: browser lines > maxLines, height > 72,',
+    'scrollWidth > W, or (where Pretext reports a line past W) the widest painted line > W + 1/64. With slice, 11',
+    'answers overflow, all on painted lines or height and none on scrollWidth: Nebenrollen (Georgia, height) 5,',
+    'Responsabilité 3, Kapitän 1, Synchroniser 1, Anticonstitutionnalité 1, the same soft-hyphen texts as above.',
+    '11,253 answers fit where the next size also does, and 24 nulls where 8px fits, so they err small. With clone the',
+    'same probe gives 32 overflows (the Chromium factor-1 cases counted above) and 168 + 1 that err small. So slice',
+    'painting mostly errs small, by up to the margin Pretext charges on later lines, but it does not remove the',
+    'soft-hyphen overflows.',
     '',
     `truncateMiddle runs on path labels, and on the German and French corpora, at widths ${LABEL_WIDTH_MIN}-${LABEL_WIDTH_MAX}px, with`,
     'keepEnd from the last `/` where there is one. By Pretext: the whole label exactly when its natural width fits;',
