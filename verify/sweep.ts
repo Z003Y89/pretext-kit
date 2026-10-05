@@ -7,7 +7,8 @@ import {
 } from '../src/index.ts'
 import type { Clamped, FitResult, FitResultRich, PreparedLabel, PreparedSizesRich, StyleFont, Tail } from '../src/index.ts'
 import {
-  CLAMP_MAX_LINES, CORPORA, FONT_SIZE, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, LABELS, LINE_HEIGHT, RICH_BOXES, RICH_CORPORA, widths,
+  CLAMP_MAX_LINES, FIT_HEIGHT, FIT_LINE_HEIGHT_RATIO, FIT_MAX, FIT_MIN, FONT_SIZE, FONT_STACKS, LABEL_WIDTH_MAX, LABEL_WIDTH_MIN,
+  LINE_HEIGHT, RICH_BOXES, RICH_MAX, RICH_MIN, corporaFor, richLineHeight as richLh, widths,
 } from './corpora.ts'
 import type { FontStack, RichBox } from './corpora.ts'
 import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
@@ -45,12 +46,7 @@ declare global {
   }
 }
 
-// 96px holds four 24px lines, so the box is tight enough at 16px that most texts must shrink or
-// grow to fit, which is where a wrong size would show.
-const FIT_HEIGHT = 96
-const FIT_MIN = 8
-const FIT_MAX = 48
-const FIT_LINE_HEIGHT_RATIO = 1.5
+// fitFontSize's box and sizes (FIT_HEIGHT, FIT_MIN, FIT_MAX, FIT_LINE_HEIGHT_RATIO) are in corpora.ts.
 // Line boxes sit on at most a 1/64 px grid in every engine, so a height within this of n lines is n lines.
 const GRID = 1 / 64
 // Pretext lets a line exceed its width by this much. The harness pins its own copy rather than
@@ -409,9 +405,7 @@ function fitCase(stack: FontStack, text: string, width: number): Verdict & { cau
 // nothing to act on here. The height box holds three lines of the sweep's base 16px/24px text, so it
 // is fixed across the sizes searched, as a real box is. Three times each size's own line height would
 // make it the same test as maxLines 3.
-const RICH_MIN = 8
-const RICH_MAX = 32
-const richLh = (px: number): number => Math.round(px * 1.5)
+// RICH_MIN, RICH_MAX and richLh (richLineHeight) are in corpora.ts.
 const iconWidth = (px: number): number => Math.round(px * 1.25)
 const iconGap = (px: number): number => Math.round(px * 0.5)
 
@@ -816,25 +810,49 @@ function canonicalFont(font: string): string | undefined {
   return canvas.font === '1px sweep-sentinel' ? undefined : canvas.font
 }
 
+// Besides the pinned 400 normal style at every size, three variants at 16px/24px set a property the
+// pinned style leaves at its default, so that dropping it from the font string is seen: Canvas
+// serialises weight 400, normal style and no spacing away, so a check at the defaults alone cannot
+// tell a font string that omits them from one that keeps them. Each variant names itself in the
+// case's corpus column.
+type StyleVariant = { name: string, weight: number, style: 'normal' | 'italic', letterSpacing: number }
+const STYLE_VARIANTS: StyleVariant[] = [
+  { name: 'weight 700', weight: 700, style: 'normal', letterSpacing: 0 },
+  { name: 'italic', weight: 400, style: 'italic', letterSpacing: 0 },
+  { name: 'letter-spacing 0.5px', weight: 400, style: 'normal', letterSpacing: 0.5 },
+]
+
 function fontFromStyleCases(): CaseResult[] {
   const out: CaseResult[] = []
-  const styles: [number, number][] = [[FONT_SIZE, LINE_HEIGHT]]
-  for (let px = FIT_MIN; px <= FIT_MAX; px++) styles.push([px, px * FIT_LINE_HEIGHT_RATIO])
+  const styles: [number, number, StyleVariant | undefined][] = [[FONT_SIZE, LINE_HEIGHT, undefined]]
+  for (let px = FIT_MIN; px <= FIT_MAX; px++) styles.push([px, px * FIT_LINE_HEIGHT_RATIO, undefined])
+  for (const v of STYLE_VARIANTS) styles.push([FONT_SIZE, LINE_HEIGHT, v])
   for (const stack of FONT_STACKS) {
-    for (const [px, lh] of styles) {
+    for (const [px, lh, v] of styles) {
       styleProbe(stack, px, lh)
+      if (v !== undefined) {
+        probe.style.fontWeight = String(v.weight)
+        probe.style.fontStyle = v.style
+        probe.style.letterSpacing = `${v.letterSpacing}px`
+      }
       const got = fontFromStyle(getComputedStyle(probe))
+      // Back to the pinned style, which every other case reads its font from.
+      probe.style.fontWeight = ''
+      probe.style.fontStyle = ''
+      probe.style.letterSpacing = ''
       // Built from the pinned values in sweep.html and the stack as written, not from computed style.
-      const expected = { font: `400 ${px}px ${stack.family}`, letterSpacing: 0, lineHeight: lh }
+      const weight = v?.weight ?? 400
+      const italic = v?.style === 'italic' ? 'italic ' : ''
+      const expected = { font: `${italic}${weight} ${px}px ${stack.family}`, letterSpacing: v?.letterSpacing ?? 0, lineHeight: lh }
       const gotFont = canonicalFont(got.font)
       const wantFont = canonicalFont(expected.font)
       const ok = gotFont !== undefined && gotFont === wantFont
         && got.letterSpacing === expected.letterSpacing && got.lineHeight === expected.lineHeight
-      const base = { helper: 'fontFromStyle', corpus: '-', font: stack.label, width: px }
+      const base = { helper: 'fontFromStyle', corpus: v?.name ?? '-', font: stack.label, width: px }
       out.push(ok ? { ...base, outcome: 'pass' } : {
         ...base,
         outcome: 'kit-mismatch',
-        detail: `${px}px/${lh}px: got ${JSON.stringify(got)}, expected ${JSON.stringify(expected)}`,
+        detail: `${px}px/${lh}px${v === undefined ? '' : ` ${v.name}`}: got ${JSON.stringify(got)}, expected ${JSON.stringify(expected)}`,
       })
     }
   }
@@ -868,13 +886,7 @@ window.fontPresence = async (): Promise<FontPresence[]> => {
   return out
 }
 
-// truncateMiddle sweeps the labels it is for, and the soft-hyphenated corpora as every helper does.
-const MIDDLE_CORPORA = [LABELS, ...CORPORA.filter(c => c.name === 'german' || c.name === 'french')]
-
-
-const corporaFor = (helper: Helper) => helper === 'truncateMiddle' ? MIDDLE_CORPORA
-  : helper === 'fitFontSizeRich' ? RICH_CORPORA
-  : helper === 'fontFromStyle' ? [] : CORPORA
+// The corpora per helper are corporaFor in corpora.ts.
 window.sweepCorpora = (helper: Helper): string[] => corporaFor(helper).map(c => c.name)
 
 window.sweep = async (helper: Helper, only?: string): Promise<CaseResult[]> => {

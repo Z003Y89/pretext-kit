@@ -5,8 +5,8 @@ Widths 120-600px (truncateMiddle 80-400px), at Playwright deviceScaleFactor 1, 1
 Width step per helper at factor 1: shrinkwrap 1, balance 1, fitFontSize 1, fitFontSizeRich 1, clamp 1, truncateMiddle 1.
 Width step per helper at factor 1.25: shrinkwrap 4, balance 4, fitFontSize 4, fitFontSizeRich 4, clamp 4, truncateMiddle 4.
 Width step per helper at factor 2: shrinkwrap 4, balance 4, fitFontSize 4, fitFontSizeRich 4, clamp 4, truncateMiddle 4.
-fontFromStyle cases are one per font stack and pinned size (16px/24px, then 8-48px at 1.5 line height); their
-"width" column is the font size.
+fontFromStyle cases are one per font stack and pinned size (16px/24px, then 8-48px at 1.5 line height), plus
+weight 700, italic and 0.5px letter spacing at 16px/24px; their "width" column is the font size, their corpus the variant.
 
 A `pretext-gap` case is one where Pretext's own line count differs from the browser's at a width (or, for
 fitFontSize, a size) the judgement needs, so the kit cannot be judged there. A `kit-mismatch` is the kit
@@ -28,7 +28,7 @@ each width probed, shrinkwrap's width against the ceiling of the widest painted 
 text's non-white-space fragments; one pixel less passes only if the browser paints the identical layout there,
 since engines let a line overshoot by up to 1/64 px), and balance one pixel narrower painting more lines.
 
-In 23 cases the browser paints more lines at fitFontSize's own answer than Pretext lays out there, so the answer visibly overflows its box: Kapitän 6 (Helvetica Neue/Arial; chromium, firefox); Synchroniser 11 (Helvetica Neue; chromium, firefox); Responsabilité 6 (Helvetica Neue; chromium, firefox). They are pretext-gaps, since Pretext's own line count is the cause and the kit agreed with it, but they are overflows a user sees.
+In 23 cases the browser paints more lines at fitFontSize's own answer than Pretext lays out there: Kapitän 6 (Helvetica Neue/Arial; chromium, firefox); Synchroniser 11 (Helvetica Neue; chromium, firefox); Responsabilité 6, 2 over the box (Helvetica Neue; chromium, firefox). In 19 of them the painted lines × the size's line height exceed the 96px box: a visible overflow. In the other 4 the extra line still fits the box. They are pretext-gaps, since Pretext's own line count is the cause and the kit agreed with it, but the overflows are ones a user sees.
 
 clamp runs at maxLines 1-5 with the tail `measureTail('…', font)`. By Pretext: the tail must match Pretext's
 widths of `…` and a no-break space; the line count must be min(Pretext's, maxLines) and truncated exactly when
@@ -56,7 +56,7 @@ painted line count must match Pretext's (else pretext-gap), and the answer must 
 scrollWidth ≤ W and, where Pretext reports a line past W, the widest painted line, from the box's left edge to
 the rightmost icon or text fragment on it, within W + 1/64) while the next size must not.
 
-In 66 cases the browser paints more lines at fitFontSizeRich's own answer than Pretext lays out there, so the answer visibly overflows its box: Kapitän 8 (Helvetica Neue; chromium, firefox); Nebenrollen 30 (Georgia/Times New Roman; chromium); Synchroniser 12 (Helvetica Neue; chromium, firefox); Responsabilité 13 (Helvetica Neue; chromium, firefox); Anticonstitutionnalité 3 (Arial; chromium). They are pretext-gaps, since Pretext's own line count is the cause and the kit agreed with it, but they are overflows a user sees.
+In 66 cases the browser paints more lines at fitFontSizeRich's own answer than Pretext lays out there: Kapitän 8 (Helvetica Neue; chromium, firefox); Nebenrollen 30 (Georgia/Times New Roman; chromium); Synchroniser 12 (Helvetica Neue; chromium, firefox); Responsabilité 13 (Helvetica Neue; chromium, firefox); Anticonstitutionnalité 3 (Arial; chromium). In all 66, the painted lines exceed the box (more than maxLines, or lines × line height over 72px): a visible overflow. They are pretext-gaps, since Pretext's own line count is the cause and the kit agreed with it, but the overflows are ones a user sees.
 
 A next-size gap where the browser paints more lines than Pretext, such as "Speichern" (Helvetica Neue, 25px in a
 126px box), is harmless: the answer fits. Pretext's README (the extraWidth note) warns that a padded span the
@@ -117,19 +117,19 @@ For exact fits in Safari 26, use whole-px line heights.
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 2.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 2.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
 | shrinkwrap (14s) | 161616 | 156575 | 5041 | 0 | 0 | 0 |
-| balance (15s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
-| fitFontSize (30s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
-| fitFontSizeRich (27s) | 203944 | 203723 | 221 | 0 | 0 | 0 |
-| clamp (76s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
-| truncateMiddle (6s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
+| balance (13s) | 161616 | 156946 | 4670 | 0 | 0 | 0 |
+| fitFontSize (21s) | 161616 | 161312 | 304 | 0 | 0 | 0 |
+| fitFontSizeRich (19s) | 203944 | 203723 | 221 | 0 | 0 | 0 |
+| clamp (56s) | 808080 | 807503 | 577 | 0 | 0 | 0 |
+| truncateMiddle (5s) | 56496 | 56493 | 3 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -147,18 +147,18 @@ By corpus (sweep helpers):
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 0.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 0.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
 | shrinkwrap (5s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
-| balance (5s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
-| fitFontSize (9s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| fitFontSizeRich (7s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
-| clamp (20s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
+| fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
+| fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
+| clamp (16s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -177,18 +177,18 @@ By corpus (sweep helpers):
 
 ## chromium 149.0.7827.55 (chromium-1228) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 0.9 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 0.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (7s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
-| balance (6s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
-| fitFontSize (9s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
-| fitFontSizeRich (7s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
-| clamp (20s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
+| shrinkwrap (5s) | 40656 | 39384 | 1272 | 0 | 0 | 0 |
+| balance (4s) | 40656 | 39483 | 1173 | 0 | 0 | 0 |
+| fitFontSize (7s) | 40656 | 40585 | 71 | 0 | 0 | 0 |
+| fitFontSizeRich (6s) | 51304 | 51244 | 60 | 0 | 0 | 0 |
+| clamp (15s) | 203280 | 203132 | 148 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14255 | 1 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -207,19 +207,19 @@ By corpus (sweep helpers):
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 5.7 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 4.9 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (96s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
-| balance (47s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
-| fitFontSize (53s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
-| fitFontSizeRich (34s) | 203944 | 203944 | 0 | 0 | 0 | 0 |
-| clamp (102s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
-| truncateMiddle (6s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
+| shrinkwrap (77s) | 161616 | 160601 | 1015 | 0 | 0 | 0 |
+| balance (42s) | 161616 | 161616 | 0 | 0 | 0 | 0 |
+| fitFontSize (46s) | 161616 | 153057 | 0 | 8559 | 0 | 0 |
+| fitFontSizeRich (32s) | 203944 | 203944 | 0 | 0 | 0 | 0 |
+| clamp (93s) | 808080 | 807997 | 83 | 0 | 0 | 0 |
+| truncateMiddle (5s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -237,19 +237,19 @@ By corpus (sweep helpers):
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 1.25
 
-Measured devicePixelRatio 1.25; 1.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1.25; 1.4 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (23s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
-| balance (14s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
+| shrinkwrap (22s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (12s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
 | fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
 | fitFontSizeRich (9s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
-| clamp (28s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
-| truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
+| clamp (26s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -267,18 +267,18 @@ By corpus (sweep helpers):
 
 ## webkit 26.5 (webkit_mac14_arm64_special-2251) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 1.5 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 1.4 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (22s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
-| balance (12s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
-| fitFontSize (14s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
-| fitFontSizeRich (9s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
-| clamp (28s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
+| shrinkwrap (21s) | 40656 | 40396 | 260 | 0 | 0 | 0 |
+| balance (11s) | 40656 | 40656 | 0 | 0 | 0 | 0 |
+| fitFontSize (13s) | 40656 | 38470 | 0 | 2186 | 0 | 0 |
+| fitFontSizeRich (8s) | 51304 | 51304 | 0 | 0 | 0 | 0 |
+| clamp (24s) | 203280 | 203255 | 25 | 0 | 0 | 0 |
 | truncateMiddle (2s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -297,19 +297,19 @@ By corpus (sweep helpers):
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 1
 
-Measured devicePixelRatio 1; 3.8 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 1; 3.3 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (27s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
-| balance (27s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
-| fitFontSize (30s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
-| fitFontSizeRich (30s) | 203944 | 203718 | 226 | 0 | 0 | 0 |
-| clamp (106s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
-| truncateMiddle (9s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
+| shrinkwrap (22s) | 161616 | 160303 | 1313 | 0 | 0 | 0 |
+| balance (23s) | 161616 | 160603 | 1013 | 0 | 0 | 0 |
+| fitFontSize (26s) | 161616 | 161565 | 51 | 0 | 0 | 0 |
+| fitFontSizeRich (27s) | 203944 | 203718 | 226 | 0 | 0 | 0 |
+| clamp (93s) | 808080 | 807991 | 89 | 0 | 0 | 0 |
+| truncateMiddle (8s) | 56496 | 56496 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
 
@@ -333,12 +333,12 @@ By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
-| shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
+| shrinkwrap (8s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
 | balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
-| fitFontSize (10s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
-| fitFontSizeRich (9s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
-| clamp (30s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
+| fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
+| fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
+| clamp (28s) | 203280 | 203258 | 22 | 0 | 0 | 0 |
 | truncateMiddle (3s) | 14256 | 14256 | 0 | 0 | 0 | 0 |
 
 By corpus (sweep helpers):
@@ -357,15 +357,15 @@ By corpus (sweep helpers):
 
 ## firefox 151.0 (firefox-1532) at deviceScaleFactor 2
 
-Measured devicePixelRatio 2; 1.1 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
+Measured devicePixelRatio 2; 1.0 min. Fonts: Helvetica Neue present, PingFang SC present, Geeza Pro present, Arial present, Georgia present, Hiragino Mincho ProN present, Times New Roman present, Songti SC present.
 
 By helper:
 
 | | cases | pass | pretext-gap | platform | unreliable | kit-mismatch |
 |---|---:|---:|---:|---:|---:|---:|
-| fontFromStyle (0s) | 168 | 168 | 0 | 0 | 0 | 0 |
+| fontFromStyle (0s) | 180 | 180 | 0 | 0 | 0 | 0 |
 | shrinkwrap (7s) | 40656 | 40326 | 330 | 0 | 0 | 0 |
-| balance (9s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
+| balance (8s) | 40656 | 40401 | 255 | 0 | 0 | 0 |
 | fitFontSize (9s) | 40656 | 40644 | 12 | 0 | 0 | 0 |
 | fitFontSizeRich (8s) | 51304 | 51247 | 57 | 0 | 0 | 0 |
 | clamp (27s) | 203280 | 203258 | 22 | 0 | 0 | 0 |

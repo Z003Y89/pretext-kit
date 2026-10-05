@@ -1,0 +1,379 @@
+# pretext-kit: evaluation
+
+What is claimed, how it was tested, what the tests found, how sensitive they are, what it costs, and what could make
+the results wrong. Every number names the file it comes from and the command that regenerates that file. Dated
+2026-10-05; kit at the commit that adds this file, Pretext at
+[f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3dfc5877fbca5e4570ee04111e7001).
+
+**In one paragraph.** Over 7,006,572 browser cases (seven helpers × Chromium 149, WebKit 26.5, Firefox 151 × three
+zoom factors, on one Mac), the kit never answered differently from what Pretext's own numbers require, and wherever
+Pretext agreed with the browser, the browser painted what the kit predicted: 0 kit-mismatch cases. The 95% upper
+bound on the rate of kit-mismatch is about 1-2% of text × font combinations per helper and browser (the number to
+quote, §3). Planted bugs are caught by thousands to hundreds of thousands of cases each, except one, which the sweep
+missed until this evaluation added cases for it (§4). The kit inherits every disagreement between Pretext and a
+browser (21,978 such cases, 0.31%), including 19 + 66 fitted sizes on soft-hyphenated text that visibly overflow in
+Chromium and Firefox (§8). Everything was measured on macOS 14 only.
+
+## 1. Claims under test
+
+Each claim holds for the inputs in §2 (four named macOS font stacks, the corpora, widths and sizes listed there) in
+the three browser builds named there. A single counterexample in that scope falsifies it; outside that scope nothing
+is claimed. "Fits W" means no line paints wider than W + 1/64 px (engines let a line overshoot by up to 1/64 px).
+
+| # | helper | claim | tested by |
+|---|---|---|---|
+| C1 | `shrinkwrap(p, W)` | Returns `{ width, lineCount }` with `lineCount` equal to Pretext's line count at W and `width` = ⌈widest line Pretext lays out at W⌉ (one less only when Pretext lays out the same lines there), capped at W. The browser, at `width`, paints `lineCount` lines, and `width` is the ceiling of its widest painted line. | browser sweep |
+| C2 | `balance(p, W)` | Returns the narrowest whole-px `width` at which the browser paints `layout(p, W).lineCount` lines: at `width` it paints that many, at `width − 1` more (unless a grapheme wider than `width − 1` forces the width). | browser sweep |
+| C3 | `fitFontSize(sizes, box, lh)` | Returns the largest whole-px size in [min, max] at which the browser's painting fits the box (height ≤ `box.height`, lines ≤ `maxLines`, no overflow past the width), such that one px larger does not fit; `null` exactly when `min` does not fit. Judged at the box `{ W, height: 96 }`, sizes 8-48, line height 1.5 × size. | browser sweep |
+| C4 | `fitFontSizeRich(sizes, box, lh)` | As C3, for an icon box followed by a label (one row, `extraWidth` as margin), sizes 8-32, boxes `{ W, maxLines: 1 }` and `{ W, height: 72 }`. | browser sweep |
+| C5 | `clamp(p, W, N, tail)`, `clampStats`, `measureTail` | Line count = min(Pretext's, N) and `truncated` exactly when Pretext lays out more than N; this matches a `-webkit-line-clamp: N` box's truncation and height. Every returned line, the cut one followed by the tail, paints within W + 1/64. The cut is the longest grapheme prefix whose text joined to the tail, measured as one text, fits. *Not claimed:* that the cut falls where the browser's own ellipsis does (the SVG probe that would test it was not run). | browser sweep |
+| C6 | `truncateMiddle(label, W, keepEnd)` | The whole label exactly when its natural width fits W; otherwise start + `…` + end, which paints within W + 1/64, where one more grapheme of the start would not fit, and whose end holds everything from `keepEnd.from` whenever that end, `…` and the first grapheme fit. | browser sweep |
+| C7 | `fontFromStyle(getComputedStyle(el))` | Returns a Canvas font string that Canvas parses to the same font as the element's weight, style, size and family, with `letterSpacing` and `lineHeight` in px. Tested at weight 400 and 700, normal and italic, 0 and 0.5px letter spacing (§4 explains why the non-default ones were added). Indirectly, every other case's font comes from it. | browser sweep |
+| C8 | `pretext-kit/headless` | In Node, for code points the registered fonts cover: `measureText` widths within 0.02px of Chromium's Canvas, and Pretext's line counts equal Pretext's inside Chromium; `HeadlessCoverageError` thrown on exactly the cases a fixed coverage rule puts out of scope. Chromium's rules, macOS, registered fonts only. | headless parity sweep |
+| C9 | `watchFonts` | On each `loadingdone` event with at least one face, calls Pretext's `clearCache()` and then the callback; never after unsubscribing. | unit tests only (stand-in `FontFaceSet`) |
+| C10 | `stack`, `findIndexAt`, `anchorDelta`; `shrinkwrapRich`, `balanceRich` | Arithmetic over heights and tops; the rich twins are C1/C2 over `measureRichInlineStats`. | unit tests only; **not browser-swept** |
+
+C9 and C10 rest on `npm test` alone (148 tests on a stand-in Canvas, §6), not on a browser.
+
+## 2. Method
+
+**Oracle.** The browser's painted DOM, read through Playwright 1.61.0 in headed browsers: Chromium 149.0.7827.55
+(chromium-1228), WebKit 26.5 (webkit_mac14_arm64_special-2251), Firefox 151.0 (firefox-1532), on macOS 14.6.1
+(23G93), Apple M2, `<html lang="en">`. Line counts are the painted height divided by the line height (a height that is
+no whole number of lines, to 1/64 px, makes the case `unreliable`); widest lines are the union of
+`Range.getClientRects()` over each run of non-white-space characters; widths, `scrollWidth` and
+`scrollHeight > clientHeight` come from the elements. No pixels are compared. Harness: `verify/sweep.ts`,
+`verify/sweep.html`, `verify/run.ts`.
+
+**Inputs** (`verify/corpora.ts`).
+
+| corpus | texts | source | swept by |
+|---|---:|---|---|
+| latin | 12 | Pretext's `src/test-data.ts` and Gatsby opening (public domain) | all but truncateMiddle |
+| cjk (Chinese, Japanese) | 12 | test-data; Lu Xun, Akutagawa corpora | shrinkwrap, balance, fitFontSize, clamp |
+| arabic (and mixed en/ar) | 12 | test-data; al-Jahiz, al-Ma'arri corpora | same |
+| emoji-chat | 12 | test-data, mixed-app-text, written for the sweep | all but truncateMiddle |
+| urls (unbroken runs) | 12 | mixed-app-text, written for the sweep | shrinkwrap, balance, fitFontSize, clamp |
+| german, soft-hyphenated | 12 | written for the sweep; `hyphen/de` (de-1996) | all |
+| french, soft-hyphenated | 12 | written for the sweep; `hyphen/fr` | all |
+| labels (paths, incl. CJK and Arabic) | 20 | written for the sweep | truncateMiddle |
+| ui-labels | 5 | real UI labels | fitFontSizeRich |
+
+Fonts: four stacks, `"Helvetica Neue", "PingFang SC", "Geeza Pro", sans-serif`; `Arial, "PingFang SC", "Geeza Pro",
+sans-serif`; `Georgia, "Hiragino Mincho ProN", serif`; `"Times New Roman", "Songti SC", serif`; all eight families
+probed present in every run. 16px on 24px lines unless a helper varies size. Widths 120-600px (truncateMiddle
+80-400px) in 1px steps at deviceScaleFactor 1 and 4px steps at 1.25 and 2 (`--zoom-step`, Ruling 24 in the ledger:
+an earlier full step-1 run gave identical counts at all three factors). clamp at maxLines 1-5 with the tail
+`measureTail('…', font)`; fitFontSize sizes 8-48; fitFontSizeRich sizes 8-32 in two boxes. Soft-hyphenated text is
+painted with `hyphens: manual`. Every font string is the one `fontFromStyle` builds from the element's computed style.
+
+**Outcome of a case**, assigned in this order (the full per-helper rules are in `verify/RESULTS.md`, header):
+
+1. **kit vs Pretext.** The kit's answer is recomputed from Pretext's own numbers in the harness, never from the kit
+   (shrinkwrap's widest line, balance's line count one px narrower, the fit at px and px + 1, the clamp's lines and cut,
+   the middle cut's widths). Any failure is a `kit-mismatch`, whatever the browser paints.
+2. **Pretext vs browser.** If Pretext's line count (or widest line) differs from the painting at a width or size the
+   judgement needs, the case is a `pretext-gap`: the kit cannot be judged there, and the disagreement is Pretext's.
+3. **platform.** A painting that contradicts the kit is `platform` only when one named, proven cause explains it case
+   by case. One cause is recognised, `webkit-26-line-height-floor` (§8): WebKit only, fractional line height, painted
+   height exactly lines × the floored line height, and the same judgement passing with floored line heights.
+4. **unreliable.** Painted height not a whole number of lines.
+5. Otherwise the painting is compared with the kit's answer: agreement is `pass`, disagreement `kit-mismatch`.
+
+`npm run verify` exits non-zero on any kit-mismatch, an absent font, a devicePixelRatio other than the factor, or a
+browser × factor × helper whose pretext-gap or unreliable count exceeds `verify/baseline.json` by more than
+max(5, 5%) (so a kit bug cannot hide as a rise in gaps).
+
+**Headless parity** (`npm run verify:headless`, `verify/headless.ts`, `verify/HEADLESS_RESULTS.md`): the stand-in in
+Node against Chromium 149 (same Playwright), with the test fonts (Inter TTF and WOFF2, Roboto, Shantell Sans 400/700)
+loaded by `@font-face` from the same files. Widths: 54 strings × 4 families × weights 400/600/700 × 12/14/16/20px ×
+letter spacing 0/0.5px (4,992 cases). Line counts: 298 text × font pairs (Latin, German and French from the corpora,
+168 with soft hyphens, plus special characters) × 241 widths (71,818 cases). The scope rule was fixed before the first
+run, from the font files' cmaps, not from the stand-in.
+
+**Statistics** (`node verify/stats.ts`). It reads `verify/RESULTS.md`, `verify/results/latest.json.gz`,
+`verify/baseline.json`, `verify/HEADLESS_RESULTS.md` and `verify/corpora.ts`, checks that they agree (case counts
+recomputed from the corpora, non-pass counts from the listing), and prints the tables in §3. Bounds are two-sided 95%
+intervals' upper ends: Wilson score (≈ 3.84/n at 0 failures) and, beside it, exact Clopper-Pearson (≈ 3.69/n at 0;
+the "3.7/n" often quoted is this one). Logic tests: `npm test`, 148 tests (`node --test`).
+
+## 3. Results
+
+From `node verify/stats.ts` over the run recorded in `verify/RESULTS.md` (`npm run verify`, 2026-10-05).
+
+**No kit-mismatch in any helper, browser or factor.** 7,006,572 cases; 6,984,594 judged against the painting (the
+others are 21,978 pretext-gap; no unreliable); 12,931 platform (all WebKit fitFontSize, §8).
+
+**The bound to quote: one per helper and browser, with the text × font stack as the unit.** Cases of one text in one
+font at adjacent widths, line counts and zoom factors are not independent: a bug tied to a text shows at many of its
+widths at once. Treating 160,000 such cases as independent draws gives bounds like 0.0024%, which overstate the
+evidence by two to three orders of magnitude. The unit below is the distinct (text, font stack) pair, all its widths,
+line counts, boxes and factors pooled; it fails if any of its cases is a kit-mismatch. It is the conservative bound,
+and the one to quote. It is still conditional on the texts being like the reader's (§6).
+
+| helper | browser | units | cases per unit | units never judged | failing units | upper (Wilson) | upper (exact) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| fontFromStyle | chromium | 180 | 3 | 0 | 0 | 2.09% | 2.03% |
+| fontFromStyle | webkit | 180 | 3 | 0 | 0 | 2.09% | 2.03% |
+| fontFromStyle | firefox | 180 | 3 | 0 | 0 | 2.09% | 2.03% |
+| shrinkwrap | chromium | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| shrinkwrap | webkit | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| shrinkwrap | firefox | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| balance | chromium | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| balance | webkit | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| balance | firefox | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| fitFontSize | chromium | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| fitFontSize | webkit | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| fitFontSize | firefox | 336 | 723 | 0 | 0 | 1.13% | 1.09% |
+| fitFontSizeRich | chromium | 212 | 1446 | 0 | 0 | 1.78% | 1.72% |
+| fitFontSizeRich | webkit | 212 | 1446 | 0 | 0 | 1.78% | 1.72% |
+| fitFontSizeRich | firefox | 212 | 1446 | 0 | 0 | 1.78% | 1.72% |
+| clamp | chromium | 336 | 3615 | 0 | 0 | 1.13% | 1.09% |
+| clamp | webkit | 336 | 3615 | 0 | 0 | 1.13% | 1.09% |
+| clamp | firefox | 336 | 3615 | 0 | 0 | 1.13% | 1.09% |
+| truncateMiddle | chromium | 176 | 483 | 0 | 0 | 2.14% | 2.07% |
+| truncateMiddle | webkit | 176 | 483 | 0 | 0 | 2.14% | 2.07% |
+| truncateMiddle | firefox | 176 | 483 | 0 | 0 | 2.14% | 2.07% |
+
+Read: "with 95% confidence, fewer than 1.13% of text × font combinations like these would show any shrinkwrap
+mismatch in Chromium 149". fontFromStyle's unit is the case itself (one per stack, size and style variant).
+
+**Per case** (unit: one case; for comparison only). Against Pretext's own numbers every case is judged
+(n = cases); against the painting, n = cases that are neither pretext-gap nor unreliable.
+
+<details><summary>Per helper × browser × factor (63 rows)</summary>
+
+| helper | browser@factor | cases | pass | pretext-gap | platform | unreliable | kit-mismatch | judged | upper, vs Pretext (Wilson) | upper, vs painting (Wilson) | upper, vs painting (exact) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| fontFromStyle | chromium@1 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | chromium@1.25 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | chromium@2 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | webkit@1 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | webkit@1.25 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | webkit@2 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | firefox@1 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | firefox@1.25 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| fontFromStyle | firefox@2 | 180 | 180 | 0 | 0 | 0 | 0 | 180 | 2.09% | 2.09% | 2.03% |
+| shrinkwrap | chromium@1 | 161616 | 156575 | 5041 | 0 | 0 | 0 | 156575 | 0.0024% | 0.0025% | 0.0024% |
+| shrinkwrap | chromium@1.25 | 40656 | 39384 | 1272 | 0 | 0 | 0 | 39384 | 0.0094% | 0.0098% | 0.0094% |
+| shrinkwrap | chromium@2 | 40656 | 39384 | 1272 | 0 | 0 | 0 | 39384 | 0.0094% | 0.0098% | 0.0094% |
+| shrinkwrap | webkit@1 | 161616 | 160601 | 1015 | 0 | 0 | 0 | 160601 | 0.0024% | 0.0024% | 0.0023% |
+| shrinkwrap | webkit@1.25 | 40656 | 40396 | 260 | 0 | 0 | 0 | 40396 | 0.0094% | 0.0095% | 0.0091% |
+| shrinkwrap | webkit@2 | 40656 | 40396 | 260 | 0 | 0 | 0 | 40396 | 0.0094% | 0.0095% | 0.0091% |
+| shrinkwrap | firefox@1 | 161616 | 160303 | 1313 | 0 | 0 | 0 | 160303 | 0.0024% | 0.0024% | 0.0023% |
+| shrinkwrap | firefox@1.25 | 40656 | 40326 | 330 | 0 | 0 | 0 | 40326 | 0.0094% | 0.0095% | 0.0091% |
+| shrinkwrap | firefox@2 | 40656 | 40326 | 330 | 0 | 0 | 0 | 40326 | 0.0094% | 0.0095% | 0.0091% |
+| balance | chromium@1 | 161616 | 156946 | 4670 | 0 | 0 | 0 | 156946 | 0.0024% | 0.0024% | 0.0024% |
+| balance | chromium@1.25 | 40656 | 39483 | 1173 | 0 | 0 | 0 | 39483 | 0.0094% | 0.0097% | 0.0093% |
+| balance | chromium@2 | 40656 | 39483 | 1173 | 0 | 0 | 0 | 39483 | 0.0094% | 0.0097% | 0.0093% |
+| balance | webkit@1 | 161616 | 161616 | 0 | 0 | 0 | 0 | 161616 | 0.0024% | 0.0024% | 0.0023% |
+| balance | webkit@1.25 | 40656 | 40656 | 0 | 0 | 0 | 0 | 40656 | 0.0094% | 0.0094% | 0.0091% |
+| balance | webkit@2 | 40656 | 40656 | 0 | 0 | 0 | 0 | 40656 | 0.0094% | 0.0094% | 0.0091% |
+| balance | firefox@1 | 161616 | 160603 | 1013 | 0 | 0 | 0 | 160603 | 0.0024% | 0.0024% | 0.0023% |
+| balance | firefox@1.25 | 40656 | 40401 | 255 | 0 | 0 | 0 | 40401 | 0.0094% | 0.0095% | 0.0091% |
+| balance | firefox@2 | 40656 | 40401 | 255 | 0 | 0 | 0 | 40401 | 0.0094% | 0.0095% | 0.0091% |
+| fitFontSize | chromium@1 | 161616 | 161312 | 304 | 0 | 0 | 0 | 161312 | 0.0024% | 0.0024% | 0.0023% |
+| fitFontSize | chromium@1.25 | 40656 | 40585 | 71 | 0 | 0 | 0 | 40585 | 0.0094% | 0.0095% | 0.0091% |
+| fitFontSize | chromium@2 | 40656 | 40585 | 71 | 0 | 0 | 0 | 40585 | 0.0094% | 0.0095% | 0.0091% |
+| fitFontSize | webkit@1 | 161616 | 153057 | 0 | 8559 | 0 | 0 | 161616 | 0.0024% | 0.0024% | 0.0023% |
+| fitFontSize | webkit@1.25 | 40656 | 38470 | 0 | 2186 | 0 | 0 | 40656 | 0.0094% | 0.0094% | 0.0091% |
+| fitFontSize | webkit@2 | 40656 | 38470 | 0 | 2186 | 0 | 0 | 40656 | 0.0094% | 0.0094% | 0.0091% |
+| fitFontSize | firefox@1 | 161616 | 161565 | 51 | 0 | 0 | 0 | 161565 | 0.0024% | 0.0024% | 0.0023% |
+| fitFontSize | firefox@1.25 | 40656 | 40644 | 12 | 0 | 0 | 0 | 40644 | 0.0094% | 0.0095% | 0.0091% |
+| fitFontSize | firefox@2 | 40656 | 40644 | 12 | 0 | 0 | 0 | 40644 | 0.0094% | 0.0095% | 0.0091% |
+| fitFontSizeRich | chromium@1 | 203944 | 203723 | 221 | 0 | 0 | 0 | 203723 | 0.0019% | 0.0019% | 0.0018% |
+| fitFontSizeRich | chromium@1.25 | 51304 | 51244 | 60 | 0 | 0 | 0 | 51244 | 0.0075% | 0.0075% | 0.0072% |
+| fitFontSizeRich | chromium@2 | 51304 | 51244 | 60 | 0 | 0 | 0 | 51244 | 0.0075% | 0.0075% | 0.0072% |
+| fitFontSizeRich | webkit@1 | 203944 | 203944 | 0 | 0 | 0 | 0 | 203944 | 0.0019% | 0.0019% | 0.0018% |
+| fitFontSizeRich | webkit@1.25 | 51304 | 51304 | 0 | 0 | 0 | 0 | 51304 | 0.0075% | 0.0075% | 0.0072% |
+| fitFontSizeRich | webkit@2 | 51304 | 51304 | 0 | 0 | 0 | 0 | 51304 | 0.0075% | 0.0075% | 0.0072% |
+| fitFontSizeRich | firefox@1 | 203944 | 203718 | 226 | 0 | 0 | 0 | 203718 | 0.0019% | 0.0019% | 0.0018% |
+| fitFontSizeRich | firefox@1.25 | 51304 | 51247 | 57 | 0 | 0 | 0 | 51247 | 0.0075% | 0.0075% | 0.0072% |
+| fitFontSizeRich | firefox@2 | 51304 | 51247 | 57 | 0 | 0 | 0 | 51247 | 0.0075% | 0.0075% | 0.0072% |
+| clamp | chromium@1 | 808080 | 807503 | 577 | 0 | 0 | 0 | 807503 | 0.0005% | 0.0005% | 0.0005% |
+| clamp | chromium@1.25 | 203280 | 203132 | 148 | 0 | 0 | 0 | 203132 | 0.0019% | 0.0019% | 0.0018% |
+| clamp | chromium@2 | 203280 | 203132 | 148 | 0 | 0 | 0 | 203132 | 0.0019% | 0.0019% | 0.0018% |
+| clamp | webkit@1 | 808080 | 807997 | 83 | 0 | 0 | 0 | 807997 | 0.0005% | 0.0005% | 0.0005% |
+| clamp | webkit@1.25 | 203280 | 203255 | 25 | 0 | 0 | 0 | 203255 | 0.0019% | 0.0019% | 0.0018% |
+| clamp | webkit@2 | 203280 | 203255 | 25 | 0 | 0 | 0 | 203255 | 0.0019% | 0.0019% | 0.0018% |
+| clamp | firefox@1 | 808080 | 807991 | 89 | 0 | 0 | 0 | 807991 | 0.0005% | 0.0005% | 0.0005% |
+| clamp | firefox@1.25 | 203280 | 203258 | 22 | 0 | 0 | 0 | 203258 | 0.0019% | 0.0019% | 0.0018% |
+| clamp | firefox@2 | 203280 | 203258 | 22 | 0 | 0 | 0 | 203258 | 0.0019% | 0.0019% | 0.0018% |
+| truncateMiddle | chromium@1 | 56496 | 56493 | 3 | 0 | 0 | 0 | 56493 | 0.0068% | 0.0068% | 0.0065% |
+| truncateMiddle | chromium@1.25 | 14256 | 14255 | 1 | 0 | 0 | 0 | 14255 | 0.027% | 0.027% | 0.026% |
+| truncateMiddle | chromium@2 | 14256 | 14255 | 1 | 0 | 0 | 0 | 14255 | 0.027% | 0.027% | 0.026% |
+| truncateMiddle | webkit@1 | 56496 | 56496 | 0 | 0 | 0 | 0 | 56496 | 0.0068% | 0.0068% | 0.0065% |
+| truncateMiddle | webkit@1.25 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
+| truncateMiddle | webkit@2 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
+| truncateMiddle | firefox@1 | 56496 | 56496 | 0 | 0 | 0 | 0 | 56496 | 0.0068% | 0.0068% | 0.0065% |
+| truncateMiddle | firefox@1.25 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
+| truncateMiddle | firefox@2 | 14256 | 14256 | 0 | 0 | 0 | 0 | 14256 | 0.027% | 0.027% | 0.026% |
+
+</details>
+
+**Headless parity** (`verify/HEADLESS_RESULTS.md`):
+
+| check | unit | n | failures | upper (Wilson) | upper (exact) |
+|---|---|---:|---:|---:|---:|
+| widths within 0.02px of Chromium's Canvas | case | 4992 | 0 | 0.077% | 0.074% |
+| widths within 0.02px of Chromium's Canvas | string × face (8 cases each) | 624 | 0 | 0.612% | 0.589% |
+| line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | 71642 | 0 | 0.0054% | 0.0051% |
+| line count equal to Pretext in Chromium | text × font (241 widths each) | 298 | 0 | 1.27% | 1.23% |
+
+Both runs also record findings that are not kit-mismatches: 21,978 pretext-gap cases in 1,893 distinct findings
+(RESULTS.md, "pretext-gap cases"), and 176 headless pretext-gap cases (HEADLESS_RESULTS.md). Their counts per helper
+are in the table above; their causes are in §6 and §8.
+
+## 4. Sensitivity (mutation testing)
+
+`node verify/mutants.ts` plants each bug below, one at a time, in `src/` of a throwaway detached worktree of HEAD
+(this checkout's `src` is never edited; the worktree is removed at the end), and runs `npm test` and a reduced sweep:
+Chromium at factor 1, the affected helper only (`node verify/run.ts --only=chromium --factors=1 --helpers=<helper>`,
+which writes no RESULTS.md and never touches the baseline). An unmutated control run comes first and must have no
+kit-mismatch. The table is its output:
+
+| planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |
+|---|---|---:|---:|---:|---|
+<!-- mutants -->
+
+**One mutant escaped the sweep, and that was a defect.** A first round of the same mutants, against the harness as
+it stood at 9804f84 (a throwaway branch `mutants-tmp` in a separate worktree, since deleted), gave the same counts as
+above for the other six. But with fontFromStyle cases at weight 400, normal style and no letter spacing only, dropping the weight from `fontFromStyle`'s font string changed nothing
+the sweep could see: Canvas serialises weight 400 away, so `"16px Georgia"` and `"400 16px Georgia"` compare equal,
+and every painted case used weight 400. Only `npm test` (5 failing tests) caught it. The sweep now also runs, per
+stack, weight 700, italic and 0.5px letter spacing at 16px/24px (`verify/sweep.ts`, `STYLE_VARIANTS`; 180 cases per
+browser × factor instead of 168), which catches it in 4 cases, one per stack (the weight-700 case). The run in §3 is
+the full sweep rerun with those cases; every other count in it, and the listing of all 34,909 non-pass cases
+(`verify/results/latest.json.gz`, byte for byte), came out as in the run before. The other helpers' painted cases still use weight 400 only.
+
+The headless sweep plants its own mutants on every run (`verify/headless.ts`, HEADLESS_RESULTS.md, "Mutants"):
+
+| planted bug (src/headless/canvas.ts) | width cases > 0.02px | line-count headless-mismatch | caught |
+|---|---:|---:|---|
+| drop kerning (`kern` off always) | 2868 | 1594 | yes |
+| ignore weight (always the 400 face) | 848 | 2988 | yes |
+| drop the U+0020 word cut | 96 | 0 | yes (widths only) |
+
+Dropping the U+0020 word cut cannot change a Pretext line count (Pretext never hands Canvas a space beside other
+text: 0 of 2,254 measured strings), so only the width sweep sees it (Ruling H-8 in the headless ledger).
+
+What the mutants do not show: that the sweep would catch a bug confined to inputs it never runs (other fonts,
+weights in the painted helpers, scripts beyond the corpora, `white-space: pre-wrap`, rich rows other than icon +
+label), or bugs in the rich twins, `watchFonts` or the list helpers, which no browser case exercises.
+
+## 5. Cost
+
+From `verify/BENCH.md` as committed at 011be73 on branch `kit-v1-bench` (`npm run bench`; not yet merged into kit-v1
+when this was written; the branch has moved on since under review, and BENCH.md itself says its run was of 4854056
+"with uncommitted changes"). Same machine and browser builds as §2.
+
+**It was measured on a loaded machine, so every timing is an upper bound.** Screen recording (replayd, 79-93% CPU)
+and a UI-automation service ran throughout; the 1-minute load average was 3.0-4.1 on 8 cores; no other Playwright
+browser ran during measurement (polled every 10 s). The user could not provide a quiet window (Ruling 34). A
+quiet-machine rerun is the remedy (§6).
+
+Median of sample means (p95 in brackets), µs; each browser 3 sessions × 20 rounds = 60 samples:
+
+| per message, unless noted | Chromium 149 | WebKit 26.5 | Firefox 151 |
+|---|---:|---:|---:|
+| `layout()` at 399 (Pretext, the resize floor) | 0.233 (0.239) | 0.217 (0.237) | 0.466 (0.503) |
+| `shrinkwrap` at 399 | 0.243 (0.258) | 0.257 (0.273) | 0.584 (0.661) |
+| `balance` at 399 | 4.22 (4.42) | 4.15 (4.51) | 9.40 (9.84) |
+| `clamp(…, 3)` at a new width | 9.16 (9.95) | 11.3 (12.3) | 21.9 (28.8) |
+| `truncateMiddle`, new width near 200, per label | 26.6 (30.9) | 30.0 (35.0) | 60.8 (78.2) |
+| `prepareLabel`, per label | 297 (316) | 268 (377) | 107 (142) |
+| `fitFontSize`, second call on a resize (warm `PreparedSizes`) | 3.43 (3.66) | 3.32 (3.57) | 6.62 (8.60) |
+| DOM: same fit, warm-started search on a resize | 55.9 (61.4) | 148 (155) | 44.9 (48.4) |
+| `fitFontSize`, new `PreparedSizes`, Pretext caches warm | 82.9 (87.3) | 80.5 (84.4) | 144 (160) |
+| `fitFontSize`, new `PreparedSizes`, Pretext caches cleared | 124 (141) | 318 (334) | 278 (295) |
+| DOM: fit search from scratch, all boxes in lockstep | 211 (232) | 464 (486) | 164 (173) |
+| Pretext prepare + layout, first sight (caches cleared) | 14.8 | 26.4 | 29.1 |
+| DOM: create, append and read new message divs | 29.6 (32.0) | 72.3 (77.1) | 20.0 (21.4) |
+| `stack` over 10,000 heights, per call | 12.6-78.2 (sessions disagree) | 11.0 (11.2) | 10.5 (10.8) |
+
+**Where the kit loses.**
+
+- **Firefox, first sight**: Pretext's prepare + layout of 1,000 new messages costs 29.1 µs each against the DOM's
+  20.0 µs (1.5× slower). In a freshly launched Firefox the first batch prepared at 74.9-98.4 µs per message.
+- **Firefox, fitFontSize with Pretext's caches cleared**: 278 µs against the DOM lockstep search's 164 µs (1.7× slower);
+  with warm caches the kit is only 1.1× faster (144 against 164).
+- **`prepareLabel`** costs 107-297 µs per label (it lays the label out at width 0 to find every cut point), the
+  costliest call in Chromium; a list of 1,000 paths pays it per path once.
+- **balance** is a binary search: about 18-20× a `layout()`; clamp and truncateMiddle prepare cut candidates at resize
+  time (1.3-6.7 prepares per call, BENCH.md "Structural counts").
+- **Chromium `stack`** had one session at 78 µs and two at 13 µs per 10,000 heights; the cause was not established.
+
+Where the DOM row is faster, the kit's case is answering without the elements existing (virtual lists, workers,
+before paint), not speed. The kit and the DOM baselines agreed on every height and fitted size in the bench workload
+(1000/1000 in each browser; BENCH.md, "Kit and DOM agreement").
+
+## 6. Threats to validity
+
+| threat | effect on the results | what would reduce it |
+|---|---|---|
+| **One OS, one machine.** macOS 14.6.1 on an Apple M2; Core Text shaping and rasterisation only. | No claim for Windows (DirectWrite), Linux (FreeType, hinting), Android or iOS. | The same sweep on Windows and Linux runners; Pretext's own accuracy pages show those engines differ. |
+| **Playwright builds, not shipped browsers.** Chromium 149 and Firefox 151 trail stable; WebKit 26.5 is a frozen macOS 14 build, not Safari 27 (Playwright 1.62+ cannot drive it here; Ruling 13). | Engine changes since (Safari 27's 1/64 px line boxes, for one) are untested. Electron's and WebView2's Chromium builds were not checked. | Rerun on current stable browsers on a current macOS with a newer Playwright; add Electron. |
+| **System fonts only.** Four named macOS stacks at weight 400 (plus fontFromStyle's variants); no web fonts, no `font-feature-settings`. | Web fonts (the common case in apps) change metrics, loading and fallback; bold or variable fonts in the painted helpers are untested. | Sweep with `@font-face` web fonts, bold and a variable font; headless parity already uses web-font files, in Chromium only. |
+| **Stand-in corpora.** 84 sweep texts (plus 20 paths and 5 labels) written or chosen for coverage, not drawn from apps. | The clustered bound assumes app text resembles these; it may not (long tables, code, mixed scripts beyond en/ar). | Corpora sampled from real app strings, with consent; more scripts (Thai, Devanagari, Hebrew, Korean). |
+| **Clustered cases.** Millions of cases come from 176-336 text × font units per helper. | Per-case bounds overstate confidence. | Quote the clustered bound (§3); add texts rather than widths. |
+| **The oracle is the DOM, not pixels.** Lines and widths are read from layout boxes and ranges; no pixel comparison. clamp's cut is compared with a span painted on its own, not with the browser's own ellipsis (the SVG probe in Pretext's RESEARCH.md was not used). | A cut that differs from where the browser would put its ellipsis is not detected; a painting that differs from layout boxes is not detected. | Run the SVG ellipsis probe for clamp; pixel diffs for a sample. |
+| **pretext-gaps are attributed, not root-caused.** 21,978 cases (0.31%) are put down to Pretext because Pretext's own count disagrees with the browser; the Chromium pool (about 3% of shrinkwrap and balance cases: CJK in Georgia, Arabic, long URLs) and the headless Shantell Sans cluster were not investigated. | A kit bug that also moves Pretext's count could hide here, bounded by the baseline gate (max(5, 5%) per cell). The kit cannot be judged in those cases at all. | Root-cause the large clusters with Pretext's own harness; file what is new upstream. |
+| **Logic tests run on a stand-in Canvas** (fixed per-character widths, `test/setup.ts`). | `npm test` checks the algorithms, not real metrics; C9 and C10 rest on it alone. | Browser cases for the rich twins and `watchFonts` (a real `FontFaceSet` with a late web font). |
+| **Zoom is emulated.** deviceScaleFactor 1.25 and 2 via Playwright, at a 4px width step. | Real page zoom also changes CSS px per device pixel through the layout viewport; a zoom-only bug at a width not divisible by 4 would be missed. | A step-1 run at every factor (about 28 minutes); a real browser-zoom run. |
+| **The bench ran on a loaded machine**, of a commit with uncommitted changes, on a branch still under review. | Timings are upper bounds; ratios between rows are more trustworthy than absolute values. | `npm run bench` on a quiet machine (quit apps, stop screen recording, leave it about 15 minutes). |
+| **Headless scope.** Chromium's rules, registered fonts, macOS, one Chromium build. | Nothing is claimed for WebKit or Gecko profiles, OS fallback fonts, Windows or Linux. | One measured check each on Windows and Linux Chrome before claiming them (the spec requires it). |
+| **One-off probes.** The `box-decoration-break: slice` probe for fitFontSizeRich (RESULTS.md, "Painting") ran once and its "168 + 1 err small" figure cannot be recomputed from stored data. | Its numbers are anecdotal. | Make it a flagged sweep mode whose output is stored. |
+| **Run-to-run determinism** is shown by repeats, not argued: the full three-browser sweep, rerun in this evaluation, reproduced every count and the non-pass listing byte for byte (§4); a reviewer reproduced the headless sweep byte for byte; §7's fresh clone reproduced Chromium at factor 1. All repeats were on this one machine. | A case that flips between runs, or between machines, would not have shown. | Rerun from a fresh clone on another Mac and diff RESULTS.md and the listing. |
+
+## 7. Reproduction
+
+```sh
+verify/reproduce.sh                        # everything: about 40 minutes plus downloads
+verify/reproduce.sh --sweep=chromium@1     # the browser sweep in Chromium at factor 1 only
+```
+
+It clones this repository at its HEAD (or `--kit-repo`, `--kit-commit`) and Pretext at f10d888 side by side into a new
+temporary directory (or `--dir`), builds Pretext (`npm install && npm run build:package`, as the README says), runs
+`npm ci` and `npx playwright install chromium webkit firefox` (Playwright 1.61.0's pinned builds), then `npm test`,
+`npm run check`, the browser sweep, `node verify/stats.ts --compare-log=…` (each browser × factor × helper tally it
+ran against RESULTS.md) and `npm run verify:headless`, and prints the tallies. It needs macOS 14 (the sweep's pinned
+fonts are macOS fonts), Node 24 and network access. Expected: every step passes; every compared tally equals
+RESULTS.md; `widths: 4992 cases, 3842 exact`, `lines: 71818 cases, 0 headless-mismatch, 176 pretext-gap`; all three
+headless mutants caught; after a full run, `git diff` in the clone shows only timings and the date in RESULTS.md and
+HEADLESS_RESULTS.md.
+
+**The one run made for this evaluation** used `--sweep=chromium@1` to bound its time, so it confirms the Chromium
+factor-1 tallies, not WebKit's, Firefox's or the zoomed ones:
+
+<!-- reproduce -->
+
+## 8. Known limitations
+
+What a user of the kit should know, in order of how likely it is to matter.
+
+- **macOS only, so far.** Everything above was measured on macOS 14. Windows and Linux text stacks were not tested;
+  expect Pretext's own per-platform accuracy there, not more.
+- **Soft-hyphenated text can overflow in Chromium and Firefox.** Where Pretext places a soft-hyphen break differently
+  from the browser, a fitted size can paint an extra line. In the sweep: fitFontSize 23 cases paint an extra line at
+  its answer, 19 of them past the 96px box (Kapitän, Synchroniser, Responsabilité in Helvetica Neue/Arial);
+  fitFontSizeRich 66, all past their box (also Nebenrollen in Georgia/Times, Anticonstitutionnalité in Arial). WebKit
+  showed none. The cause is Pretext's soft-hyphen line placement, partly known upstream (ENGINE_FOLLOWUPS, "Line
+  edges") and partly possibly new; a report is prepared for the maintainer at
+  `docs/upstream/pretext-soft-hyphen-issue-draft.md` (not committed, not yet filed). Workaround: leave a pixel of
+  slack, or hyphenate only words wider than the box (README, Hyphenation).
+- **Safari 26 and fractional line heights.** WebKit 26 paints `line-height: 16.5px` as 16px lines, so with fractional
+  line heights fitFontSize can answer one size smaller than the largest that fits (12,931 sweep cases, all safe: never
+  an overflow). Use whole-pixel line heights. Safari 27 is reported fixed by Pretext's PLATFORM_BUGS.md, not tested here.
+- **Every Pretext gap is the kit's too.** Where Pretext's line count differs from the browser (0.31% of cases: mostly
+  CJK in Georgia, Arabic and long URLs in Chromium, soft hyphens in Chromium and Firefox), the kit's answer is wrong by
+  the same amount. RESULTS.md lists them grouped by text and pattern.
+- **Fonts.** Use named fonts loaded with `@font-face` and awaited; never `system-ui` or `-apple-system` on macOS.
+  CJK and emoji come from OS fallback fonts, which the sweep covered only through the four stacks above. Canvas cannot
+  express `font-feature-settings` or tabular figures.
+- **clamp's cut** is the longest prefix that fits with the tail, measured joined; that it matches where the browser
+  itself would cut was not tested.
+- **Headless** is Chromium's rules with registered fonts, on macOS: an uncovered code point throws
+  `HeadlessCoverageError`; a weight with no registered face measures the nearest one.
+- **Not browser-tested:** `shrinkwrapRich`, `balanceRich`, `watchFonts`, `stack`, `findIndexAt`, `anchorDelta`.
+- **Cost.** In Firefox, first-sight preparing is slower than letting the DOM lay out new elements, and `prepareLabel`
+  costs 0.1-0.3 ms per label; prepare once and reuse.

@@ -242,3 +242,26 @@ export const RICH_BOXES: { name: string, of: (width: number) => RichBox }[] = [
 
 // fitFontSizeRich sweeps the left-to-right corpora an icon row holds, and real UI labels.
 export const RICH_CORPORA: Corpus[] = [...CORPORA.filter(c => ['latin', 'german', 'french', 'emoji-chat'].includes(c.name)), UI_LABELS]
+
+// fitFontSize's box: 96px holds four 24px lines, so the box is tight enough at 16px that most texts
+// must shrink or grow to fit, which is where a wrong size would show. Sizes FIT_MIN-FIT_MAX with
+// line height px × FIT_LINE_HEIGHT_RATIO (fractional at odd sizes, which WebKit 26 floors).
+export const FIT_HEIGHT = 96
+export const FIT_MIN = 8
+export const FIT_MAX = 48
+export const FIT_LINE_HEIGHT_RATIO = 1.5
+
+// fitFontSizeRich's sizes, with whole-px line heights, so the WebKit 26 floor (a fractional line
+// height) has nothing to act on there.
+export const RICH_MIN = 8
+export const RICH_MAX = 32
+export const richLineHeight = (px: number): number => Math.round(px * 1.5)
+
+// The corpora each helper sweeps: truncateMiddle its labels and the soft-hyphenated corpora, as every
+// helper does; fitFontSizeRich RICH_CORPORA; fontFromStyle none (its cases are one per stack and size).
+export function corporaFor(helper: string): Corpus[] {
+  if (helper === 'truncateMiddle') return [LABELS, ...CORPORA.filter(c => c.name === 'german' || c.name === 'french')]
+  if (helper === 'fitFontSizeRich') return RICH_CORPORA
+  if (helper === 'fontFromStyle') return []
+  return CORPORA
+}

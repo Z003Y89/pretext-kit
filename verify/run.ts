@@ -7,6 +7,7 @@ import { chromium, firefox, webkit } from 'playwright'
 import type { BrowserType } from 'playwright'
 import { LABEL_WIDTH_MAX, LABEL_WIDTH_MIN, WIDTH_MAX, WIDTH_MIN } from './corpora.ts'
 import { WEBKIT_LINE_HEIGHT_FLOOR } from './causes.ts'
+import { overflowsAtAnswer as overflowSentence } from './overflow.ts'
 import type { CaseResult, FontPresence, Helper } from './sweep.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -153,31 +154,10 @@ function casesOf(outcome: string): Located[] {
 const mismatches = casesOf('kit-mismatch')
 if (mismatches.length > 0) failures.push(`${mismatches.length} kit-mismatch cases`)
 
-// Cases where the browser paints more lines at the kit's own answer than Pretext lays out there. They are
-// pretext-gaps (Pretext's count is the cause and the kit agreed with it), but each is an overflow a user sees.
-const AT_ANSWER = /^returned (\d+)px, at (\d+)px: DOM (\d+) lines, Pretext (\d+)$/
-function overflowsAtAnswer(helper: Helper): string {
-  const byText = new Map<string, { n: number, fonts: Set<string>, where: Set<string> }>()
-  let n = 0
-  for (const { browser, factor, c } of casesOf('pretext-gap')) {
-    if (c.helper !== helper || c.detail === undefined) continue
-    const colon = c.detail.indexOf(': ')
-    const m = AT_ANSWER.exec(c.detail.slice(colon + 2))
-    if (m === null || m[1] !== m[2] || Number(m[3]) <= Number(m[4])) continue
-    n++
-    const label = c.detail.slice(0, colon)
-    let e = byText.get(label)
-    if (e === undefined) byText.set(label, e = { n: 0, fonts: new Set(), where: new Set() })
-    e.n++
-    e.fonts.add(c.font)
-    e.where.add(browser)
-  }
-  const parts = [...byText].map(([label, e]) => `${label} ${e.n} (${[...e.fonts].join('/')}; ${[...e.where].join(', ')})`)
-  return n === 0
-    ? `In no case does the browser paint more lines at ${helper}'s answer than Pretext.`
-    : `In ${n} cases the browser paints more lines at ${helper}'s own answer than Pretext lays out there, so the answer `
-      + `visibly overflows its box: ${parts.join('; ')}. They are pretext-gaps, since Pretext's own line count is the `
-      + 'cause and the kit agreed with it, but they are overflows a user sees.'
+// Cases where the browser paints more lines at the kit's own answer than Pretext lays out there, and how
+// many of them leave the box (verify/overflow.ts, shared with verify/stats.ts).
+function overflowsAtAnswer(helper: 'fitFontSize' | 'fitFontSizeRich'): string {
+  return overflowSentence(helper, casesOf('pretext-gap').map(({ browser, c }) => ({ browser, ...c })))
 }
 
 const full = only === undefined && helperArg === undefined && factorArg === undefined
@@ -217,8 +197,8 @@ if (full) {
     `Run on ${new Date().toISOString().slice(0, 10)} by \`npm run verify\`, headed, \`<html lang="en">\`.`,
     `Widths ${WIDTH_MIN}-${WIDTH_MAX}px (truncateMiddle ${LABEL_WIDTH_MIN}-${LABEL_WIDTH_MAX}px), at Playwright deviceScaleFactor ${factors.join(', ')}.`,
     ...factors.map(f => `Width step per helper at factor ${f}: ${Object.entries(stepsAt(f)).map(([k, v]) => `${k} ${v}`).join(', ')}.`),
-    'fontFromStyle cases are one per font stack and pinned size (16px/24px, then 8-48px at 1.5 line height); their',
-    '"width" column is the font size.',
+    'fontFromStyle cases are one per font stack and pinned size (16px/24px, then 8-48px at 1.5 line height), plus',
+    'weight 700, italic and 0.5px letter spacing at 16px/24px; their "width" column is the font size, their corpus the variant.',
     '',
     'A `pretext-gap` case is one where Pretext\'s own line count differs from the browser\'s at a width (or, for',
     'fitFontSize, a size) the judgement needs, so the kit cannot be judged there. A `kit-mismatch` is the kit',

@@ -4,7 +4,8 @@ Exact text-sizing helpers for web UIs, built on [Pretext](https://github.com/che
 with no browser, in Node. pretext-kit is not part of Pretext and is not maintained by its authors; it calls Pretext's
 public API and adds the answers apps keep re-deriving on top of it: the font size that fits a box, the width that
 balances lines, clamped and middle-cut text, list heights. Every helper is checked against what Chromium, WebKit and
-Firefox actually paint ([verify/RESULTS.md](verify/RESULTS.md)).
+Firefox actually paint ([verify/RESULTS.md](verify/RESULTS.md)); [EVALUATION.md](EVALUATION.md) states the claims,
+the confidence bounds, the threats to validity and the known limitations.
 
 - **`pretext-kit/headless`**: Pretext and every helper in Node, vitest, jest (jsdom too) and CI, shaping your own
   font files with HarfBuzz, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" becomes a unit test.
@@ -111,7 +112,10 @@ first, then against the painted DOM. The recorded run has **zero kit-mismatch ca
 factor. The remaining non-pass cases are where Pretext itself differs from the browser (`pretext-gap`), or a proven
 browser quirk (`platform`: WebKit 26 floors fractional line heights); none is patched in the kit. Builds, counts and
 every finding grouped by cause: [verify/RESULTS.md](verify/RESULTS.md). The [accuracy example](#examples) shows them
-as a grid.
+as a grid. [EVALUATION.md](EVALUATION.md) gives each helper's claim as a falsifiable property, 95% upper bounds on
+the mismatch rate, mutation tests of the sweep itself, the threats to validity, and the known limitations (among
+them soft-hyphenated text that overflows a fitted box in Chromium and Firefox where Pretext places the break
+differently, and macOS as the only platform measured).
 
 ## Fonts
 
