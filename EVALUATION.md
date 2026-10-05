@@ -10,7 +10,7 @@ zoom factors, on one Mac), the kit never answered differently from what Pretext'
 Pretext agreed with the browser, the browser painted what the kit predicted, apart from 12,931 WebKit cases with one
 proven browser cause (fractional line heights, §8): 0 kit-mismatch cases. The 95% upper bound on the kit-mismatch rate
 is 1.1-2.1% of text × font combinations per helper and browser (the number to quote, §3). Seven planted bugs were
-each caught; six by 4,000 to 160,000 cases, and the seventh (`fontFromStyle` dropping the weight) only after this
+each caught; six by 6,688 to 161,581 cases, and the seventh (`fontFromStyle` dropping the weight) only after this
 evaluation added the cases that see it, since the sweep as it stood missed it (§4). The kit inherits every
 disagreement between Pretext and a browser (21,978 cases, 0.31%), among them 19 + 66 fitted sizes on soft-hyphenated
 text that visibly overflow their box in Chromium and Firefox (§8). Everything was measured on macOS 14 only.
@@ -143,7 +143,8 @@ and the one to quote. It is still conditional on the texts being like the reader
 | truncateMiddle | firefox | 176 | 483 | 0 | 0 | 2.14% | 2.07% |
 
 Read: "with 95% confidence, fewer than 1.13% of text × font combinations like these would show any shrinkwrap
-mismatch in Chromium 149". fontFromStyle's unit is the case itself (one per stack, size and style variant).
+mismatch in Chromium 149". fontFromStyle has no text: its unit is one stack × size × style variant, its three factors pooled, and its cases are
+judged against the expected font string rather than a painting.
 
 **Per case** (unit: one case; for comparison only). Against Pretext's own numbers every case is judged
 (n = cases); against the painting, n = cases that are neither pretext-gap nor unreliable.
@@ -346,8 +347,8 @@ before paint), not speed. The kit and the DOM baselines agreed on every height a
 ## 7. Reproduction
 
 ```sh
-verify/reproduce.sh                        # everything: about 40 minutes plus downloads
-verify/reproduce.sh --sweep=chromium@1     # the browser sweep in Chromium at factor 1 only
+verify/reproduce.sh                        # everything: about 25 minutes with the browsers cached
+verify/reproduce.sh --sweep=chromium@1     # the browser sweep in Chromium at factor 1 only: about 3 minutes
 ```
 
 It clones this repository at its HEAD (or `--kit-repo`, `--kit-commit`) and Pretext at f10d888 side by side into a new
@@ -358,13 +359,30 @@ temporary directory (or `--dir`), builds Pretext with its pinned TypeScript (`np
 ran against RESULTS.md) and `npm run verify:headless`, and prints the tallies. It needs macOS 14 (the sweep's pinned
 fonts are macOS fonts), Node 24 and network access. Expected: every step passes; every compared tally equals
 RESULTS.md; `widths: 4992 cases, 3842 exact`, `lines: 71818 cases, 0 headless-mismatch, 176 pretext-gap`; all three
-headless mutants caught; after a full run, `git diff` in the clone shows only timings and the date in RESULTS.md and
-HEADLESS_RESULTS.md.
+headless mutants caught. After a full run, `git diff` in the clone should show only timings (and the date) in
+RESULTS.md and HEADLESS_RESULTS.md; the in-place rerun in §4 changed nothing else in RESULTS.md but what the
+harness changes of this evaluation changed (the fontFromStyle cases and the overflow sentences).
 
 **The one run made for this evaluation** used `--sweep=chromium@1` to bound its time, so it confirms the Chromium
 factor-1 tallies, not WebKit's, Firefox's or the zoomed ones:
 
-<!-- reproduce -->
+Run 2026-10-05 on the same Mac (macOS 14.6.1, Node 24.4.1, npm 11.4.2, Playwright's browsers already cached), into
+a new directory under the session's scratch space: `verify/reproduce.sh --kit-commit=9f46f09 --sweep=chromium@1`,
+174 s wall time. Every step passed:
+
+- `npm test`: 83 + 65 tests, 0 failing; `npm run check` clean.
+- The Chromium factor-1 sweep: 7 of 7 helper tallies equal RESULTS.md (for example clamp 808080 cases: 807503 pass,
+  577 pretext-gap, 0 kit-mismatch).
+- `npm run verify:headless`: `widths: 4992 cases, 3842 exact, max 0.000427px, 0 misses`;
+  `lines: 71818 cases, 0 headless-mismatch, 176 pretext-gap, 0 unreliable`; the three mutants caught with the
+  counts in §4. The HEADLESS_RESULTS.md it wrote differs from the committed one in one character: Pretext's
+  abbreviated commit hash (`f10d888c` for `f10d888`, git's abbreviation length in a fresh clone).
+
+The first attempt, at 8da68c5, failed at its first build step: Pretext's `npm install` no longer resolves (its dev
+dependencies float without a lockfile, and an oxlint release now conflicts with a pinned peer), which also broke the
+README's install line. Both now run Pretext's pinned `tsc` directly (9f46f09); the dist it builds is identical, file
+for file, to the one the recorded runs used. Not reproduced from a fresh clone: WebKit, Firefox, the zoom factors,
+and any other machine.
 
 ## 8. Known limitations
 
