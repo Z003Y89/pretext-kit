@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pretext-kit examples</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="page">
+  <h1>pretext-kit examples</h1>
+  <p class="intro">pretext-kit sizes text exactly before it paints: font sizes that fit a box, widths that balance
+    lines, clamped and middle-truncated text, list heights. It is built on
+    <a href="https://github.com/chenglou/pretext">Pretext</a> and is not part of it. Pretext's own demos already show
+    chat bubbles, ellipsis and a virtual chat list; these pages show what the kit adds, each next to the same UI in
+    fixed-size CSS.</p>
+  <div class="cards-index">
+    <a href="responsive-ui.html">
+      <h2>Responsive UI</h2>
+      <p>A billing screen from 320 to 1440px: a toolbar and buttons in one shared size, badges that fit, file
+        names cut in the middle, and a 2,000-row list whose heights are known before render.</p>
+      <span class="tag">fitFontSizeRich · fitFontSize · truncateMiddle · stack · anchorDelta</span>
+    </a>
+    <a href="text-size.html">
+      <h2>Text size</h2>
+      <p>An app-wide text-size setting from 0.8× to 1.5×. The kit honours it: it reflows first and shrinks text by
+        at most 10%.</p>
+      <span class="tag">prepareSizes · fitFontSize · fitFontSizeRich</span>
+    </a>
+    <a href="languages.html">
+      <h2>Languages</h2>
+      <p>The same screen in English, German and French: labels that fit (broken at a compound joint only when a word is wider than the room), and a title word
+        hyphenated only when it is wider than its card.</p>
+      <span class="tag">fitFontSizeRich · fitFontSize · balance · hyphen</span>
+    </a>
+    <a href="accuracy.html">
+      <h2>Accuracy</h2>
+      <p>The browser sweep as a grid: Chromium, WebKit and Firefox × zoom × helper × corpus, with sample cases.</p>
+      <span class="tag">verify/RESULTS.md</span>
+    </a>
+    <div class="soon">
+      <h2>Headless parity</h2>
+      <p>Label fits computed in Node, without a browser, beside the browser's live result.</p>
+      <span class="tag">coming with pretext-kit/headless</span>
+    </div>
+  </div>
+  <section class="notes">
+    <h2>How these pages are built</h2>
+    <ul>
+      <li>They follow Pretext's demo rules: the model owns every measured value and the painter writes it inline;
+        nothing corrects what the kit reports.</li>
+      <li>Fonts come from <code>fontFromStyle(getComputedStyle(el))</code>. The screens use Inter, a web font the
+        local server sends 1.5 s late, so you can see <code>watchFonts</code> lay the page out again when it lands.</li>
+      <li><code>npm run examples</code> builds them; <code>npm run examples:serve</code> serves them on
+        <code>http://localhost:4173</code>.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

@@ -1,3 +1,6 @@
+// The grapheme-prefix cut shared by clamp.ts and middle.ts, which derive from Pretext's
+// pages/demos/ellipsis.model.ts (MIT licence, Copyright (c) 2026 Pretext contributors; see LICENSE).
+
 import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
 import type { PrepareOptions } from '@chenglou/pretext'
 import { FIT_TOLERANCE } from './fit.ts'

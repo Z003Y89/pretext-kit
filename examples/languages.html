@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Languages · pretext-kit examples</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="languages.js"></script>
+</head>
+<body>
+<main class="page">
+  <nav class="crumbs"><a href="./">pretext-kit examples</a></nav>
+  <h1>Languages</h1>
+  <p class="intro">The same screen in English, German and French, at a phone-to-tablet width. German compounds
+    („Tagesabschlussbericht“, „Zahlungspflichtig abonnieren“) and long French labels („Enregistrer les
+    modifications“) are what break layouts. Both sides get the same strings and the same hyphenation policy: no
+    hyphens in badges or bodies; German labels carry soft hyphens written by hand at their compound joints
+    („Tages·abschluss·bericht“, „Zahlungs·pflichtig“; a dictionary would pick syllables such as „Tagesab-schluss…“),
+    which the kit uses only when a word is wider than the room left for it and CSS uses whenever it wraps; in titles, the kit hyphenates only a word wider than the card (with
+    soft hyphens put in at build time by the <code>hyphen</code> package's TeX patterns), and the CSS side uses
+    <code>hyphens: auto</code>.</p>
+
+  <section class="wins">
+    <h2>What CSS can't match here</h2>
+    <ul>
+      <li><b>Labels that fit without hyphens</b>: each language's toolbar and buttons get their own shared size and
+        layout, chosen by measuring, instead of wrapping the row; a label breaks at a compound joint only when one
+        of its words is wider than the room.</li>
+      <li><b>Hyphenation only where it's needed</b>: the kit knows which title word is wider than the card. CSS
+        <code>hyphens: auto</code> follows each browser's dictionary, which differs per engine.</li>
+      <li><b>Badges that fit</b> in every language, at one size per list.</li>
+    </ul>
+  </section>
+
+  <div class="controls">
+    <label class="control"><span>Screen width</span>
+      <input id="width" type="range" min="320" max="760" step="1" value="560">
+      <output id="width-out">560px</output></label>
+  </div>
+  <p id="font-status" class="status">Inter, a web font, is still loading: until it arrives, both sides measure and
+    paint the fallback, Helvetica Neue.</p>
+  <dl id="readout" class="readout"></dl>
+  <div id="stage"></div>
+
+  <section class="notes">
+    <h2>Notes</h2>
+    <ul>
+      <li>Each browser's <code>hyphens: auto</code> dictionary differs (and some have none for a language), so no
+        measurer can know where it will break. Soft hyphens (U+00AD) put in once give Pretext and every engine the
+        same break opportunities; the verify sweep runs German and French hyphenated this way through every helper
+        (<code>verify/RESULTS.md</code>).</li>
+      <li>Titles, bodies and card heights: <b>CSS handles these equally well</b> for display.</li>
+      <li>File names, case numbers and names are never hyphenated.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accuracy · pretext-kit examples</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="accuracy.js"></script>
+</head>
+<body>
+<main class="page">
+  <nav class="crumbs"><a href="./">pretext-kit examples</a></nav>
+  <h1>Accuracy</h1>
+  <p class="intro">Every helper is swept against the painted DOM in Chromium, WebKit and Firefox, at Playwright
+    deviceScaleFactor 1, 1.25 and 2, over Latin, CJK, Arabic, emoji chat, URLs, soft-hyphenated German and French,
+    and file paths, in four named macOS fonts. Each cell is one browser, zoom factor, helper and corpus, coloured by
+    the worst outcome in it. Click a cell for sample cases.</p>
+  <p id="meta" class="meta-line"></p>
+
+  <div class="controls filters">
+    <div class="seg" id="helper-filter" role="group" aria-label="Helper"></div>
+    <div class="seg" id="factor-filter" role="group" aria-label="Zoom factor"></div>
+  </div>
+  <p class="legend">
+    <span class="l-pass">pass: the kit agreed with Pretext and the browser painted it</span>
+    <span class="l-gap">pretext-gap: Pretext itself differs from the browser there, so the kit can't be judged</span>
+    <span class="l-platform">platform: a proven browser quirk (WebKit 26 floors fractional line heights); safe: the
+      kit answers one size smaller than would fit, never one that overflows</span>
+    <span class="l-unreliable">unreliable: a painted height that is no whole number of lines, so lines can't be counted</span>
+    <span class="l-mismatch">kit-mismatch: the kit wrong where Pretext was right</span>
+  </p>
+  <dl id="summary" class="readout"></dl>
+  <div id="grid"></div>
+
+  <section class="notes">
+    <h2>Reading the grid</h2>
+    <ul>
+      <li>The judgement and every outcome are defined in <code>verify/RESULTS.md</code>; these cells are exported from
+        <code>verify/results/latest.json.gz</code> by <code>examples/build-accuracy-data.ts</code>, which checks its
+        totals against RESULTS.md.</li>
+      <li>Zoom factors 1.25 and 2 sweep every fourth width, so their cells hold about a quarter of the cases.</li>
+      <li>Zoom here is deviceScaleFactor emulation on macOS: it shows a finer device grid changes nothing, not how
+        Windows or Linux measure.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

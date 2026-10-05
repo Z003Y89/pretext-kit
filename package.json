@@ -2,6 +2,7 @@
   "name": "pretext-kit",
   "version": "0.0.0",
   "description": "Exact text-sizing helpers built on Pretext",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -25,7 +26,12 @@
     "check": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "verify": "node verify/run.ts",
-    "verify:headless": "node verify/headless.ts"
+    "verify:headless": "node verify/headless.ts",
+    "examples": "node examples/build.ts",
+    "examples:serve": "node examples/build.ts && node examples/serve.ts",
+    "examples:data": "node examples/build-accuracy-data.ts",
+    "examples:check": "node examples/check.ts",
+    "examples:screenshots": "node examples/check.ts --screenshots"
   },
   "peerDependencies": {
     "@chenglou/pretext": ">=0.0.10",

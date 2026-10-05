@@ -1,3 +1,6 @@
+// Derived from Pretext's pages/demos/ellipsis.model.ts (layoutMiddle), MIT licence, Copyright (c) 2026
+// Pretext contributors; see LICENSE.
+
 import { layoutNextLine, layoutNextLineRange, layoutWithLines, prepareWithSegments } from '@chenglou/pretext'
 import type { LayoutCursor, PreparedTextWithSegments } from '@chenglou/pretext'
 import { measureTail } from './clamp.ts'

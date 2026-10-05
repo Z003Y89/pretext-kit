@@ -1,3 +1,7 @@
+// Derived from Pretext's pages/demos/ellipsis.model.ts (clampLines), MIT licence, Copyright (c) 2026
+// Pretext contributors; see LICENSE. Its constants became parameters, and the cut is measured joined
+// with the tail (src/cut.ts).
+
 import { layout, layoutNextLine, layoutNextLineRange, measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
 import type { LayoutCursor, PrepareOptions, PreparedTextWithSegments } from '@chenglou/pretext'
 import { graphemeEnds, longestPrefix, measureText, paintedWidth, trimCut } from './cut.ts'
