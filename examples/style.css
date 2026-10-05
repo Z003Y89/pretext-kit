@@ -1,0 +1,270 @@
+/* pretext-kit examples. Tokens first; light by default, dark through prefers-color-scheme. */
+
+/* Inter arrives late on purpose: examples/serve.ts holds the file for ?delay= milliseconds, so the
+   page first measures and paints the fallback and then shows watchFonts re-laying out. Other static
+   servers ignore the query and serve it at once. */
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/inter-regular.ttf?delay=1500") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light dark;
+  --page: #f6f6f4;
+  --panel: #ffffff;
+  --ink: #1d1d1f;
+  --muted: #6b6b70;
+  --line: #dcdcd8;
+  --accent: #2f5fd0;
+  --accent-ink: #ffffff;
+  --good: #1f7a4a;
+  --bad: #b3261e;
+  --app-bg: #fbfbfa;
+  --card: #ffffff;
+  --chip: #f1f1ee;
+  --btn: #f1f1ee;
+  --badge-0: #fbe9d3; --badge-0-ink: #7a4300;
+  --badge-1: #dcefe3; --badge-1-ink: #1f5e3a;
+  --badge-2: #f8dedc; --badge-2-ink: #8c1d18;
+  --pass: #d7ecdf; --pass-ink: #1f5e3a;
+  --gap: #dfe6f6; --gap-ink: #24427f;
+  --platform: #f6e8c8; --platform-ink: #6d4c00;
+  --mismatch: #f6d3d0; --mismatch-ink: #8c1d18;
+  --ui: "Helvetica Neue", Arial, sans-serif;
+  --mono: "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #161618;
+    --panel: #1e1e21;
+    --ink: #ececee;
+    --muted: #a0a0a8;
+    --line: #3a3a40;
+    --accent: #7ea2ff;
+    --accent-ink: #10131c;
+    --good: #6fcf97;
+    --bad: #ff8a80;
+    --app-bg: #1b1b1e;
+    --card: #232327;
+    --chip: #2c2c31;
+    --btn: #2c2c31;
+    --badge-0: #4a3417; --badge-0-ink: #ffd7a3;
+    --badge-1: #1d3b2a; --badge-1-ink: #a9e2bf;
+    --badge-2: #4a201e; --badge-2-ink: #ffc2bd;
+    --pass: #1d3b2a; --pass-ink: #a9e2bf;
+    --gap: #1f2c4a; --gap-ink: #b7c9f5;
+    --platform: #43381a; --platform-ink: #f0d897;
+    --mismatch: #4a201e; --mismatch-ink: #ffc2bd;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scrollbar-gutter: stable; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--ui);
+  -webkit-text-size-adjust: 100%;
+}
+a { color: var(--accent); }
+
+/* ------------------------------------------------------------------------------------------- */
+/* Page chrome */
+
+.page { padding: 28px 32px 56px; }
+@media (max-width: 640px) { .page { padding: 20px 16px 40px; } }
+.crumbs { font-size: 13px; margin-bottom: 14px; }
+.crumbs a { text-decoration: none; }
+h1 { margin: 0; font: 600 28px/1.15 var(--ui); letter-spacing: -0.01em; }
+.intro { margin: 8px 0 0; max-width: 72ch; color: var(--muted); }
+.intro code, .notes code { font: 13px var(--mono); }
+
+.controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;
+  margin: 20px 0 12px; padding: 12px 14px;
+  background: var(--panel); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line);
+}
+.control { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.control input[type="range"] { width: min(360px, 52vw); accent-color: var(--accent); }
+.control output { font: 13px var(--mono); min-width: 6ch; }
+.seg { display: inline-flex; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.seg button {
+  border: 0; background: transparent; color: var(--ink); font: 500 13px/1 var(--ui);
+  padding: 8px 12px; cursor: pointer;
+}
+.seg button + button { box-shadow: inset 1px 0 0 var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.status { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.status::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--platform-ink); vertical-align: 1px; }
+.status.done::before { background: var(--good); }
+
+.readout {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 20px;
+  margin: 0 0 20px; font-size: 13px;
+}
+.readout dt { color: var(--muted); }
+.readout dd { margin: 0; font: 13px/1.4 var(--mono); overflow-wrap: anywhere; }
+.readout > div { min-width: 0; }
+
+.stage { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+.frame { flex: none; max-width: 100%; }
+.frame-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; font-size: 13px; }
+.frame-name { font-weight: 600; }
+.frame-note { color: var(--muted); }
+.frame-count { margin-left: auto; color: var(--good); }
+.frame-count.bad { color: var(--bad); }
+.frame-count.gap { color: var(--platform-ink); }
+
+.lang-block + .lang-block { margin-top: 36px; }
+.lang-block h2 { margin: 0 0 4px; font: 600 18px/1.3 var(--ui); }
+.lang-block .hyph { margin: 0 0 12px; font: 13px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+
+.notes { margin-top: 36px; max-width: 80ch; font-size: 14px; }
+.notes h2 { font: 600 16px/1.3 var(--ui); margin: 0 0 8px; }
+.notes ul { margin: 0; padding-left: 18px; }
+.notes li { margin: 4px 0; }
+
+.probes { position: absolute; visibility: hidden; pointer-events: none; left: -9999px; top: 0; }
+
+/* ------------------------------------------------------------------------------------------- */
+/* Text roles: the fonts both screens use, and the probes the model reads them from. */
+
+.role-app { font: 600 18px/24px "Helvetica Neue", Arial, sans-serif; }
+.role-label { font: 400 14px/20px Inter, "Helvetica Neue", Arial, sans-serif; }
+.role-chip { font: 500 13px/18px "Helvetica Neue", Arial, sans-serif; }
+.role-meta { font: 400 13px/18px "Helvetica Neue", Arial, sans-serif; }
+.role-badge { font: 600 12px/16px "Helvetica Neue", Arial, sans-serif; }
+.role-title { font: 600 17px/22px "Helvetica Neue", Arial, sans-serif; }
+.role-body { font: 400 14px/20px Inter, "Helvetica Neue", Arial, sans-serif; }
+.role-file { font: 400 13px/18px "Helvetica Neue", Arial, sans-serif; }
+.role-button { font: 500 15px/20px "Helvetica Neue", Arial, sans-serif; }
+
+/* ------------------------------------------------------------------------------------------- */
+/* The app screen, both sides. Borders are inset box-shadows so they sit inside model widths. */
+
+.screen {
+  padding: 16px; border-radius: 12px; background: var(--app-bg); color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+  container-type: inline-size;
+}
+.screen .appbar { margin-bottom: 12px; }
+.screen .toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
+.screen .tb {
+  display: flex; align-items: center; padding: 8px 10px; border-radius: 8px;
+  background: var(--btn); box-shadow: inset 0 0 0 1px var(--line);
+}
+.screen .icon { display: inline-block; vertical-align: top; color: var(--muted); }
+.screen .icon svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.screen .cards { display: grid; gap: 12px; }
+.screen .card {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px;
+  background: var(--card); box-shadow: inset 0 0 0 1px var(--line); min-width: 0;
+}
+.screen .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.screen .chip { padding: 0 5px; border-radius: 4px; background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap; }
+.screen .badge { padding: 2px 8px; border-radius: 6px; flex: none; }
+.screen .card:nth-child(1) .badge { background: var(--badge-0); color: var(--badge-0-ink); }
+.screen .card:nth-child(2) .badge { background: var(--badge-1); color: var(--badge-1-ink); }
+.screen .card:nth-child(3) .badge { background: var(--badge-2); color: var(--badge-2-ink); }
+.screen .badge-text { text-align: center; }
+.screen .title { margin: 0; }
+.screen .file { display: flex; align-items: flex-start; color: var(--muted); }
+.screen .file .icon { flex: none; width: 16px; height: 16px; margin: 1px 6px 0 0; }
+.screen .footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.screen .btn { display: flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 8px; }
+.screen .btn.secondary { background: var(--btn); box-shadow: inset 0 0 0 1px var(--line); }
+.screen .btn.primary { background: var(--accent); color: var(--accent-ink); }
+.screen .btn-label { text-align: center; }
+
+/* The kit side: every size is written inline by the painter. Text wraps as Pretext models it,
+   with the build's soft hyphens and nothing else. */
+.kit .tb, .kit .meta, .kit .card { flex: none; }
+.kit .tb-content, .kit .meta, .kit .badge-text, .kit .title, .kit .btn-label {
+  white-space: normal; overflow-wrap: break-word; word-break: normal; line-break: auto;
+  -webkit-hyphens: manual; hyphens: manual;
+}
+/* Each clamped line on its own: nowrap, as Pretext's ellipsis demo paints them, so the space a line
+   breaks after collapses at its end instead of taking room as it would under pre. */
+.kit .body .line, .kit .file-name { white-space: nowrap; }
+.kit .tb-content, .kit .file-name { display: block; }
+
+/* The fixed-size CSS side: what a stylesheet written for one width and one language does. */
+.css { --s: 1; -webkit-hyphens: auto; hyphens: auto; overflow-wrap: break-word; }
+.css .role-app { font-size: calc(18px * var(--s)); line-height: calc(24px * var(--s)); }
+.css .role-label { font-size: calc(14px * var(--s)); line-height: calc(20px * var(--s)); }
+.css .role-chip { font-size: calc(13px * var(--s)); }
+.css .role-meta { font-size: calc(13px * var(--s)); line-height: calc(18px * var(--s)); }
+.css .role-badge { font-size: calc(12px * var(--s)); line-height: calc(16px * var(--s)); }
+.css .role-title { font-size: calc(17px * var(--s)); line-height: calc(22px * var(--s)); }
+.css .role-body { font-size: calc(14px * var(--s)); line-height: calc(20px * var(--s)); }
+.css .role-file { font-size: calc(13px * var(--s)); line-height: calc(18px * var(--s)); }
+.css .role-button { font-size: calc(15px * var(--s)); line-height: calc(20px * var(--s)); }
+.css .tb { flex: 1 1 0; min-width: 0; height: 36px; white-space: nowrap; overflow: hidden; }
+.css .tb .icon { width: 16px; height: 16px; margin: 2px 6px 0 0; }
+.css .cards { grid-template-columns: 1fr; }
+@container (min-width: 668px) { .css .cards { grid-template-columns: repeat(2, 1fr); } }
+@container (min-width: 1008px) { .css .cards { grid-template-columns: repeat(3, 1fr); } }
+.css .card { height: 228px; overflow: hidden; }
+.css .card-head { height: 20px; }
+.css .meta { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
+.css .meta .icon { width: 14px; height: 14px; margin: 2px 6px 0 0; }
+.css .badge { max-width: 40%; }
+.css .badge-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.css .body { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.css .file-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.css .btn { width: min(260px, calc(50% - 4px)); height: 40px; overflow: hidden; }
+
+/* ------------------------------------------------------------------------------------------- */
+/* Index */
+
+.cards-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 24px; }
+.cards-index a, .cards-index .soon {
+  display: block; padding: 16px 18px; border-radius: 10px; background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); text-decoration: none;
+}
+.cards-index a:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+.cards-index h2 { margin: 0 0 6px; font: 600 16px/1.3 var(--ui); }
+.cards-index p { margin: 0; font-size: 14px; color: var(--muted); }
+.cards-index .soon { opacity: 0.7; }
+.cards-index .tag { display: inline-block; margin-top: 10px; font: 12px var(--mono); color: var(--muted); }
+
+/* ------------------------------------------------------------------------------------------- */
+/* Accuracy explorer */
+
+.filters { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend .l-pass::before { background: var(--pass); }
+.legend .l-gap::before { background: var(--gap); }
+.legend .l-platform::before { background: var(--platform); }
+.legend .l-mismatch::before { background: var(--mismatch); }
+.helper-block { margin-bottom: 28px; }
+.helper-block h2 { margin: 0 0 8px; font: 600 16px/1.3 var(--ui); }
+.helper-block h2 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
+.grid-wrap { overflow-x: auto; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line); background: var(--panel); }
+table.grid { border-collapse: separate; border-spacing: 3px; font-size: 12px; min-width: 100%; }
+table.grid th { font-weight: 500; color: var(--muted); text-align: left; padding: 4px 6px; white-space: nowrap; }
+table.grid td { padding: 0; }
+table.grid button {
+  display: block; width: 100%; min-width: 74px; border: 0; border-radius: 5px; padding: 6px 6px;
+  font: 12px/1.3 var(--mono); text-align: left; cursor: pointer; color: inherit;
+}
+table.grid button .n { display: block; font-size: 11px; opacity: 0.8; }
+table.grid button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.c-pass { background: var(--pass); color: var(--pass-ink); }
+.c-gap { background: var(--gap); color: var(--gap-ink); }
+.c-platform { background: var(--platform); color: var(--platform-ink); }
+.c-mismatch { background: var(--mismatch); color: var(--mismatch-ink); }
+.c-none { background: transparent; color: var(--muted); }
+.cases { margin-top: 8px; padding: 14px 16px; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.cases h3 { margin: 0 0 8px; font: 600 15px/1.3 var(--ui); }
+.cases ol { margin: 0; padding-left: 20px; font: 12px/1.5 var(--mono); }
+.cases li { margin: 3px 0; overflow-wrap: anywhere; }
+.cases .empty { color: var(--muted); font-size: 13px; margin: 0; }
+.meta-line { font-size: 13px; color: var(--muted); margin: 6px 0 0; }

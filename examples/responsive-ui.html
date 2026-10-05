@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Responsive UI · pretext-kit examples</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="responsive-ui.js"></script>
+</head>
+<body>
+<main class="page">
+  <nav class="crumbs"><a href="./">pretext-kit examples</a></nav>
+  <h1>Responsive UI</h1>
+  <p class="intro">One billing screen, laid out twice at the width you drag to. On the left (or top), pretext-kit
+    chooses every font size, width and line count before anything paints. On the right (or below), the same screen
+    with the fixed sizes a stylesheet would give it. Drag the width down, or switch to German, and watch where each
+    one gives.</p>
+
+  <div class="controls">
+    <label class="control"><span>Screen width</span>
+      <input id="width" type="range" min="320" max="1440" step="1" value="1180">
+      <output id="width-out">1180px</output></label>
+    <div class="seg" id="lang" role="group" aria-label="Language">
+      <button type="button" value="en" aria-pressed="true">EN</button>
+      <button type="button" value="de" aria-pressed="false">DE</button>
+      <button type="button" value="fr" aria-pressed="false">FR</button>
+    </div>
+  </div>
+  <p id="font-status" class="status">Inter, a web font, is still loading: until it arrives, both screens measure and
+    paint the fallback, Helvetica Neue.</p>
+  <dl id="readout" class="readout"></dl>
+  <div id="stage" class="stage"></div>
+
+  <section class="notes">
+    <h2>What each box uses</h2>
+    <ul>
+      <li><b>Toolbar</b>: <code>fitFontSizeRich</code> sizes each icon and label as one row, 11–14px, on one line
+        if any size allows, else two, else the button shows only its icon. CSS: 14px, <code>nowrap</code>, clipped.</li>
+      <li><b>Case row</b> (icon, the chip <code>207/0011</code>, a name): <code>fitFontSizeRich</code> with the chip
+        as <code>break: 'never'</code>. CSS: 13px, one line, clipped.</li>
+      <li><b>Badge</b>: <code>fitFontSize</code>, 9–12px in a box a third of the card wide. CSS: 12px, ellipsis.</li>
+      <li><b>Title</b>: <code>balance</code> gives the narrowest width that keeps the line count, so there are no
+        orphans, and the line count the card height needs. (CSS <code>text-wrap: balance</code> would fix the
+        orphans too; it cannot give the height before painting.)</li>
+      <li><b>Body</b>: <code>clamp</code> to three lines with an ellipsis measured in the body font; the card's height
+        is known before it paints, so each row is as tall as its tallest card. CSS: <code>-webkit-line-clamp: 3</code>
+        in a card of fixed height.</li>
+      <li><b>Attachment</b>: <code>truncateMiddle</code> keeps the date and extension. CSS:
+        <code>text-overflow: ellipsis</code> keeps the start only.</li>
+      <li><b>Buttons</b>: <code>fitFontSize</code>, 12–15px. CSS: 15px in a 40px-high button.</li>
+      <li>Fonts come from <code>fontFromStyle(getComputedStyle(el))</code> on probe elements styled like each role;
+        <code>watchFonts</code> clears Pretext's cache when Inter arrives, and the page prepares again.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
