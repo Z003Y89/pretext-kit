@@ -45,7 +45,7 @@ Pretext agreeing with the browser at the widths or sizes the judgement needs; wh
 | C9 | `watchFonts` | On each `loadingdone` event with at least one face, calls Pretext's `clearCache()` and then the callback; never after unsubscribing. | unit tests only (stand-in `FontFaceSet`) |
 | C10 | `stack`, `findIndexAt`, `anchorDelta`; `shrinkwrapRich`, `balanceRich` | Arithmetic over heights and tops; the rich twins are C1/C2 over `measureRichInlineStats`. | unit tests only; **not browser-swept** |
 
-C9 and C10 rest on `npm test` alone (148 tests on a stand-in Canvas, §6), not on a browser.
+C9 and C10 rest on `npm test` alone (150 tests, 85 + 65, on a stand-in Canvas, §6), not on a browser.
 
 ## 2. Method
 
@@ -105,9 +105,8 @@ letter spacing 0/0.5px = 5,184, less 24 string × family × weight pairs (192 ca
 (synthesised by Chromium) measure the 400 face, and Shantell Sans 600 takes its 700 face. Counted by distinct face,
 they are 261 string × face pairs (Inter TTF 53, Inter WOFF2 53, Roboto 49, Shantell Sans 2 × 53), for which 0
 misses bound the rate at 1.45% (Wilson; printed by `node verify/stats.ts`, which derives the faces from
-HEADLESS_RESULTS.md). Line counts: 298 text × font pairs
-(Latin, German and French from the corpora,
-168 with soft hyphens, plus special characters) × 241 widths (71,818 cases). The scope rule was fixed before the first
+HEADLESS_RESULTS.md). Line counts: 298 text × font pairs (Latin, German and French from the corpora, 168 with soft
+hyphens, plus special characters) × 241 widths (71,818 cases). The scope rule was fixed before the first
 run, from the font files' cmaps, not from the stand-in.
 
 **Statistics** (`node verify/stats.ts`). It reads `verify/RESULTS.md`, `verify/results/latest.json.gz`,
@@ -116,7 +115,7 @@ recomputed from the corpora, non-pass counts from the listing), and prints the t
 intervals' upper ends, i.e. one-sided 97.5%: Wilson score (≈ 3.84/n at 0 failures for large n) and, beside it, exact
 Clopper-Pearson (≈ 3.69/n at 0; the "3.7/n" often quoted is this one). "Judged against the painting" counts every
 case that is neither pretext-gap nor unreliable, so it includes the 12,931 platform cases as judged and not failing.
-Logic tests: `npm test`, 148 tests (`node --test`).
+Logic tests: `npm test`, 150 tests (85 + 65, `node --test`).
 
 ## 3. Results
 
@@ -288,8 +287,8 @@ are in the table above; their causes are in §6 and §8.
 Chromium at factor 1, the affected helpers only (`node verify/run.ts --only=chromium --factors=1 --helpers=…`, which
 writes no RESULTS.md and never touches the baseline). An unmutated control run comes first and must have no
 kit-mismatch. Its output, run at 18db330, is committed as `verify/results/mutants.txt`; the control gave every
-helper's tally as in RESULTS.md and `npm test` passing. The rows from 18db330 predate the four labels added below, so
-their truncateMiddle counts are over 56,496 cases, not 61,632.
+helper's tally as in RESULTS.md and `npm test` passing. The rows from 18db330 predate the four labels added below and the
+truncateMiddle fix (7c71815), so their truncateMiddle counts are over 56,496 cases of the earlier code, not 61,632.
 
 | planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |
 |---|---|---:|---:|---:|---|

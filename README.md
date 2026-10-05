@@ -114,7 +114,8 @@ deviceScaleFactor 1, 1.25 and 2, over Latin, CJK, Arabic, emoji chat, URLs, soft
 file paths, in four named fonts, at every width from 120 to 600px (80–400px for `truncateMiddle`; every fourth
 width at 1.25 and 2). Each case is judged against Pretext's own numbers
 first, then against the painted DOM. `shrinkwrapRich`, `balanceRich`, `watchFonts`, `stack`, `findIndexAt` and
-`anchorDelta` are not swept: they are covered by `npm test` on a stand-in Canvas only. The recorded run has **zero kit-mismatch cases** in every browser at every
+`anchorDelta` are not swept: they are covered by `npm test` on a stand-in Canvas only. The recorded run has
+**zero kit-mismatch cases** in every browser at every
 factor. The remaining non-pass cases are where Pretext itself differs from the browser (`pretext-gap`), or a proven
 browser quirk (`platform`: WebKit 26 floors fractional line heights); none is patched in the kit. Builds, counts and
 every finding grouped by cause: [verify/RESULTS.md](verify/RESULTS.md). The [accuracy example](#examples) shows them

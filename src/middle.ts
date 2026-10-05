@@ -95,7 +95,8 @@ function graphemeCount(text: string): number {
 // One line that keeps a label's start and end around an ellipsis. With keepEnd, the end is
 // everything from the grapheme at keepEnd.from (a path's file name with its slash) where the
 // room holds it, so the cut never falls inside the name; otherwise the end is the longest
-// run of graphemes that fits half the room. The start fills what is left. The stream only
+// run of graphemes that fits half the room, less any graphemes it gives up so the joined result
+// fits. The start fills what is left. The stream only
 // walks forward, so each candidate end is measured as the line from its first grapheme.
 export function truncateMiddle(label: PreparedLabel, width: number, keepEnd?: { from: number }): string {
   const { prepared, starts, offsets } = label
