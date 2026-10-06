@@ -499,27 +499,28 @@ The claim is scoped exactly so:
   [37412616029](https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029) measured Linux 6,072/7,344 widths bit-exact (max 0.001862px) and Windows 6,194/7,344
   (max 0.000427px), Inter Variable 2,352/2,352 on both, and 0 headless-mismatch in 141,226 line counts on each. An earlier
   independent Linux run on Chromium 141 (raw data not in the repository) gave the same tallies (EVALUATION §3).
-- **Fractional font sizes on Linux and Windows.** The `'linux'` and `'windows'` profiles model how Chromium measures a
-  fractional canvas font size (13.455px, for instance); `'macos'` does not (`sizedFor` in `src/headless/canvas.ts`).
-  Both start from the size Blink keys the font by, the size in whole hundredths computed in float32 (10.15px becomes
+- **Fractional font sizes on Linux, Windows and macOS.** All three profiles model how Chromium measures a fractional
+  canvas font size (13.455px, for instance; `sizedFor` in `src/headless/canvas.ts`). Each starts from the size Blink keys the font by, the size in whole hundredths computed in float32 (10.15px becomes
   10.14px), by which HarfBuzz scales kerning. **Linux:** glyph advances at that size truncated to 1/64 px
   (`test/headless/fractional-size.test.ts`); derived and measured on Chromium 141.0.7390.37, and confirmed with
   Chromium 149 in CI (run [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670),
   `ubuntu-latest`: 1,464 of 1,464 widths exact). **Windows:** each glyph advance is its font units times
-  float32(size / upem), multiplied in float32 and truncated to 1/65536 px (`test/headless/fractional-size-windows.test.ts`). Measured by `npm run
-  verify:fractional` on `windows-latest` with Chromium 149.0.7827.55 (CI run
+  float32(size / upem), multiplied in float32 and truncated to 1/65536 px
+  (`test/headless/fractional-size-windows.test.ts`). Measured by `npm run verify:fractional` on `windows-latest` with Chromium 149.0.7827.55 (CI run
   [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670)): 488 sizes × 3 strings, all 1,464
   widths exact, against 411 before the model. That is a fit exact on this data, not a derivation from Chromium's
   source, and its scope is that data: static Inter (upem 2048), Chromium 149, the first use of a size in a page. Its
   kerning part rests on one string ("Nebenrollen-Takes", the only one that kerns); its advance formula is pinned only
   for a power-of-two upem and can differ for a upem-1000 font such as Shantell Sans, which also keeps HarfBuzz's rounding
-  at whole sizes. On both profiles the model is exact for the first use of a size in a page; later in the same page
-  Chromium on Linux can reuse the glyph metrics of a nearby fractional size it measured earlier, in either direction,
-  which the stand-in does not model (a page with two fractional sizes a few hundredths of a px apart can measure one
-  1/64 px advance step differently); on Windows that reuse is unmeasured. Optical size (`opsz`) on a variable font
-  takes the hundredths size on both profiles, unmeasured against Chromium, and variable fonts at fractional sizes on
-  Windows are unmeasured. **macOS:** no fractional-size data; `'macos'` measures at the size asked for. To check it on
-  a Mac, run `npm run verify:fractional` and `npm run verify:check` locally and compare. The parity sweep
+  at whole sizes. **macOS:** the Windows rule. Chromium 149.0.7827.55 on a `macos-latest` CI runner (run
+  [37505556735](https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735), not the maintainer's machine) measured all 1,464 widths as the
+  `'windows'` profile does, against 411 for the `'macos'` profile as it was (`test/headless/fractional-size-macos.test.ts`);
+  a varied instance of a variable font keeps its unrounded HVAR advances, at the cut size. On every profile the model
+  is exact for the first use of a size in a page; later in the same page Chromium on Linux can reuse the glyph metrics
+  of a nearby fractional size it measured earlier, in either direction, which the stand-in does not model (a page with
+  two fractional sizes a few hundredths of a px apart can measure one 1/64 px advance step differently); on Windows
+  and macOS that reuse is unmeasured. Optical size (`opsz`) on a variable font takes the hundredths size, unmeasured
+  against Chromium, and variable fonts at fractional sizes on Windows and macOS are unmeasured. The parity sweep
   (`HEADLESS_RESULTS.md`) uses whole-pixel sizes.
 
 ### Install order
@@ -839,15 +840,15 @@ note and is neither a failure nor a warning (so it is not in the counts).
 ### Limits
 
 - **Platforms differ.** The three Chromium profiles measure differently (variable-font advances; fractional sizes on
-  Linux and Windows), which is why an issue lists its platforms. Chromium only: no WebKit or Gecko profile.
+  Linux against Windows and macOS), which is why an issue lists its platforms. Chromium only: no WebKit or Gecko profile.
 - **Fractional font sizes.** See [the headless limits](#the-claim-and-its-limits). `'linux'` (Chromium 141, and 149 in CI
-  run [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670)) and `'windows'` (Chromium 149)
-  model them, exact for the first use of a size in a page; `'macos'` measures at the size
-  asked for, unmeasured. On Linux Chromium reuses the glyph metrics of a nearby fractional size measured earlier in
+  run [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670)) and `'windows'` and `'macos'`
+  (Chromium 149, one rule for both, run [37505556735](https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735) for macOS) model them, exact for
+  the first use of a size in a page. On Linux Chromium reuses the glyph metrics of a nearby fractional size measured earlier in
   the same page, which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart
-  can differ by one 1/64 px step; on Windows that reuse is unmeasured. The Windows model is exact on its data (static
-  Inter, 1,464 widths); its kerning part rests on one string and its advance formula is pinned only for power-of-two
-  upem. `opsz` on Linux and Windows is unmeasured.
+  can differ by one 1/64 px step; on Windows and macOS that reuse is unmeasured. The Windows and macOS model is exact
+  on its data (static Inter, 1,464 widths); its kerning part rests on one string and its advance formula is pinned only
+  for power-of-two upem. `opsz`, and variable fonts at fractional sizes on Windows and macOS, are unmeasured.
 - **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 6,300 of the
   7,292 pretext-gaps of the verdict cases sit at the exact boundary box, 72 at 1.1 times it, 12 are rows and 908 are `overflowWrap: 'normal'`
   slots within 1/32 px of the widest word's own width (all under zoom 130%, none at zoom 100%), from Chromium
@@ -902,8 +903,9 @@ note and is neither a failure nor a warning (so it is not in the counts).
 - **Evidence.** The sweep, with Inter Regular only, ran on Linux (Chromium 141 in a container, and Chromium 149 in CI, run
   [37493529824](https://github.com/Z003Y89/pretext-kit/actions/runs/37493529824): 0 check-mismatch, 10,255 pretext-gap each) and on Windows in CI (Chromium 149, run
   [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670): 0 check-mismatch, 12,424
-  pretext-gap). It has not been run on macOS, so the `'macos'` verdicts are unverified; run `npm run verify:check` on a
-  Mac to measure them. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
+  pretext-gap). On macOS (CI runner, Chromium 149, run [37505556735](https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735)) it
+  ran before the macOS fractional-size model: 472 check-mismatch, 12,380 pretext-gap, the first Windows run's tallies;
+  the run with the model is pending. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
 
 ## Not in v1
 

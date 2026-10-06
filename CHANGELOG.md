@@ -2,11 +2,11 @@
 
 ## 0.2.0 — 2026-10-06
 
-The label checker, and fractional-size models for the headless Linux and Windows profiles.
+The label checker, and fractional-size models for the headless Linux, Windows and macOS profiles.
 
 Release assets: to be recorded after the maintainer's pack (RELEASING.md step 3): the SHA-256 of `chenglou-pretext-0.0.10-main.f10d888.tgz` and `pretext-kit-0.2.0.tgz`, with the Node and npm versions that packed them. `pretext-kit-0.2.0.sbom.cdx.json` has no fixed sum, because the SBOM records a timestamp and a random serial number.
 
-macOS: pending maintainer run (release gate rows 2 and 6).
+macOS (release gate rows 2 and 6), from the `macos-parity` workflow on a `macos-latest` runner, Chromium 149.0.7827.55 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735): `verify:headless` 0 headless-mismatch; `verify:check` before the macOS fractional-size model 472 check-mismatch, 12,380 pretext-gap; **pending:** `verify:check` with the model.
 
 - **`pretext-kit/check` and `pretext-kit/check/browser`.** `checkLabels` checks every UI label against the slot it is
   shown in, per language, text scale, zoom and platform, with each slot's own policy (as-is, `shrinkTo`, `lines`,
@@ -17,7 +17,7 @@ macOS: pending maintainer run (release gate rows 2 and 6).
   verdict cases and 98,172 near-miss cases), 0 check-mismatch, 10,255 pretext-gap (7,292 and 2,963), 8 of 8 planted bugs
   caught (verify/CHECK_RESULTS.md); the same tallies on Linux in CI with Chromium 149 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37493529824); on Windows in CI (Chromium
   149.0.7827.55, run https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670) 0 check-mismatch, 12,424
-  pretext-gap, 8 of 8 caught. Not yet run on macOS.
+  pretext-gap, 8 of 8 caught. On macOS see above (with the macOS model: pending).
   `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and
   `pretext-kit/check/browser` do not. Placeholders are `{name}` and `{{name}}`. README "Label checker" lists the limits,
   among them one call at a time (a call wipes fonts registered through `pretext-kit/headless`) and the gap at a box
@@ -52,11 +52,17 @@ macOS: pending maintainer run (release gate rows 2 and 6).
   only for power-of-two upem; whole sizes keep HarfBuzz's rounding, byte-identical to 0.1.2; variable fonts at
   fractional sizes and in-page metric reuse on Windows are unmeasured. It took the first Windows `verify:check` run's 472
   check-mismatches (fractional text-scale sizes, widths within a few thousandths of a px of the box) to 0.
-  `'macos'` is unchanged and still measures at the size asked for (no macOS data).
+- **Headless: the `'macos'` profile takes the same fractional-size rule as `'windows'`.** Chromium 149.0.7827.55 on a
+  `macos-latest` runner (run https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735) matched the `'windows'` profile at all 488 sizes × 3 strings
+  and the old `'macos'` profile (the size asked for) at 164 (83 for "Nebenrollen-Takes"); its `verify:check` with the old
+  profile gave the first Windows run's 472 check-mismatches. Static fonts are verified by that probe; a varied instance of
+  a variable font keeps its unrounded HVAR advances at the cut size, unmeasured at fractional sizes. Whole sizes are
+  byte-identical (`test/headless/fractional-size-macos.test.ts`). The `macos-parity` workflow now also runs on pull
+  requests that change `src/headless` or `verify`.
 - **`verify:fractional`** (verify/fractional-probe.ts): canvas `measureText` of three strings in Inter Regular at 488
   sizes (fractional and whole), each size in a fresh browser context, against the stand-in's three profiles, as JSON
   lines and per-profile exact-match counts; a diagnostic that exits 0. CI runs it in the `parity` job on Linux and
-  Windows and uploads its log and `fractional.jsonl`.
+  Windows, and the `macos-parity` workflow on macOS, and uploads its log and `fractional.jsonl`.
 - **`verify:check` prints diagnostics to its log:** on check-mismatches, counts by policy, condition kind and platform
   and up to 60 examples spread across groups (checker, reference and DOM measurements); the pretext-gap groups as a
   table. CHECK_RESULTS.md is unchanged by it.
