@@ -18,8 +18,8 @@ claims, the confidence bounds, the threats to validity and the known limitations
   ([the claim and its limits](#the-claim-and-its-limits)).
 - **`pretext-kit/check`**: a test-time and CI check that every UI label fits its slot in every language, at every
   text scale and zoom you ship, with the policy each slot declares (as-is, shrink to a minimum, N lines, truncate), as
-  the browser lays it out. A function (`checkLabels`), a browser entry and the `check-labels` command. It adds no
-  measurement of its own: it runs the helpers above through `pretext-kit/headless`
+  Chromium lays it out. A function (`checkLabels`), a browser entry and the `check-labels` command. It makes no
+  measurement beyond Pretext's: it runs `fitFontSize`, `clamp` and `prepareLabel` through `pretext-kit/headless`
   ([the checker, its evidence and its limits](#label-checker)).
 
 What it adds that CSS can't do:
@@ -420,9 +420,9 @@ A runnable version is `examples/vitest-label-fit.test.ts`.
 
 ### The claim and its limits
 
-On Chrome (Chromium 149 measured on macOS, Linux and Windows), for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas at the font sizes the sweep uses, and
-Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. One exception is known: fractional font
-sizes on the `'linux'` profile, below. Measured twice:
+On Chrome (Chromium 149 measured on macOS, Linux and Windows), for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas at the whole-pixel font sizes the sweep uses, and
+Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. Fractional font sizes are outside this
+claim; see below. Measured twice:
 
 - **Parity sweep** (`npm run verify:headless`, [verify/HEADLESS_RESULTS.md](verify/HEADLESS_RESULTS.md)), Chromium
   149.0.7827.55 via Playwright 1.61.0 on macOS 14.6.1, fonts loaded by `@font-face` from the same files: 7,344 widths
@@ -590,9 +590,10 @@ apart.
 
 `pretext-kit/check` answers, for a whole catalogue at once, "does „Zahlungspflichtig abonnieren“ fit the 160px button
 at 130% text size?", and for each failure says what is missing: the px of width, or the font size that would fit. It
-is a test-time and CI check. It runs `shrinkwrap`, `fitFontSize`, `clamp` and `truncateMiddle` through
-`pretext-kit/headless`, so its verdicts carry the headless parity evidence ([the claim](#the-claim-and-its-limits)) and
-add the checker's own, in [verify/CHECK_RESULTS.md](verify/CHECK_RESULTS.md) and EVALUATION.md C11.
+is a test-time and CI check. It runs `fitFontSize`, `prepareSizes`, `clamp` and `prepareLabel` (middle truncation
+uses `prepareLabel`'s white-space collapse and its own fit test, not `truncateMiddle`), and Pretext's `measureNaturalWidth`
+and `measureLineStats` for widths, line counts and row totals, through `pretext-kit/headless`, so its verdicts carry the
+headless parity evidence ([the claim](#the-claim-and-its-limits)) and add the checker's own, in [verify/CHECK_RESULTS.md](verify/CHECK_RESULTS.md) and EVALUATION.md C11.
 
 ```ts
 import { checkLabels, conditionGrid } from 'pretext-kit/check'
@@ -609,7 +610,7 @@ if (report.failures.length > 0) throw new Error(JSON.stringify(report.failures, 
 `labels` is parsed i18n files (`{ locale: { key: text } }`, nested objects flatten to dotted keys), a list of
 `{ key, text, slot, locale? }`, or a function returning one. A slot says where a label is shown: `width` (content box
 px at zoom 1, or a function of the window width), `reserve` (an icon and its gap, which scale with the text), `font`
-(CSS shorthand at scale 1), `letterSpacing`, `lineHeight` (needed for `lines`), `whiteSpace`, `numeric`
+(CSS shorthand at scale 1), `letterSpacing`, `lineHeight` (optional; no verdict uses it, `slotFromStyle` records it), `whiteSpace`, `numeric`
 (`'tabular'` for `font-variant-numeric: tabular-nums`), `textTransform` (applied with the label's locale: uppercase tabs
 are much wider than their source text), `policy`, and `uses` (key patterns such as `'toolbar.*'` that bind i18n keys
 to the slot). Slots that live in CSS come from `slotFromStyle(getComputedStyle(el), el.getBoundingClientRect(), policy, { reserve, uses }?)`,
@@ -623,7 +624,7 @@ Each slot declares what its design does with a label that is too long. The box i
 | policy | passes when | otherwise |
 |---|---|---|
 | `'as-is'` | the label is one line wide enough at the slot's size | failure `overflow`, with `missing.px` |
-| `{ shrinkTo: 12 }` | the label fits on one line at some size from 12px to the slot's size | failure `below-min-size`, with `missing.px` at 12px and `missing.fitsAtPx` |
+| `{ shrinkTo: 12 }` | the label fits on one line at some size from 12px to the slot's size (the minimum scales with text scale and zoom: 15.6px at text 130%) | failure `below-min-size`, with `missing.px` at the minimum and `missing.fitsAtPx` |
 | `{ lines: 2 }` | at most 2 lines at the slot's size | failure `too-many-lines` |
 | `{ truncate: 'end', lines?: 1 }` | `clamp` does not cut it | warning `truncated` |
 | `{ truncate: 'middle' }` | `truncateMiddle` does not cut it (one line) | warning `truncated` |
@@ -639,8 +640,8 @@ A condition names a combination the app ships; conditions are listed, not multip
 want it (names like `text 115% · zoom 130% · 1024px`). `slots` per condition overrides slot fields (a compact theme
 with another base size); `viewport` is passed to `width` functions (default 1440).
 
-- **`textScale`** is a text-size setting: font size, letter spacing, line height and `reserve` grow; boxes, rows and gaps
-  keep their px width.
+- **`textScale`** is a text-size setting: font size, letter spacing, line height, `reserve` and a `shrinkTo` minimum grow
+  (12px becomes 15.6px at 1.3); boxes, rows and gaps keep their px width.
 - **`zoom`** is CSS `zoom` or page zoom: everything grows, boxes and gaps too, so the boundary stays where it was at zoom 1.
 
 For a 160px slot with a 20px icon reserve and a label about 120px wide at 16px: at `textScale: 1.3` the label is about
@@ -764,8 +765,10 @@ note and is neither a failure nor a warning (so it is not in the counts).
   which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart can differ by
   one 1/64 px step. The model was derived on Chromium 141, not 149; `opsz` on Linux is unmeasured.
 - **Soft-hyphenated text at the exact boundary.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 3,835 of 5,260 pretext-gaps involve soft-hyphenated
-  text, where Chromium's `nowrap` text is about 0.16px wider than Pretext's natural width. At a box exactly as wide as
-  Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of a fraction of a pixel on soft-hyphenated
+  text: 2,445 `nowrap` width cases (as-is, truncate middle, shrinkTo), where Chromium's text is wider than Pretext's
+  natural width (for as-is at text 100% and zoom 100%, 0.125 to 0.828px, most often 0.25px; up to 1.23 zoomed px over
+  all conditions), and 1,390 line-break cases (lines, truncate end), where Chromium breaks differently. At a box exactly
+  as wide as Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on soft-hyphenated
   German and French boxes sized from a measured width.
 - **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
   size between two whole pixels, so a design that shrinks continuously fits at sizes the checker does not try.
@@ -780,7 +783,7 @@ note and is neither a failure nor a warning (so it is not in the counts).
   stand-in installed afterwards. Await each call before the next; use `fonts` rather than `registerFont` beforehand.
 - **The CLI's glob is its own** and minimal: `*`, `**` and `?`; it skips dot entries and `node_modules`.
 - **Not in this version:** ICU plural/select expansion, CSS parsing, WebKit and Gecko profiles, React Native.
-- **Evidence.** The sweep ran on Linux, Chromium 141, with Inter Regular and a few listed test fonts; macOS and Windows
+- **Evidence.** The sweep ran on Linux, Chromium 141, with Inter Regular only; macOS and Windows
   runs of `verify:check` have not been made (CI produces the artifact), so the macOS and Windows verdicts are
   unverified until it exists. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
 

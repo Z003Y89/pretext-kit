@@ -75,7 +75,8 @@ fi
 step compare node verify/stats.ts --compare-log="$LOGS/verify.log" --results="$LOGS/RESULTS.committed.md"
 step verify-headless npm run verify:headless
 # The label checker's oracle sweep (verify/CHECK_RESULTS.md): headed Chromium, the checker on this OS's platform.
-# PW_CHROMIUM, if set in the environment, picks the Chromium executable; on Linux run the script under xvfb-run.
+# PW_CHROMIUM, if set in the environment, picks the Chromium executable. The committed CHECK_RESULTS.md is a Linux run
+# ('linux' profile), so a diff after a run on a Mac is expected, not a failure (EVALUATION §7).
 step verify-check npm run verify:check
 
 echo
