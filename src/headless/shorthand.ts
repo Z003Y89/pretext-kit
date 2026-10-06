@@ -3,6 +3,8 @@ export type ParsedFont = {
   weight: number
   stretch: number
   sizePx: number
+  // The px size glyph advances are taken at, where a platform's differs from sizePx (canvas.ts sizedFor).
+  advancePx?: number
   families: string[]
 }
 

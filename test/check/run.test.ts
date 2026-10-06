@@ -20,7 +20,7 @@ test('a static font gives each issue once with every platform listed', async () 
     fonts: [inter],
     labels: { de: { save: 'Speichern unter' }, en: { save: 'Save as' } },
     slots: { button: tight({ uses: ['save'] }) },
-    conditions: [{ name: 'a' }, { name: 'b', textScale: 1.3 }],
+    conditions: [{ name: 'a' }, { name: 'b', textScale: 1.25 }],
   })
   assert.equal(report.schema, 1)
   assert.equal(report.failures.length, 4)
@@ -31,6 +31,20 @@ test('a static font gives each issue once with every platform listed', async () 
   assert.deepEqual(report.failures.map((i) => `${i.condition}/${i.locale}`), ['a/de', 'a/en', 'b/de', 'b/en'])
   assert.equal(report.checked, 12)
   assert.deepEqual(report.unchecked, [])
+})
+
+// A fractional size (16px at 130%) is measured on the linux profile as Chromium on Linux measures it, at its float32
+// hundredths with advances at 26.6 (test/headless/fractional-size.test.ts), so a static font's issue there gives
+// linux its own measured width.
+test('a fractional text scale gives the linux profile its own issue', async () => {
+  const report = await checkLabels({
+    fonts: [inter],
+    labels: [{ key: 'save', text: 'Speichern unter', slot: 'button' }],
+    slots: { button: tight() },
+    conditions: [{ name: 'b', textScale: 1.3 }],
+  })
+  assert.deepEqual(report.failures.map((i) => i.platforms), [['macos', 'windows'], ['linux']])
+  assert.ok(report.failures[1]!.measured.width < report.failures[0]!.measured.width)
 })
 
 const sample = 'Zahlungspflichtig abonnieren und weiter. '.repeat(3).trim()
@@ -89,7 +103,7 @@ test('issues are ordered by slot, condition, locale, key and platform', async ()
       v: { width: (mac + linux) / 2, font: '500 16px Inter V', policy: 'as-is', uses: ['v.k'] },
       a: tight({ width: 20, uses: ['x'] }),
     },
-    conditions: [{ name: 'c1' }, { name: 'c2', textScale: 1.3 }],
+    conditions: [{ name: 'c1' }, { name: 'c2', textScale: 1.25 }],
   }
   const report = await checkLabels(input)
   const sequence = report.failures.map((i) => [i.slot, i.condition, i.locale, i.key, i.platforms[0]])

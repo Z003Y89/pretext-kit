@@ -166,6 +166,26 @@ function withVariedAdvances(font: Font, face: FontFace, sizePx: number, design: 
 
 type ShapingFont = { font: Font; varied: VariedAdvances | null }
 
+// Chromium on Linux takes glyph advances from FreeType at a size of its own (sizedFor) while HarfBuzz scales
+// everything else (GPOS) by the size it was given; a sub font gives the advances at that size, rounded to
+// HarfBuzz's 16.16 position.
+const advanceFuncs = new FontFuncs()
+const advancesAt = new Map<number, (glyph: number) => number>()
+const forgetAdvances = new FinalizationRegistry<{ ptr: number; at: (glyph: number) => number }>(({ ptr, at }) => {
+  if (advancesAt.get(ptr) === at) advancesAt.delete(ptr)
+})
+advanceFuncs.setGlyphHAdvanceFunc((font, glyph) => advancesAt.get(font.ptr)?.(glyph) ?? 0)
+function withAdvancesAt(font: Font, face: FontFace, px: number, variations: Variation[]): ShapingFont {
+  const units = new Font(hbFace(face))
+  if (variations.length > 0) units.setVariations(variations)
+  const sub = font.subFont()
+  sub.setFuncs(advanceFuncs)
+  const at = (glyph: number): number => Math.round((units.glyphHAdvance(glyph) * px * 65536) / face.upem)
+  advancesAt.set(sub.ptr, at)
+  forgetAdvances.register(sub, { ptr: sub.ptr, at })
+  return { font: sub, varied: null }
+}
+
 // A registered weight picks the face; on a variable face the weight, optical size (Chrome
 // applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes. Only Chrome
 // on macOS keeps HVAR's fractions; on Windows and Linux a varied instance keeps HarfBuzz's font.
@@ -174,7 +194,8 @@ function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
   const wght = instanceWeight(face, parsed.weight)
   const opsz = axisValue(face, 'opsz', parsed.sizePx)
   const wdth = axisValue(face, 'wdth', parsed.stretch)
-  const key = `${parsed.sizePx}|${wght}|${opsz}|${wdth}|${unrounded ? 'unrounded' : 'harfbuzz'}`
+  const advancePx = parsed.advancePx ?? parsed.sizePx
+  const key = `${parsed.sizePx}|${advancePx}|${wght}|${opsz}|${wdth}|${unrounded ? 'unrounded' : 'harfbuzz'}`
   let bySize = fonts.get(face)
   if (bySize === undefined) {
     bySize = new Map()
@@ -192,7 +213,9 @@ function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
     if (wdth !== null) design.set('wdth', wdth)
     for (const [tag, value] of design) variations.push(new Variation(tag, value))
     if (variations.length > 0) font.setVariations(variations)
-    shaping = variations.length > 0 && unrounded ? withVariedAdvances(font, face, parsed.sizePx, design) : { font, varied: null }
+    shaping = variations.length > 0 && unrounded
+      ? withVariedAdvances(font, face, parsed.sizePx, design)
+      : advancePx !== parsed.sizePx ? withAdvancesAt(font, face, advancePx, variations) : { font, varied: null }
     bySize.set(key, shaping)
   }
   // The sub font is alive (this cache holds it), so its pointer is its own: its entry is put back
@@ -501,6 +524,25 @@ export type HeadlessContext = {
   measureText(text: string): HeadlessTextMetrics
 }
 
+// The sizes Chromium on Linux measures Canvas text at (Chromium 141; Inter, Roboto, Shantell Sans): Blink keys a font
+// by its size in whole hundredths, computed in float32 (FontCacheKey); HarfBuzz scales by that size, and FreeType
+// gives glyph advances at it truncated to 26.6. Exact for the first use of a size in a document
+// (test/headless/fractional-size.test.ts). Later in a document Chromium can reuse the glyph metrics of a nearby
+// fractional size measured before, in either direction; that is not modelled, so two fractional sizes within a few
+// hundredths of a px on one page can measure one 1/64 px advance step apart from here.
+const linuxSizes = new WeakMap<ParsedFont, ParsedFont>()
+function sizedFor(parsed: ParsedFont, platform: Platform): ParsedFont {
+  if (platform !== 'linux') return parsed
+  let out = linuxSizes.get(parsed)
+  if (out === undefined) {
+    const sizePx = Math.fround(Math.trunc(Math.fround(Math.fround(parsed.sizePx) * 100)) / 100)
+    const advancePx = Math.floor(sizePx * 64) / 64
+    out = sizePx === parsed.sizePx && advancePx === sizePx ? parsed : { ...parsed, sizePx, advancePx }
+    linuxSizes.set(parsed, out)
+  }
+  return out
+}
+
 function createContext(): HeadlessContext {
   let font = DEFAULT_FONT
   let parsed = parseFont(DEFAULT_FONT)
@@ -552,27 +594,29 @@ function createContext(): HeadlessContext {
       // too small to add width (Pretext's LETTER_SPACED_SHAPING relies on this).
       if (spacingPx !== 0) features.push(new Feature('liga', 0), new Feature('clig', 0), new Feature('calt', 0))
       const content = String(text)
+      const { options } = sharedState()
+      const platform = options.platform ?? 'macos'
+      const sized = sizedFor(parsed, platform)
       // Blink adds spacing in units of 1/65536 px (ShapeResultSpacing::SetSpacing).
       const spacing = Math.fround(Math.round(spacingPx * 65536) / 65536)
       if (isHyphenProbe(content)) {
-        const width = genericProbeWidth(content, parsed, spacing)
+        const width = genericProbeWidth(content, sized, spacing)
         if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
       }
-      const { options } = sharedState()
-      const faces = resolveFaces(parsed)
+      const faces = resolveFaces(sized)
       if (isHanProbe(content)) {
-        const width = hanProbeWidth(content, faces, parsed, spacing)
+        const width = hanProbeWidth(content, faces, sized, spacing)
         if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
       }
       if (isEmojiProbe(content)) {
-        const width = emojiProbeWidth(faces, parsed, spacing)
+        const width = emojiProbeWidth(faces, sized, spacing)
         if (width !== null) return { width, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0 }
       }
       return measure(content, {
-        parsed,
+        parsed: sized,
         notdef: options.onMissingGlyph === 'notdef' || content === HYPHEN,
         rounding: options.rounding,
-        platform: options.platform ?? 'macos',
+        platform,
         faces,
         features,
         spacing,
