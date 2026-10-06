@@ -453,8 +453,13 @@ The claim is scoped exactly so:
   For other instances the unrounded advance is checked against fontTools 4.62.1, exact: Inter Variable's `wght`,
   `opsz`+`wght` and standard (`opsz`+`wght`) latin files, 58 instances (`npm run verify:hvar`, results in
   verify/HEADLESS_RESULTS.md). Nothing committed covers `wdth`. A family your CSS splits into several files by
-  `unicode-range` (Fontsource does) is registered file by file, each with the same range:
-  `registerFont('Inter Variable', data, { unicodeRange: 'U+0000-00FF,U+0131,…' })`.
+  `unicode-range` (Fontsource does) is registered file by file, each with its own @font-face unicode-range:
+  `registerFont('Inter Variable', data, { unicodeRange: 'U+0000-00FF,U+0131,…' })`. Files sharing a family,
+  weight and style must each have a range, or draw disjoint code points; where only one has a range, only its
+  code points inside that range count, so a ranged subset beside an unranged file is accepted when they do not
+  overlap there. An invalid `unicodeRange` (`U+00FF-0000`, a start past U+10FFFF, a malformed token) makes
+  `registerFont` throw a `RangeError` rather than being dropped as CSS would; an end past U+10FFFF is clamped to
+  U+10FFFF, as in CSS.
 - **Variable fonts the stand-in does not unround.** A variable font with avar version 2, or without an HVAR table
   (or with one that fails its structural checks), keeps HarfBuzz's own advances, rounded to whole font units: away
   from the default instance each glyph can be up to ½ font unit off Chrome on macOS. A malformed HVAR never makes

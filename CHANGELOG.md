@@ -27,8 +27,9 @@ Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; 
   HarfBuzz's whole-unit advances, as above; it never makes `registerFont` or `measureText` throw.
 - **Headless: a family split across files by unicode-range** (`registerFont(family, data, { unicodeRange })`, the
   `@font-face` descriptor's syntax), as Fontsource ships its families: files may share a family, weight and style when
-  each has a range (overlaps resolve to the last registered, as in CSS) or their cmaps are disjoint. The same file
-  registered twice with the same range is an error, as before.
+  each has a range (overlaps resolve to the last registered, as in CSS) or their cmaps are disjoint (where only one
+  has a range, within that range). The same file registered twice with the same range is an error, as before. An
+  invalid `unicodeRange` throws a `RangeError`; an end past U+10FFFF is clamped to it, as in CSS.
 - **`verify:hvar`** (verify/hvar-fonttools.py, verify/hvar-fonttools.ts): the HVAR advances against fontTools 4.62.1
   (`pip install fonttools==4.62.1 brotli`), on the Inter Variable files from the `@fontsource-variable/inter` 5.3.0
   devDependency, plus any font paths given on the command line.

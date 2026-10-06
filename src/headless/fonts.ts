@@ -129,7 +129,9 @@ async function toSfnt(data: Uint8Array): Promise<Uint8Array> {
 
 const rangeTokenRe = /^U\+([0-9A-F?]{1,6})(?:-([0-9A-F]{1,6}))?$/i
 
-// Parses a CSS unicode-range value (CSS Fonts 4, unicode-range descriptor) into sorted pairs.
+// Parses a CSS unicode-range value (CSS Fonts 4, unicode-range descriptor) into sorted pairs. An
+// invalid range throws a RangeError (CSS would drop the descriptor; for registerFont, a dev-time
+// call, a typo should fail loudly rather than widen the face to every code point).
 export function parseUnicodeRange(value: string): [number, number][] {
   const ranges: [number, number][] = []
   for (const raw of value.split(',')) {
@@ -139,8 +141,10 @@ export function parseUnicodeRange(value: string): [number, number][] {
       throw new RangeError(`registerFont: unicodeRange ${JSON.stringify(value)} has an invalid range ${JSON.stringify(token)}`)
     }
     const first = parseInt(match[1]!.replace(/\?/g, '0'), 16)
-    const last = match[2] !== undefined ? parseInt(match[2], 16) : parseInt(match[1]!.replace(/\?/g, 'F'), 16)
-    if (first > last || last > 0x10ffff) {
+    // An end past U+10FFFF is clamped to it, as CSS does; a start past it is invalid.
+    const end = match[2] !== undefined ? parseInt(match[2], 16) : parseInt(match[1]!.replace(/\?/g, 'F'), 16)
+    const last = Math.min(end, 0x10ffff)
+    if (first > last) {
       throw new RangeError(`registerFont: unicodeRange ${JSON.stringify(value)} has an invalid range ${JSON.stringify(token)}`)
     }
     ranges.push([first, last])
@@ -148,11 +152,14 @@ export function parseUnicodeRange(value: string): [number, number][] {
   return ranges.sort((a, b) => a[0] - b[0])
 }
 
-export function inUnicodeRange(face: FontFace, codePoint: number): boolean {
-  const ranges = face.unicodeRange
-  if (ranges === null || ranges === undefined) return true
+function inRanges(ranges: [number, number][], codePoint: number): boolean {
   for (let i = 0; i < ranges.length; i++) if (codePoint >= ranges[i]![0] && codePoint <= ranges[i]![1]) return true
   return false
+}
+
+export function inUnicodeRange(face: FontFace, codePoint: number): boolean {
+  const ranges = face.unicodeRange
+  return ranges === null || ranges === undefined || inRanges(ranges, codePoint)
 }
 
 function familyKey(family: string): string {
@@ -217,22 +224,28 @@ export async function registerFont(family: string, data: Uint8Array, face?: Face
   const entry: FontFace = { family, weightMin, weightMax, style, upem: hb.upem, axes, unicodeRange, face: hb, data: sfnt, index }
   // Several files share a family, weight and style only as CSS lets them: each with its
   // unicode-range, or drawing disjoint code points, so a second copy of one file is still an error.
+  // Where only one of the two has a unicode-range, it draws only the code points of its cmap inside
+  // that range, so only those must not be in the other file (a subset whose cmap reaches past its
+  // range, beside an unranged file, is accepted).
   const faces = sharedState().faces
   let cmap: Set<number> | undefined
   for (let i = 0; i < faces.length; i++) {
     const other = faces[i]!
     if (!sameSlot(other, family, weightMin, weightMax, style)) continue
-    if (unicodeRange !== null && other.unicodeRange !== null && other.unicodeRange !== undefined) {
+    const otherRange = other.unicodeRange ?? null
+    if (unicodeRange !== null && otherRange !== null) {
       // The same file with the same range twice is a duplicate, not a split.
-      if (sameRanges(unicodeRange, other.unicodeRange) && other.index === index && sameBytes(other.data, sfnt)) {
+      if (sameRanges(unicodeRange, otherRange) && other.index === index && sameBytes(other.data, sfnt)) {
         throw new Error(`registerFont: "${family}" ${weightMin}-${weightMax} ${style} is already registered with this file and unicode-range`)
       }
       continue
     }
     cmap ??= new Set(hb.collectUnicodes())
     const otherCmap = hbFace(other).collectUnicodes()
+    const within = unicodeRange ?? otherRange
     for (let j = 0; j < otherCmap.length; j++) {
       if (!cmap.has(otherCmap[j]!)) continue
+      if (within !== null && !inRanges(within, otherCmap[j]!)) continue
       const hex = otherCmap[j]!.toString(16).toUpperCase().padStart(4, '0')
       throw new Error(
         `registerFont: "${family}" ${weightMin}-${weightMax} ${style} is already registered, and both files have U+${hex}; ` +
