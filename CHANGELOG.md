@@ -4,7 +4,7 @@
 
 The label checker, and fractional-size models for the headless Linux, Windows and macOS profiles.
 
-Release assets: the GitHub release for v0.2.0 carries `chenglou-pretext-0.0.10-main.f10d888.tgz`, `pretext-kit-0.2.0.tgz`, the SBOM and `SHA256SUMS`, packed by `.github/workflows/release.yml` on Node 24.4.1 with npm 11.4.2 (the sums and versions are in the release notes). `pretext-kit-0.2.0.sbom.cdx.json` has no fixed sum, because the SBOM records a timestamp and a random serial number.
+Release assets: the GitHub release for v0.2.0 carries `chenglou-pretext-0.0.10-main.f10d888.tgz`, `pretext-kit-0.2.0.tgz` and the SBOM (the SHA-256 sums of the two tarballs are in the release notes, not a file), packed by `.github/workflows/release.yml` on Node 24.4.1 with npm 11.4.2 (the sums and versions are in the release notes). `pretext-kit-0.2.0.sbom.cdx.json` has no fixed sum, because the SBOM records a timestamp and a random serial number.
 
 macOS (release gate rows 2 and 6), from the `macos-parity` workflow on a `macos-latest` runner, Chromium 149.0.7827.55 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735): `verify:headless` 0 headless-mismatch; `verify:check` before the macOS fractional-size model 472 check-mismatch, 12,380 pretext-gap; with the model (run https://github.com/Z003Y89/pretext-kit/actions/runs/37508951442, PR #8 at 0531c70) 0 check-mismatch, 12,424 pretext-gap, 8 of 8 planted bugs caught, and `verify:fractional` 488 of 488 sizes for the `'macos'` profile.
 
