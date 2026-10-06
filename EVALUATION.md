@@ -279,6 +279,19 @@ painting.
 | line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | 71642 | 0 | 0.0054% | 0.0051% |
 | line count equal to Pretext in Chromium | text × font (241 widths each) | 298 | 0 | 1.27% | 1.23% |
 
+**Linux, independently reported (raw data not in the repo; Chromium 141, not 149; two local patches).** An
+independent agent ran this headless parity sweep once on Linux and reported the tallies below; we have not reproduced
+the run and do not have its HEADLESS_RESULTS.md. Environment: Chromium 141.0.7390.37 headed under Xvfb, Node 22.22,
+Ubuntu 24.04, x64; same corpus (4,992 width cases; 298 texts × 241 widths). Its scratch copy had two local patches:
+the launch pointed at a preinstalled Chromium (so not Playwright 1.61.0's Chromium 149), and the OS line of the
+results no longer called macOS `sw_vers` (0.1.1 makes that change in the repository). Reported: widths 3,720 of
+4,992 bit-exact, max |Δ| 0.001862px, 0 beyond 0.02px; Inter TTF, Inter WOFF2 and Roboto all bit-exact (Δ 0),
+Shantell Sans within 0.0019px (so the 1,272 inexact widths, against macOS's 1,150, are Shantell Sans, all within
+the bar). Line counts: 71,818 cases, 0 headless-mismatch, 178 pretext-gap (macOS: 176), 0 unreliable. All three
+mutants caught. The agent concluded that `install({ rounding: 'whole-px' })` is not needed for that Chromium build on
+Linux. It is one run, on an older Chromium than the one the claim names, so Linux is not claimed on it; it is also
+a data point that the sweep runs on Node 22. CI's `parity` job measures Linux with the pinned Chromium 149.
+
 Both runs also record findings that are not kit-mismatches: 21,978 pretext-gap cases in 1,893 distinct findings
 (RESULTS.md, "pretext-gap cases"), and 176 headless pretext-gap cases (HEADLESS_RESULTS.md). Their counts per helper
 are in the table above; their causes are in §6 and §8.
@@ -442,7 +455,7 @@ before paint), not speed. The kit and the DOM baselines agreed on every height a
 | **Logic tests run on a stand-in Canvas** (fixed per-character widths, `test/setup.ts`). | `npm test` checks the algorithms, not real metrics; C9 and C10 rest on it alone. | Browser cases for the rich twins and `watchFonts` (a real `FontFaceSet` with a late web font). |
 | **Zoom is emulated.** deviceScaleFactor 1.25 and 2 via Playwright, at a 4px width step. | Real page zoom also changes CSS px per device pixel through the layout viewport; a zoom-only bug at a width not divisible by 4 would be missed. | A step-1 run at every factor (about 28 minutes); a real browser-zoom run. |
 | **The bench ran on a loaded machine**, of a commit with uncommitted changes, with the browser rarely frontmost, and Firefox at devicePixelRatio 2. | Timings are upper bounds; ratios within one browser are more trustworthy than absolute values; Firefox's kit-versus-DOM ratios compare against DOM layout at ratio 2. | `npm run bench` on a quiet machine at one pinned ratio, the browser frontmost (quit apps, stop screen recording, leave it about 15 minutes). |
-| **Headless scope.** Chromium's rules, registered fonts, macOS, one Chromium build. | Nothing is claimed for WebKit or Gecko profiles, OS fallback fonts, Windows or Linux. | One measured check each on Windows and Linux Chrome before claiming them (the spec requires it). Since 0.1.1 CI makes that check on every push: the `parity` job (headed Chromium 149, Node 24; xvfb on Linux) uploads HEADLESS_RESULTS.md as `headless-results-ubuntu-latest` and `headless-results-windows-latest`, and a headless-mismatch there is recorded rather than failing CI. **[PLACEHOLDER, to be filled from the first CI run: Linux and Windows widths (cases, exact, max |Δ|) and line counts (headless-mismatch, pretext-gap) from the `headless-results-<os>` artifacts.]** |
+| **Headless scope.** Chromium's rules, registered fonts, macOS, one Chromium build, static fonts only (a variable font's non-default instances fail the bar; §8). | Nothing is claimed for WebKit or Gecko profiles, OS fallback fonts, variable fonts, Windows or Linux. | One measured check each on Windows and Linux Chrome before claiming them (the spec requires it). One independent Linux run on Chromium 141 agreed (§3, independently reported, raw data not in the repo). Since 0.1.1 CI makes that check on every push: the `parity` job (headed Chromium 149, Node 24; xvfb on Linux) uploads HEADLESS_RESULTS.md as `headless-results-ubuntu-latest` and `headless-results-windows-latest`, and a headless-mismatch there is recorded rather than failing CI. **[PLACEHOLDER, to be filled from the first CI run: Linux and Windows widths (cases, exact, max |Δ|) and line counts (headless-mismatch, pretext-gap) from the `headless-results-<os>` artifacts.]** |
 | **One-off probes.** The `box-decoration-break: slice` probe for fitFontSizeRich (RESULTS.md, "Painting") ran once and its "168 + 1 err small" figure cannot be recomputed from stored data. | Its numbers are anecdotal. | Make it a flagged sweep mode whose output is stored. |
 | **Run-to-run determinism** is shown by repeats, not argued: the full three-browser sweep, rerun in this evaluation, reproduced every count and the non-pass listing byte for byte (§4); a reviewer reproduced the headless sweep byte for byte; §7's fresh clone reproduced Chromium at factor 1. All repeats were on this one machine. | A case that flips between runs, or between machines, would not have shown. | Rerun from a fresh clone on another Mac and diff RESULTS.md and the listing. |
 
@@ -531,6 +544,14 @@ and may be off by a line, or a pixel of width, in what the browser paints. RESUL
   express `font-feature-settings` or tabular figures.
 - **clamp's cut** is the longest prefix that fits with the tail, measured joined; that it matches where the browser
   itself would cut was not tested.
+- **Variable fonts in headless.** A sweep of Inter Variable (`@fontsource-variable/inter` 5.3.0, latin subset,
+  wght 100-900) against Chromium 149 on macOS, at weights 300-800, found the default instance (400) bit-exact and
+  every other instance off: max |Δ| 0.029px at 300, 0.053px at 500, 0.045px at 600, 0.040px at 700, 0.055px at 800
+  (232 of 2,352 widths beyond 0.02px), and 11 line counts of 69,408 differing from Pretext inside Chromium. The
+  stand-in's interpolated advances come out in whole font units where Chromium's
+  are fractional (observed, not traced in HarfBuzz's source): the space at 500 is 546/2048 em in the stand-in and 545.76/2048 em in Chromium. Until that is fixed,
+  measure variable fonts at their default instance only, or register static instances. The sweep is held on the
+  branch `v0.1.1-variable-font`, not in 0.1.1.
 - **Headless** is Chromium's rules with registered fonts, on macOS (Linux and Windows measured by CI, not yet claimed): an uncovered code point throws
   `HeadlessCoverageError`; a weight with no registered face measures the nearest one; a `small-caps` font throws.
 - **truncateMiddle works on the collapsed text.** `prepareLabel` collapses white space as CSS does, so the result,

@@ -48,7 +48,7 @@ from `main` at [f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3d
 against, and Pretext has not released since. `chenglou-pretext-0.0.10-main.f10d888.tgz` is that commit, unmodified,
 built with Pretext's pinned TypeScript; only its `package.json` differs: version `0.0.10-main.f10d888`, a description
 saying it is an unofficial snapshot, and no install or pack scripts. Its LICENSE (MIT) and README are Pretext's.
-`verify/pack-release.sh` rebuilds both tarballs from the two repositories, and `verify/consumer-smoke.mjs` installs
+`verify/pack-release.sh` rebuilds both tarballs (and the release's CycloneDX SBOM) from the two repositories, and `verify/consumer-smoke.mjs` installs
 them into a fresh project and runs the kit there (CI does both on every push). When Pretext publishes 0.0.10, install
 it from npm instead and drop the snapshot.
 
@@ -433,6 +433,11 @@ The claim is scoped exactly so:
   lacks (Inter has no `✔`) throws for that glyph.
 - **small-caps.** A `small-caps` font (which `fontFromStyle` emits for `font-variant: small-caps`) throws when it is
   set on the context: Canvas widths change with small capitals, and the stand-in does not model them.
+- **Variable fonts: default instance only.** A variable font registers as one face and measures, but only its
+  default instance matches Chromium: Inter Variable (`@fontsource-variable/inter`) at 400 is bit-exact, while 300 and
+  500-800 differ by up to 0.055px and changed 11 of 69,408 line counts on macOS Chromium 149. The stand-in rounds each
+  glyph's interpolated advance to whole font units and Chromium does not (EVALUATION §8). Register static instance
+  files for other weights until that is fixed.
 - **Weights.** A weight with no matching registered face (600 or 700 with only a Regular file) silently measures the
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
 - **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
@@ -441,8 +446,11 @@ The claim is scoped exactly so:
   advances without subpixel positioning) and Windows (DirectWrite) too: the `parity` job runs the same sweep, headed,
   on `ubuntu-latest` (under xvfb) and `windows-latest` with Node 24, and uploads each run's HEADLESS_RESULTS.md as the
   artifact `headless-results-<os>`. A headless-mismatch there is recorded, not treated as a CI failure.
-  **[PLACEHOLDER, to be filled from the first CI run: the Linux and Windows widths (cases, exact, max |Δ|) and line
-  counts (headless-mismatch, pretext-gap), and whether either platform is now claimed.]** Until a platform is
+  Linux: one independent run on Chromium 141 (not the pinned 149; raw data not in the repository) agreed: every
+  Inter and Roboto width bit-exact, max |Δ| 0.0019px, 0 headless-mismatch in 71,818 line counts, so no
+  `rounding: 'whole-px'` needed there (EVALUATION §3). CI results: **[PLACEHOLDER, to be filled from the first CI
+  run: the Linux and Windows widths (cases, exact, max |Δ|) and line counts (headless-mismatch, pretext-gap), and
+  whether either platform is now claimed.]** Until a platform is
   claimed, treat it as unmeasured; if Linux's results show Chrome rounds, `install({ rounding: 'whole-px' })` is the
   mode for it.
 
@@ -536,7 +544,10 @@ pretext-kit is built on [Pretext](https://github.com/chenglou/pretext) (Cheng Lo
 is not part of it. `src/clamp.ts`, `src/middle.ts` and `src/cut.ts` derive from Pretext's `pages/demos/ellipsis.model.ts`;
 each file says so in its header.
 
-[MIT](LICENSE). The LICENSE file also reproduces Pretext's MIT notice. The examples bundle Inter
+[MIT](LICENSE). The LICENSE file also reproduces Pretext's MIT notice. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+lists what ships, what is needed at runtime (Pretext, MIT; the optional peers harfbuzzjs and wawoff2, MIT) and the
+test-only fonts, which are not shipped; each release also carries a CycloneDX SBOM of the package's runtime tree,
+`pretext-kit-<version>.sbom.cdx.json`, built by `verify/pack-release.sh`. The examples bundle Inter
 ([SIL Open Font License 1.1](examples/fonts/inter-OFL.txt)) and ship strings hyphenated at build time by the
 [hyphen](https://github.com/ytiurin/hyphen) package (ISC; its TeX hyph-utf8 patterns are MIT-licensed). The German
 patterns stay out of the pages. The headless tests, the parity sweep and the headless-parity example use the test

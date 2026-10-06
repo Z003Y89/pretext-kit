@@ -19,6 +19,15 @@ Packaging and platform coverage; no change to the helpers' behaviour.
   headless parity sweep on Linux (headed, under xvfb) and Windows, with HEADLESS_RESULTS.md uploaded as
   `headless-results-<os>` and a headless-mismatch recorded rather than failing the run; the consumer smoke test
   against freshly packed tarballs on Linux × Node 22 and 24.
+- **Licences and SBOM.** THIRD_PARTY_NOTICES.md lists what ships, what is needed at runtime and the test-only
+  fonts (not shipped). `verify/pack-release.sh` also writes `pretext-kit-0.1.1.sbom.cdx.json`, a CycloneDX 1.5 SBOM
+  of the packed package's runtime tree (`npm sbom --sbom-format cyclonedx --omit dev`).
+- **Linux headless parity, independently reported**: one run on Chromium 141 under Xvfb (not the pinned 149; raw
+  data not in the repository) agreed with macOS (EVALUATION §3).
+- **Variable fonts: known limitation, not fixed.** A headless sweep of Inter Variable found only the default
+  instance within the 0.02px bar (non-default instances up to 0.055px off, 11 line-count mismatches): the stand-in
+  rounds interpolated advances to whole font units. Documented in README and EVALUATION §8; the sweep is held on the
+  branch `v0.1.1-variable-font`.
 - **`verify:headless`** runs off macOS (the results file names the OS it ran on) and takes `--headless` for
   machines with no display (Playwright's headless Chromium, named as such in the results file).
 
