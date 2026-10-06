@@ -7,7 +7,7 @@ Headless variable fonts and split families; the browser-side helpers are unchang
 Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; reproducible as described under 0.1.1 and in verify/RELEASING.md):
 
 - `chenglou-pretext-0.0.10-main.f10d888.tgz`: `9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`
-- `pretext-kit-0.1.2.tgz`: `ec022fd50ffb8560e9c0ff3c43f00e1ac90ba2716e7b5960dfd703deee7d8e22`
+- `pretext-kit-0.1.2.tgz`: `a97145e3812abd095e66770bc3e09de64355e9c38161c0b14da5452c0cc70330`
 - `pretext-kit-0.1.2.sbom.cdx.json`: no fixed sum, because the SBOM records a timestamp and a random serial number.
 
 - **Headless: variable fonts away from the default instance.** HarfBuzz rounds a variable font's HVAR advance
@@ -26,7 +26,7 @@ Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; 
   same widths on any machine. Static fonts and default instances measure the same under all three; the option is
   independent of `rounding`; a value outside the three throws a `RangeError`; like the other options, a later
   `install()` sets it again. `verify:headless` installs the platform of the OS it runs on and prints it in
-  HEADLESS_RESULTS.md. The option's own CI confirmation on Linux and Windows: pending.
+  HEADLESS_RESULTS.md. Confirmed by CI run https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029: with the option, Inter Variable is bit-exact on Linux and Windows (2,352/2,352 widths, 0 line-count headless-mismatches of 69,408), and the planted "unround variable-font advances" mutant is caught there (232 widths beyond 0.02px, 11 headless-mismatches).
 - **Limits of the fix.** Unrounded advances verified against Chromium for Inter Variable's `wght` axis only, on macOS
   only; Linux and Windows measured equal to HarfBuzz's rounding by CI run 37410732972. Beyond that, the unrounded advance is
   exact against fontTools 4.62.1 for what `npm run verify:hvar` covers: Inter Variable's latin `wght`, `opsz`+`wght`

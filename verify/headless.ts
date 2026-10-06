@@ -581,7 +581,7 @@ const md: string[] = [
   'So `install({ platform })` picks the behaviour: \'macos\' (the default) unrounded HVAR advances, \'windows\' and \'linux\'',
   'HarfBuzz\'s own. This sweep installs the platform of the OS it runs on' +
     (platform === 'macos' ? '' : `, here '${platform}'; its variable-font mutant forces the unrounded macOS advances instead`) +
-    '. The option\'s own CI confirmation on Linux and Windows: pending.',
+    '. CI run 37412616029 confirmed the option on Linux and Windows: Inter Variable bit-exact on both.',
   '',
   '## Widths',
   '',

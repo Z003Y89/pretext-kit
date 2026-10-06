@@ -43,7 +43,7 @@ which fail without the fix.
 **Per platform (0.1.2).** Chromium 149 on Linux and Windows does not keep the fraction: CI run 37410732972 measured it
 equal to HarfBuzz's whole-unit rounding (the fixed stand-in was off there by exactly the pre-fix macOS numbers above).
 So `install({ platform })` picks the behaviour: 'macos' (the default) unrounded HVAR advances, 'windows' and 'linux'
-HarfBuzz's own. This sweep installs the platform of the OS it runs on. The option's own CI confirmation on Linux and Windows: pending.
+HarfBuzz's own. This sweep installs the platform of the OS it runs on. CI run 37412616029 confirmed the option on Linux and Windows: Inter Variable bit-exact on both.
 
 ## Widths
 

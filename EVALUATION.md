@@ -41,7 +41,7 @@ Pretext agreeing with the browser at the widths or sizes the judgement needs; wh
 | C5 | `clamp(p, W, N, tail)`, `clampStats`, `measureTail` | Line count = min(Pretext's, N) and `truncated` exactly when Pretext lays out more than N; this matches a `-webkit-line-clamp: N` box's truncation and height. Every returned line, the cut one followed by the tail, paints within W + 1/64. The cut is the longest grapheme prefix whose text joined to the tail, measured as one text, fits. Floor: a cut keeps at least one grapheme, so where W is narrower than the tail plus the first grapheme the line paints past W, and the claim is only that it is one grapheme. *Not claimed:* that the cut falls where the browser's own ellipsis does (the SVG probe that would test it was not run). | browser sweep |
 | C6 | `truncateMiddle(label, W, keepEnd)` | The whole label (`label.text`: the text as Pretext prepared it, white space collapsed as under `white-space: normal`) exactly when its natural width fits W; otherwise start + `…` + end of `label.text`, cut only between graphemes, which paints within W + 1/64, where one more grapheme of the start would not fit, and whose end holds everything from `keepEnd.from`, an index into `label.text`, whenever that end, `…` and the first grapheme fit. The start keeps at least one grapheme, so where W is narrower than that grapheme and `…`, the result paints past W. | browser sweep |
 | C7 | `fontFromStyle(getComputedStyle(el))` | Returns a Canvas font string that Canvas parses to the same font as the element's weight, style, size and family, with `letterSpacing` and `lineHeight` in px. Tested at the pinned style (weight 400, normal, no letter spacing) at 16px and 8-48px, and three single-property variants at 16px only: weight 700, italic, 0.5px letter spacing; not a cross of them (§4 explains why the variants were added). Indirectly, every other case's font comes from it. | browser sweep |
-| C8 | `pretext-kit/headless` | In Node, for code points the registered fonts cover: `measureText` widths within 0.02px of Chromium's Canvas, and Pretext's line counts equal Pretext's inside Chromium; `HeadlessCoverageError` thrown on exactly the cases a fixed coverage rule puts out of scope. Chromium's rules, macOS (and, since 0.1.1, Linux and Windows in CI), registered fonts only; variable fonts (since 0.1.2) for Inter Variable's `wght` axis on macOS only, under `install({ platform: 'macos' })` (the default); Linux and Windows Chromium measured equal to HarfBuzz's whole-unit rounding, which `platform: 'linux'`/`'windows'` uses (option's CI confirmation pending). | headless parity sweep |
+| C8 | `pretext-kit/headless` | In Node, for code points the registered fonts cover: `measureText` widths within 0.02px of Chromium's Canvas, and Pretext's line counts equal Pretext's inside Chromium; `HeadlessCoverageError` thrown on exactly the cases a fixed coverage rule puts out of scope. Chromium's rules, macOS (and, since 0.1.1, Linux and Windows in CI), registered fonts only; variable fonts (since 0.1.2) for Inter Variable's `wght` axis on macOS only, under `install({ platform: 'macos' })` (the default); Linux and Windows Chromium measured equal to HarfBuzz's whole-unit rounding, which `platform: 'linux'`/`'windows'` uses (confirmed by CI run 37412616029: bit-exact on both). | headless parity sweep |
 | C9 | `watchFonts` | On each `loadingdone` event with at least one face, calls Pretext's `clearCache()` and then the callback; never after unsubscribing. | unit tests only (stand-in `FontFaceSet`) |
 | C10 | `stack`, `findIndexAt`, `anchorDelta`; `shrinkwrapRich`, `balanceRich` | Arithmetic over heights and tops; the rich twins are C1/C2 over `measureRichInlineStats`. | unit tests only; **not browser-swept** |
 
@@ -302,7 +302,8 @@ Chromium 223.535934px, which is HarfBuzz's whole-unit width). So Chromium on Lin
 whole font units, as HarfBuzz does, and only macOS (CoreText) keeps the fraction. `install({ platform })` now picks:
 `'macos'` (default) the unrounded advances measured above, `'windows'` and `'linux'` HarfBuzz's own; the sweep
 installs the platform of the OS it runs on. Linux/Windows variable-font parity: measured by CI run 37410732972 as
-equal to HarfBuzz's rounding; the option's own CI confirmation: pending.
+equal to HarfBuzz's rounding; the option's own CI confirmation: run [37412616029](https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029),
+Inter Variable 2,352/2,352 widths bit-exact and 0 headless-mismatch in 141,226 line counts on each of Linux and Windows.
 
 **Linux, independently reported (raw data not in the repo; Chromium 141, not 149; two local patches).** An
 independent agent ran this headless parity sweep once on Linux and reported the tallies below; we have not reproduced
@@ -406,7 +407,7 @@ unrounded advances) and gives back exactly the pre-fix numbers, 232 widths beyon
 headless-mismatches, so the sweep checks 0.1.2's main change on every run; the pinned Chromium widths in
 test/headless/variable.test.ts guard it in `npm test` as well. On Linux and Windows, where `platform` makes the
 stand-in round, the sweep plants the inverse, "unround variable-font advances" (`const unrounded = true`, macOS's
-advances forced); its numbers there come with the option's CI run, pending.)
+advances forced); CI run 37412616029 caught it on both, 232 widths and 11 headless-mismatches.)
 
 Dropping the U+0020 word cut cannot change a Pretext line count (Pretext never hands Canvas a space beside other
 text: 0 of 2,254 measured strings), so only the width sweep sees it (Ruling H-8 in the headless ledger).
@@ -590,8 +591,8 @@ and may be off by a line, or a pixel of width, in what the browser paints. RESUL
   The stand-in now computes the unrounded advance (fvar, avar, hmtx, HVAR, with the normalized coordinate as CoreText
   computes it) and sums a run's advances in 1/65536 px as Blink does: max |Δ| 0.000092px, 0 line counts differing
   (§3). Chromium on Linux and Windows instead rounds as HarfBuzz does (CI run 37410732972, §3), so the unrounded
-  advances are `install({ platform: 'macos' })`'s, the default; `'linux'` and `'windows'` keep HarfBuzz's (the
-  option's own CI confirmation: pending). Limits: unrounded advances verified against Chromium for Inter Variable's
+  advances are `install({ platform: 'macos' })`'s, the default; `'linux'` and `'windows'` keep HarfBuzz's (confirmed
+  bit-exact by CI run 37412616029). Limits: unrounded advances verified against Chromium for Inter Variable's
   `wght` axis only, on macOS only; the unrounded advances
   are exact against fontTools 4.62.1 for what `npm run verify:hvar` covers (Inter Variable's latin `wght`,
   `opsz`+`wght` and standard files, 326 instances, 50 of them `wght`-only), and nothing committed covers `wdth`. A font with avar version 2,

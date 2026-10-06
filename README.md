@@ -459,7 +459,7 @@ The claim is scoped exactly so:
   measure the same under all three. The option is independent of `rounding`: `'whole-px'` rounds whatever advances
   the platform gives. Like the other options, a later `install()` call sets it again (omitted, back to `'macos'`);
   call Pretext's `clearCache()` if widths it already measured should follow. Anything else throws a `RangeError`.
-  The option's own CI confirmation on Linux and Windows: pending.
+  Confirmed by CI run [37412616029](https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029): with the option, Inter Variable is bit-exact on Linux and Windows (2,352/2,352 widths, 0 line-count headless-mismatches of 69,408), and the planted "unround variable-font advances" mutant is caught there (232 widths beyond 0.02px, 11 headless-mismatches).
 - **Variable fonts and split families.** A variable font is shaped at the requested weight on its `wght` axis
   (and `opsz`, `wdth`), with its advances unrounded under `platform: 'macos'`, as Chrome on macOS keeps them. That is
   verified against Chromium for Inter Variable's `wght` axis only, on macOS: at 300-800, 2,352 widths within 0.0001px and 0 of 69,408 line
@@ -489,8 +489,9 @@ The claim is scoped exactly so:
   are 0.1.1's sweep, without Inter Variable. With Inter Variable, CI run
   [37410732972](https://github.com/Z003Y89/pretext-kit/actions/runs/37410732972) found Chromium on Linux and Windows
   equal to HarfBuzz's whole-unit rounding (the default instance exact), which `platform: 'linux'`/`'windows'` now
-  uses; `verify:headless` installs the platform of the OS it runs on and prints it. The option's own CI confirmation
-  on Linux and Windows: pending. An earlier
+  uses; `verify:headless` installs the platform of the OS it runs on and prints it. With the option, CI run
+  [37412616029](https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029) measured Linux 6,072/7,344 widths bit-exact (max 0.001862px) and Windows 6,194/7,344
+  (max 0.000427px), Inter Variable 2,352/2,352 on both, and 0 headless-mismatch in 141,226 line counts on each. An earlier
   independent Linux run on Chromium 141 (raw data not in the repository) gave the same tallies (EVALUATION §3).
 
 ### Install order
