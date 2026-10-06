@@ -118,8 +118,9 @@ warning, not checked. Then by policy, with `width − reserve` as the box:
   with `missing.px` at `shrinkTo`.
 - `{ lines }`: line count at the slot size ≤ `lines`, else `too-many-lines`.
 - `{ truncate }`: `clamp` / `truncateMiddle`; cut → `truncated` (a warning).
-An uncovered code point → `uncovered` (a failure: the app's font can't draw it), never a thrown error. Issues that
-differ only by platform are merged into one with the platforms listed.
+An uncovered code point → `uncovered` (a failure: the app's font can't draw it), never a thrown error. Issues for
+different platforms are merged into one with the platforms listed when their numbers differ by at most 1/64 px, showing
+the worst platform's numbers; larger differences stay separate.
 
 ### Where it runs
 

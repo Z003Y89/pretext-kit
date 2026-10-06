@@ -6,8 +6,8 @@ import { clearCache, measureNaturalWidth, prepareWithSegments } from '@chenglou/
 import { setLocale } from '@chenglou/pretext'
 import { localeSwitches } from '../../src/check/evaluate.ts'
 import { checkLabels } from '../../src/check/index.ts'
-import { runCheck, tabularFont } from '../../src/check/run.ts'
-import type { CheckInput, Slot } from '../../src/check/types.ts'
+import { mergeClose, runCheck, tabularFont } from '../../src/check/run.ts'
+import type { CheckInput, Issue, Slot } from '../../src/check/types.ts'
 import { install, registerFont } from '../../src/headless/index.ts'
 
 const fontFile = (name: string) => new URL(`../fonts/${name}`, import.meta.url)
@@ -343,4 +343,45 @@ test('a font with featureSettings normal or single-quoted tags still gets tabula
     assert.equal(report.failures.length, 2, featureSettings)
     assert.equal(report.failures[0]?.measured.width, report.failures[1]?.measured.width, featureSettings)
   }
+})
+
+const pair = (a: number, b: number, kind = 'overflow'): Issue[] => [
+  { kind, locale: 'en', key: 'k', slot: 's', condition: 'c', platforms: ['macos'], text: 't', measured: { width: a, box: 40, lines: 1, fontPx: 16 }, missing: { px: a - 40 } } as Issue,
+  { kind, locale: 'en', key: 'k', slot: 's', condition: 'c', platforms: ['linux'], text: 't', measured: { width: b, box: 40, lines: 1, fontPx: 16 }, missing: { px: b - 40 } } as Issue,
+]
+
+test('platforms 1/64 px apart merge into one issue with the worse numbers', () => {
+  const merged = mergeClose(pair(50, 50 + 1 / 64))
+  assert.equal(merged.length, 1)
+  assert.deepEqual(merged[0]!.platforms, ['macos', 'linux'])
+  assert.equal(merged[0]!.measured.width, 50 + 1 / 64)
+  assert.equal(merged[0]!.missing?.px, 10 + 1 / 64)
+})
+
+test('platforms 2/64 px apart stay separate', () => {
+  assert.equal(mergeClose(pair(50, 50 + 2 / 64)).length, 2)
+})
+
+test('different kinds stay separate', () => {
+  const [a] = pair(50, 50)
+  const [, b] = pair(50, 50, 'row-overflow')
+  assert.equal(mergeClose([a!, b!]).length, 2)
+})
+
+test('a tie keeps the first platform and the order of input does not matter', () => {
+  const [a, b] = pair(50, 50 + 1 / 64)
+  assert.deepEqual(mergeClose([a!, b!]), mergeClose([b!, a!]))
+  const [c, d] = pair(50, 50)
+  assert.equal(mergeClose([d!, c!])[0]!.measured.width, 50)
+})
+
+test('platform order does not change a merged report', async () => {
+  const run = (platforms: ('macos' | 'linux')[]) =>
+    checkLabels({
+      fonts: [{ family: 'Inter V', path: variablePath, weight: [100, 900] }],
+      labels: [{ key: 'k', text: sample, slot: 's' }],
+      slots: { s: { width: 100, font: '500 16px Inter V', policy: 'as-is' } },
+      platforms,
+    })
+  assert.equal(JSON.stringify(await run(['macos', 'linux'])), JSON.stringify(await run(['linux', 'macos'])))
 })

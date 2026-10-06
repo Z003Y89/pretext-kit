@@ -101,6 +101,49 @@ function distinct<T>(list: T[], key: (item: T) => string): T[] {
   })
 }
 
+const STEP = 1 / 64 + 1e-9
+
+function near(a: number | undefined, b: number | undefined): boolean {
+  return a === undefined || b === undefined ? a === b : Math.abs(a - b) <= STEP
+}
+
+function close(a: Issue, b: Issue): boolean {
+  return (
+    a.measured.lines === b.measured.lines &&
+    a.measured.stage === b.measured.stage &&
+    near(a.measured.width, b.measured.width) &&
+    near(a.measured.box, b.measured.box) &&
+    near(a.measured.fontPx, b.measured.fontPx) &&
+    near(a.missing?.px, b.missing?.px) &&
+    near(a.missing?.fitsAtPx, b.missing?.fitsAtPx)
+  )
+}
+
+function worse(a: Issue, b: Issue): boolean {
+  const px = a.missing?.px
+  const other = b.missing?.px
+  return px !== undefined && other !== undefined ? px > other : a.measured.width > b.measured.width
+}
+
+// Platforms measure the same label up to 1/64 px apart; those issues become one line with the worst platform's numbers.
+export function mergeClose(issues: Issue[]): Issue[] {
+  const order = (issue: Issue): number => PLATFORM_ORDER.indexOf(issue.platforms.slice().sort((a, b) => PLATFORM_ORDER.indexOf(a) - PLATFORM_ORDER.indexOf(b))[0]!)
+  const groups = new Map<string, Issue[][]>()
+  for (const issue of [...issues].sort((a, b) => order(a) - order(b))) {
+    const id = JSON.stringify([issue.kind, issue.slot, issue.condition, issue.locale, issue.key, issue.text, issue.detail, issue.missing?.px === undefined, issue.missing?.fitsAtPx === undefined, issue.missing === undefined])
+    const clusters = groups.get(id) ?? []
+    const home = clusters.find((members) => members.every((m) => close(m, issue)))
+    if (home === undefined) clusters.push([issue])
+    else home.push(issue)
+    groups.set(id, clusters)
+  }
+  return [...groups.values()].flat().map((members) => {
+    const best = members.reduce((top, m) => (worse(m, top) ? m : top))
+    const platforms = [...new Set(members.flatMap((m) => m.platforms))].sort((a, b) => PLATFORM_ORDER.indexOf(a) - PLATFORM_ORDER.indexOf(b))
+    return { ...best, platforms }
+  })
+}
+
 async function run(input: CheckInput, env: CheckEnv): Promise<Report> {
   const slots = typeof input.slots === 'function' ? await input.slots() : input.slots
   const source = typeof input.labels === 'function' ? await input.labels() : input.labels
@@ -244,8 +287,7 @@ async function run(input: CheckInput, env: CheckEnv): Promise<Report> {
   for (const key of unusedKeys) if (!rowKeys.has(key.slice(key.indexOf(':') + 1))) unchecked.add(key)
   const rank = (issue: Issue): number => PLATFORM_ORDER.indexOf(issue.platforms[0]!)
   const before = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-  const issues = [...found.values()]
-  for (const issue of issues) issue.platforms.sort((a, b) => PLATFORM_ORDER.indexOf(a) - PLATFORM_ORDER.indexOf(b))
+  const issues = mergeClose([...found.values()])
   issues.sort(
     (a, b) =>
       before(a.slot, b.slot) || before(a.condition, b.condition) || before(a.locale, b.locale) || before(a.key, b.key) ||
