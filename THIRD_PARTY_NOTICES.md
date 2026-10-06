@@ -2,15 +2,16 @@
 
 What ships in, or is needed at runtime by, pretext-kit 0.1.1, and what the repository uses only for testing. A
 machine-readable CycloneDX SBOM of the packed package's runtime tree, `pretext-kit-0.1.1.sbom.cdx.json`, is built
-beside the tarballs by `verify/pack-release.sh` and attached to the release.
+beside the tarballs by `verify/pack-release.sh` and attached to the release. The SBOM is not byte-reproducible: it
+records a timestamp and a random serial number.
 
-pretext-kit itself is [MIT](LICENSE), copyright 2026 pretext-kit contributors. It has no `dependencies`.
+pretext-kit itself is [MIT](https://github.com/Z003Y89/pretext-kit/blob/main/LICENSE), copyright 2026 pretext-kit contributors. It has no `dependencies`.
 
 ## Shipped in the pretext-kit tarball
 
 | component | licence | how |
 |---|---|---|
-| Pretext (`pages/demos/ellipsis.model.ts`, https://github.com/chenglou/pretext) | MIT, copyright 2026 Pretext contributors | `src/clamp.ts`, `src/middle.ts` and `src/cut.ts` (and their `dist` output) derive from it; its full MIT notice is reproduced in [LICENSE](LICENSE), which the tarball includes. |
+| Pretext (`pages/demos/ellipsis.model.ts`, https://github.com/chenglou/pretext) | MIT, copyright 2026 Pretext contributors | `src/clamp.ts`, `src/middle.ts` and `src/cut.ts` (and their `dist` output) derive from it; its full MIT notice is reproduced in [LICENSE](https://github.com/Z003Y89/pretext-kit/blob/main/LICENSE), which the tarball includes. |
 
 ## Required at runtime (peer dependency, installed by the app)
 
@@ -28,15 +29,15 @@ pretext-kit itself is [MIT](LICENSE), copyright 2026 pretext-kit contributors. I
 
 ## Test and example assets: not shipped
 
-None of these is in the npm tarball (`files` is `dist`, this file and CHANGELOG.md, plus npm's README, LICENSE and package.json); they are in the repository, or installed as
+None of these is in the npm tarball (`files` is `dist` and this file, plus npm's README, LICENSE and package.json); they are in the repository, or installed as
 devDependencies, for the tests, the parity sweeps and the examples.
 
 | asset | licence | where |
 |---|---|---|
-| Inter (Regular TTF and WOFF2, and a subset without U+2010) | SIL OFL 1.1, copyright 2016 The Inter Project Authors | `test/fonts`, [OFL.txt](test/fonts/OFL.txt); the examples bundle Inter too ([inter-OFL.txt](examples/fonts/inter-OFL.txt)). Not shipped. |
-| Roboto Regular | Apache-2.0 | `test/fonts`, [Roboto-LICENSE.txt](test/fonts/Roboto-LICENSE.txt). Not shipped. |
-| Shantell Sans (Regular, Bold) | SIL OFL 1.1, copyright 2022 The Shantell Sans Project Authors | `test/fonts`, [ShantellSans-OFL.txt](test/fonts/ShantellSans-OFL.txt). Not shipped. |
-| Inter Variable (`@fontsource-variable/inter` 5.3.0) | SIL OFL 1.1, copyright 2016 The Inter Project Authors | An exact-pinned devDependency of the variable-font parity sweep, which is not part of 0.1.1 (it is held on the branch `v0.1.1-variable-font`; see CHANGELOG). Not shipped. |
+| Inter (Regular TTF and WOFF2, and a subset without U+2010) | SIL OFL 1.1, copyright 2016 The Inter Project Authors | `test/fonts`, [OFL.txt](https://github.com/Z003Y89/pretext-kit/blob/main/test/fonts/OFL.txt); the examples bundle Inter too ([inter-OFL.txt](https://github.com/Z003Y89/pretext-kit/blob/main/examples/fonts/inter-OFL.txt)). Not shipped. |
+| Roboto Regular | Apache-2.0 | `test/fonts`, [Roboto-LICENSE.txt](https://github.com/Z003Y89/pretext-kit/blob/main/test/fonts/Roboto-LICENSE.txt). Not shipped. |
+| Shantell Sans (Regular, Bold) | SIL OFL 1.1, copyright 2022 The Shantell Sans Project Authors | `test/fonts`, [ShantellSans-OFL.txt](https://github.com/Z003Y89/pretext-kit/blob/main/test/fonts/ShantellSans-OFL.txt). Not shipped. |
+| Inter Variable (`@fontsource-variable/inter` 5.3.0) | SIL OFL 1.1, copyright 2016 The Inter Project Authors | Not a dependency of 0.1.1. Only the branch `v0.1.1-variable-font`, which holds the variable-font parity sweep (see CHANGELOG), pins it as a devDependency. Not shipped. |
 | `hyphen` 1.14.1 | ISC (its TeX hyph-utf8 patterns: MIT) | devDependency; the examples ship strings hyphenated at build time. Not shipped in the package. |
 
 Other devDependencies (TypeScript, esbuild, Playwright, jsdom, type packages) are build and test tools only and are
