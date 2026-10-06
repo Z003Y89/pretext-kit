@@ -3,6 +3,9 @@
   "version": "0.1.2",
   "description": "Exact text-sizing helpers built on Pretext",
   "license": "MIT",
+  "bin": {
+    "pretext-kit": "bin/pretext-kit.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Z003Y89/pretext-kit.git"
@@ -23,23 +26,34 @@
     "./headless": {
       "types": "./dist/headless/index.d.ts",
       "default": "./dist/headless/index.js"
+    },
+    "./check": {
+      "types": "./dist/check/index.d.ts",
+      "default": "./dist/check/index.js"
+    },
+    "./check/browser": {
+      "types": "./dist/check/browser.d.ts",
+      "default": "./dist/check/browser.js"
     }
   },
   "files": [
     "dist",
+    "bin",
     "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test --import ./test/setup.ts test/*.test.ts && npm run test:headless",
+    "test": "node --test --import ./test/setup.ts test/*.test.ts && npm run test:headless && npm run test:check",
+    "test:check": "node --test test/check/*.test.ts",
     "test:headless": "node --test test/headless/*.test.ts examples/*.test.ts",
     "check": "tsc --noEmit",
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "prepack": "npm run build",
     "verify": "node verify/run.ts",
     "verify:headless": "node verify/headless.ts",
+    "verify:check": "node verify/check-labels.ts",
     "verify:hvar": "node verify/hvar-fonttools.ts",
     "examples": "node examples/build.ts",
     "examples:serve": "node examples/build.ts && node examples/serve.ts",

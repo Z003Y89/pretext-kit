@@ -19,7 +19,7 @@ fitFontSize case (§6). Cuts inside grapheme clusters were caught by no truncate
 this evaluation added a unit test, a sweep check and four labels for them; the labels then exposed a truncateMiddle
 overrun in WebKit, fixed (§4). The kit inherits every
 disagreement between Pretext and a browser (21,978 cases, 0.31%), among them 19 + 66 fitted sizes on soft-hyphenated
-text that visibly overflow their box in Chromium and Firefox (§8). The browser sweep ran on macOS 14 only; headless parity also ran on Linux and Windows in CI (§7).
+text that visibly overflow their box in Chromium and Firefox (§8). The browser sweep ran on macOS 14 only; headless parity also ran on Linux and Windows in CI (§7). The label checker, `pretext-kit/check` (C11, §3), was swept on Linux only: 473,736 cases (375,564 verdict and 98,172 near-miss cases), 0 check-mismatch, 10,255 pretext-gap, 8 of 8 planted bugs caught (verify/CHECK_RESULTS.md); not yet on macOS or Windows.
 
 ## 1. Claims under test
 
@@ -42,9 +42,10 @@ Pretext agreeing with the browser at the widths or sizes the judgement needs; wh
 | C5 | `clamp(p, W, N, tail)`, `clampStats`, `measureTail` | Line count = min(Pretext's, N) and `truncated` exactly when Pretext lays out more than N; this matches a `-webkit-line-clamp: N` box's truncation and height. Every returned line, the cut one followed by the tail, paints within W + 1/64. The cut is the longest grapheme prefix whose text joined to the tail, measured as one text, fits. Floor: a cut keeps at least one grapheme, so where W is narrower than the tail plus the first grapheme the line paints past W, and the claim is only that it is one grapheme. *Not claimed:* that the cut falls where the browser's own ellipsis does (the SVG probe that would test it was not run). | browser sweep |
 | C6 | `truncateMiddle(label, W, keepEnd)` | The whole label (`label.text`: the text as Pretext prepared it, white space collapsed as under `white-space: normal`) exactly when its natural width fits W; otherwise start + `…` + end of `label.text`, cut only between graphemes, which paints within W + 1/64, where one more grapheme of the start would not fit, and whose end holds everything from `keepEnd.from`, an index into `label.text`, whenever that end, `…` and the first grapheme fit. The start keeps at least one grapheme, so where W is narrower than that grapheme and `…`, the result paints past W. | browser sweep |
 | C7 | `fontFromStyle(getComputedStyle(el))` | Returns a Canvas font string that Canvas parses to the same font as the element's weight, style, size and family, with `letterSpacing` and `lineHeight` in px. Tested at the pinned style (weight 400, normal, no letter spacing) at 16px and 8-48px, and three single-property variants at 16px only: weight 700, italic, 0.5px letter spacing; not a cross of them (§4 explains why the variants were added). Indirectly, every other case's font comes from it. | browser sweep |
-| C8 | `pretext-kit/headless` | In Node, for code points the registered fonts cover: `measureText` widths within 0.02px of Chromium's Canvas, and Pretext's line counts equal Pretext's inside Chromium; `HeadlessCoverageError` thrown on exactly the cases a fixed coverage rule puts out of scope. Chromium's rules, macOS (and, since 0.1.1, Linux and Windows in CI), registered fonts only; variable fonts (since 0.1.2) for Inter Variable's `wght` axis on macOS only, under `install({ platform: 'macos' })` (the default); Linux and Windows Chromium measured equal to HarfBuzz's whole-unit rounding, which `platform: 'linux'`/`'windows'` uses (confirmed by CI run 37412616029: bit-exact on both). | headless parity sweep |
+| C8 | `pretext-kit/headless` | In Node, for code points the registered fonts cover: `measureText` widths within 0.02px of Chromium's Canvas at the whole-pixel sizes of the sweep (the `'linux'` profile's fractional-size model is exact only for the first use of a size in a page, and is outside this claim, §6), and Pretext's line counts equal Pretext's inside Chromium; `HeadlessCoverageError` thrown on exactly the cases a fixed coverage rule puts out of scope. Chromium's rules, macOS (and, since 0.1.1, Linux and Windows in CI), registered fonts only; variable fonts (since 0.1.2) for Inter Variable's `wght` axis on macOS only, under `install({ platform: 'macos' })` (the default); Linux and Windows Chromium measured equal to HarfBuzz's whole-unit rounding, which `platform: 'linux'`/`'windows'` uses (confirmed by CI run 37412616029: bit-exact on both). | headless parity sweep |
 | C9 | `watchFonts` | On each `loadingdone` event with at least one face, calls Pretext's `clearCache()` and then the callback; never after unsubscribing. | unit tests only (stand-in `FontFaceSet`) |
 | C10 | `stack`, `findIndexAt`, `anchorDelta`; `shrinkwrapRich`, `balanceRich` | Arithmetic over heights and tops; the rich twins are C1/C2 over `measureRichInlineStats`. | unit tests only; **not browser-swept** |
+| C11 | `pretext-kit/check` (`checkLabels`, Node entry) | For the inputs in §3, "Label checker": the checker's verdict for a label under a policy (`overflow`, `too-many-lines`, `below-min-size`, `truncated`, none), for a `shrinkTo` slot its fitted size to 1/64 px, and for a row its collapse stage, and with `nearMiss` set its `near-miss` decision and slack (to 1/64 px), equal the verdict of the spec's rule recomputed in Chromium with the kit's helpers on Pretext with real Canvas, under text scale, zoom, and both together; against the painting it is conditional on Pretext agreeing with Chromium (the first half's `pretext-gap`s as above). `uncovered` text is excluded, not judged. Chromium 141 on Linux only, under `platforms: ['linux']`, font Inter Regular; the macOS and Windows profiles are not swept. Tabular digits (`numeric: 'tabular'`) are checked in the Node entry only. | label checker oracle sweep (`npm run verify:check`) |
 
 C9 and C10 rest on `npm test` alone (194 tests, 90 + 104, on a stand-in Canvas, §6), not on a browser. The sweep's
 labels hold no white space that collapses, so `label.text` is the label as given there; the collapsed-text rule
@@ -324,6 +325,158 @@ Both runs also record findings that are not kit-mismatches: 21,978 pretext-gap c
 (RESULTS.md, "pretext-gap cases"), and 288 headless pretext-gap cases (HEADLESS_RESULTS.md; 176 in the static fonts, 112 in Inter Variable). Their counts per helper
 are in the table above; their causes are in §6 and §8.
 
+### Label checker (C11)
+
+From `npm run verify:check` (`verify/check-labels.ts`), recorded in `verify/CHECK_RESULTS.md`: 2026-10-06, pretext-kit
+at 4069db5, after the `nearMiss` margin and the sweep's near-miss family were added. The verdict cases are those of the
+run before, at 320262f (after the slot option `overflowWrap` and the two policies that sweep it were added), and give
+the same counts, cause by cause. The run before them, at
+79a4b05 (not in the published history), gave 208,740 cases, 0 check-mismatch, 5,260 pretext-gap and 6 of 6 mutants
+caught, and the five older policies give the same per-cause pretext-gap counts here; that run had been rerun on the final code after the review fixes (src/check and src/headless changed after 0a55e12, where it was first run: labels grouped by locale, duplicate samples planned once, font-feature edge cases, CLI robustness) with the same totals, and `git diff 0a55e12 7a6d38d -- src verify/check-labels*.ts test` showed `src` unchanged and the harness unchanged except 3 lines in `verify/check-labels-cases.ts` (`applyEdit` matches mutant sources on LF endings, commit 2b27623; no change to what is measured) and one test file modified for it (`test/check/sweep-cases.test.ts`, 12 lines; none added); Chromium 141.0.7390.37 (Playwright 1.61.0, headed on an X display, executable from `PW_CHROMIUM`), Pretext
+0.0.9 (f10d888), harfbuzzjs 1.6.2, Node v22.22.0, Linux 6.18.44-fc-v70 x64; the checker is `checkLabels` in Node with
+`platforms: ['linux']`, font Inter-Regular.ttf registered as "CK Inter". This is not the maintainer's Mac and not the
+Chromium 149 the other sections use (§6).
+
+Each case is judged three ways: the checker; a reference (the spec's rule recomputed in the page with the kit's helpers
+on Pretext with real Canvas, from the CSS the element gets); the DOM (a flex box of the slot width, `white-space:
+nowrap` or `-webkit-line-clamp` as the policy needs, text scale as a font-size change in a fixed box, zoom as CSS `zoom`
+on the container). Outcome in the order of §2, with `check-mismatch` for the checker against the reference. The pass bar is 0
+check-mismatch. The harness is verify/check-labels.ts, and the CHECK_RESULTS.md Method section gives every rule.
+
+**473,736 cases: 0 check-mismatch, 10,255 pretext-gap, 0 excluded, 463,481 pass** (CHECK_RESULTS.md, "Agreement"):
+375,564 verdict cases (375,348 slot, 216 row; 7,292 pretext-gap, 368,272 pass) and 98,172 near-miss cases (below; 2,963
+pretext-gap, 95,209 pass). The verdict cases: The cases are 2,317 texts (latin 1,498, german 269, french 490, German compounds 15, French 15, uppercase
+tabs 15, digits 15) in seven policies (as-is, shrinkTo, lines 2, truncate end 2 lines, truncate middle, and lines 2 and
+truncate end 2 lines again in a slot with `overflowWrap: 'normal'`, rendered with `overflow-wrap: normal`, the
+"(normal)" policies), each text scale (1, 1.15, 1.3) with its own slots at 0.9, 1 and 1.1 times the box where the
+policy changes its verdict (for the "(normal)" policies the narrowest two-line width or the widest unbreakable piece,
+whichever is wider), the "(normal)" policies also at the widest unbreakable piece's own width w: w, w less 1/64 px and a
+hair rounded down to the 1/64 px grid (past the 1/64 px tolerance), and w less 0.25px, each
+slot run in its own text scale's two zoom conditions (zoom 100% and 130%; six conditions in all: text 100/115/130% × zoom
+100/130%), plus 108 toolbar rows (three locales × text scale, collapse stages 0 to
+5 at, between and below each stage's total). The CHECK_RESULTS.md table gives each policy by condition kind; summed over
+the policies from that table:
+
+| condition kind | cases | pass | check-mismatch | pretext-gap |
+|---|---:|---:|---:|---:|
+| none (text 100%, zoom 100%) | 62,594 | 61,668 | 0 | 926 |
+| text scale only | 125,188 | 123,151 | 0 | 2,037 |
+| zoom only | 62,594 | 61,512 | 0 | 1,082 |
+| text scale and zoom | 125,188 | 121,941 | 0 | 3,247 |
+
+(Not run: 3 slots, so 6 cases, with no box left beside the icon grown with the text scale and 1.3x zoom, as the zoom
+mutant grows it without the box; the checker rejects a slot with no box with a `RangeError`: CHECK_RESULTS.md, "Not run".) The checker's verdicts were not one-sided in any policy by condition
+cell (the run fails if a cell has one verdict only), so each cell has both passes and failures.
+
+**The bound to quote.** One unit per label text (PROTOCOL §4): a text's slots, widths and conditions are one unit, and
+each locale's row is one, 2,320 units, 0 with a check-mismatch: 95% upper bound on the share of such texts that would
+show one, Wilson 0.165%, Clopper-Pearson 0.159% (CHECK_RESULTS.md, "Agreement"; Wilson, the larger, is the one to quote). Per case, naive: 375,564 judged cases, Wilson 0.0010%, Clopper-Pearson 0.0010%,
+which overstates the evidence as §3 explains. The texts are the corpora of §2 and hand-written labels, not an app's.
+
+**pretext-gap, by cause** (7,292; CHECK_RESULTS.md, "pretext-gap cases, by cause"; each is the reference against Chromium's
+painting with the checker agreeing with the reference. For the five older policies that makes it Pretext against the DOM,
+not the checker. For the "(normal)" policies the word model (which text is one unbreakable piece, measured how) is the
+kit's own, shared by checker and reference, so a gap there can also be that model against the DOM; the boundary boxes
+below are what test it):
+truncate end, DOM clamps where Pretext does not 1,160; lines, DOM 3 lines where Pretext 2: 1,154; as-is, DOM overflows
+where Pretext fits 778; truncate middle, DOM overflows where Pretext fits 778; shrinkTo, DOM overflows at the fitted size
+741; shrinkTo, DOM fits at the minimum where Pretext overflows 607; shrinkTo, DOM also fits at the next size 10; row, DOM
+overflows at stage 0, 1, 2: 7, 3, 2; lines, DOM 4 lines where Pretext 2: 6; lines, DOM 2 lines where Pretext 3: 4;
+truncate end, DOM does not clamp where Pretext cuts 4; as-is, DOM fits where Pretext overflows 3; truncate middle, DOM fits
+where Pretext overflows 3; and 1,016 + 1,016 for lines (normal) and truncate end (normal), by cause in CHECK_RESULTS.md.
+Of the 7,292, 6,300 slot cases are at the exact boundary box (box factor 1), 72 at 1.1 times it, none at 0.9, 12 are rows
+and 908 are "(normal)" slots at the widest word's own width (counted from the full listing, verify/dist/check-cases.md,
+by case id); 5,027 involve soft-hyphenated text (U+00AD in the text, counted the same way): by policy as-is 778, truncate
+middle 778, shrinkTo 889, lines 695, truncate end 695, lines (normal) 596, truncate end (normal) 596, that is 2,445
+nowrap-width cases (as-is, truncate middle, shrinkTo), where Chromium's text is wider than Pretext's natural width, and
+2,582 line-break cases (lines and truncate end, either `overflowWrap`), where Chromium breaks differently.
+
+The "(normal)" policies, 1,016 gaps each. At the factor boxes (562 each, all at factor 1): 551 are the soft-hyphen line
+placement of the lines rows (re-rendered in Chromium 141 with `overflow-wrap: break-word` instead, the 83 at text 100% ·
+zoom 100% give the same line count as with `normal`, so `overflowWrap` is not their cause); 7 are soft-hyphenated words at
+zoom 130% whose hyphenated line Chromium paints about 0.03 zoomed px wider than Pretext's; 4 are uppercase tabs at text
+115% · zoom 130% painted 1/32 zoomed px past the box where the checker passes. At the word's own width (454 each): w less
+0.25px fails in the checker and overflows (lines) or is cut (truncate end) in the DOM in every case, 13,902 each, no gap;
+at w and at w less 1/64 px and a hair there is no gap at zoom 100% (the DOM agrees on all 41,706 word-width cases at
+zoom 100%, text 100/115/130%), and the 12 + 442 gaps are all under zoom 130% (DOM text minus box −0.047 to +0.031 zoomed px),
+322 of them at text 130% · zoom 130%. One cause is measured: at text 130% · zoom 130% Chromium lays out the zoomed 20.8px like an unzoomed 27.02 to 27.03px rather than 27.04px ('improvements': 180.7656 zoomed px under zoom, 180.875 at 27.04px), which the Linux fractional-size model does not cover (it models sizes, not zoom). The rest is consistent with Chromium snapping zoomed slot, icon and text widths to its 1/64 px layout grid, which would put these boxes, within 1/32 px of the word, on
+either side of it; that is confirmed for the box widths only: over the 908 cases the DOM box less the checker's box is
+−0.0156 to +0.0094 zoomed px (0 at zoom 100%, recomputed from the full listing), and the snapping of text widths is
+not measured. Words whose natural width is within 1/64 px past the box are laid out at the box plus 1/64 px since
+320262f (in the run before, at 1c43ee5, Pretext's layout at the bare box split them, and there were 142 more gaps at these boxes). Before the fix
+to the word rule (13acc40), the checker judged a word by Pretext's one-line layout instead of its natural width and passed
+words that overflow in Chromium by up to 0.74px at 16px ('Mitarbeiterportal'; a reviewer's probe over 661 corpus words in
+Chromium 141 found 65 such); the sweep then had no box below the natural width and a reference with the same rule, so it
+could not show it. Recomputed from the listing: the 131
+as-is cases at text 100% · zoom 100% show the DOM text 0.125 to 0.828px wider than the box (most often 0.25px, 73 cases;
+mean 0.31px); over as-is and truncate middle in all conditions the largest is 1.23 zoomed px; the 702 shrinkTo "DOM
+overflows at the fitted size" cases among them show 0.031 to 1.016 zoomed px. At the exact
+boundary the checker can therefore pass a label that overflows in the DOM (§8).
+
+Under `overflowWrap: 'normal'` the 1/64 px window applies to every line of a text that has a word in it (lines are laid
+out at the box plus 1/64 px), so a line within 1/64 px of the box can pass where Chromium, whose width is 1/64 px wider
+than Pretext's, wraps it. A probe of 3,000 adversarial `lines: 2` cases found 48 such at 20.8px and none at 16px; the
+sweep's boxes are not built to hit it, and `test/check/evaluate.test.ts` pins the behaviour at box + 1/64.
+
+**Near-miss** (`nearMiss`, the warning `near-miss`; CHECK_RESULTS.md, "Near-miss family"). Every sixth text (387) in
+the seven policies at each text scale, at the policy's boundary box plus −0.5, 0, 2/1.3 ± 0.25 and 2 ± 0.25 px, and the
+toolbar rows at each stage's total plus the same offsets, run with `nearMiss: 2` in checkLabels calls of their own:
+48,762 slots and 324 rows, 98,172 cases (97,524 slot, 648 row). Each is judged as a verdict case; then, on a pass (a
+row also at a collapse stage), the checker's near-miss and `missing.px` against the slack recomputed in the page (the
+box less the natural width, the width at the fitted size, Pretext's widest line and, under `'normal'`, the widest word,
+or the row's total at its stage), and that against the DOM's free space (the box less the text's width, or its widest
+line from a range's rects grouped by top), agreeing within 1/64 px of the margin. **0 check-mismatch** (no near-miss on
+a failing verdict, no different decision; the checker's `missing.px` equals the reference's rounded slack in all
+51,083 near-misses); 2,963 pretext-gaps, of which 1,398 are the verdict gaps of §3's kinds at these boxes and 1,565 are
+slack gaps. Each slack gap was re-laid out (lines from Pretext at the case's box, each line's text measured again as
+a whole, compared with the DOM's slack; Chromium's own breaks read character by character for the zoom-100% examples):
+
+| slack-gap cause | cases | DOM slack less Pretext's (zoomed px) |
+|---|---:|---|
+| Pretext's width for the pieces of a word broken across lines: the line's pieces are measured apart and summed, so kerning and ligatures across them are lost ("d’offres." breaks as "d’off" / "res." in Chromium too, 35.41 vs 33.78 px for "d’off" at 16px, the `ff` ligature; "key" as "ke" / "y", 18.11 vs 17.75); the line measured whole matches the DOM within 1/32 px | 680: 232 without a soft hyphen, 448 at a soft hyphen | without: +0.26 to +2.77, all positive; at a soft hyphen: −0.77 to +0.91, negative in 304, positive in 144 |
+| one-line soft-hyphenated text (the soft-hyphen width gap of §3) | 638 | −1.26 to +2.17 |
+| soft-hyphenated lines that do not match the DOM even measured whole: 64 cases of 4 texts outside text 130% · zoom 130%, consistent with Chromium breaking them differently; 80 cases of 17 texts at text 130% · zoom 130%, confounded with the zoomed-size cause (some break identically in both engines) | 144 | −0.77 to +2.58 |
+| "Nebenrollen-Takes" on one line: Pretext measures "Nebenrollen-" and "Takes" apart and loses the `-T` kerning (99.20 + 44.34 = 143.54 vs 142.36 px whole at 16px) | 37 (53 with its lines cases above) | +0.27 to +2.12 over all 53 |
+| one-line text and rows at text 130% · zoom 130% (the zoomed-size cause above) | 36 + 15 rows | +0.26 to +0.31; rows +0.28 to +0.66 |
+| one-line text at text 115% · zoom 130% ("Most of the", shrinkTo: DOM 1.9688, Pretext 1.9949, which the checker rounds to 2, so no near-miss) | 1 | −0.026 |
+| lines Chromium breaks at another place ("of library. If you can't" at text 130% · zoom 100%, a line 1/64 px past the box; "unequally at birth." at text 100% · zoom 130%) | 8 | −2.27 to +2.28 |
+| broken-word pieces at text 130% · zoom 130%, where the zoomed-size cause adds to them, so the whole-line measure does not match within 1/32 px ("d’offres.", "Paramètres avancés", "Nebenrollen-Takes") | 6 | +0.51 to +0.94 |
+
+The broken-word cause is a Pretext gap in plain text too, up to about 1.6 px at 16px. In plain text and in the
+"Nebenrollen-Takes" compound it is in the safe direction: Pretext's line is wider, so its slack is smaller and the label
+is flagged sooner. At a soft hyphen the sign is mixed (−0.77 to +0.91 px, Pretext's slack the larger in 304 of the 448),
+so there a label can be flagged later than Chromium's room would warrant. **What the DOM check resolves.** The boxes sit
+1/4 px either side of the margin (and of the margin ÷ 1.3), so a systematic slack error under 1/4 px moves no decision
+and cannot show as a gap; CHECK_RESULTS.md, "Resolution", gives the DOM's slack less the reference's over the 80,582
+passes whose verdict the DOM agrees with: median −0.0078 px, 29,184 beyond ±1/64 px, 13,900 beyond ±1/16 px and 6,130
+beyond ±1/4 px (without a soft hyphen 59,822 cases, 18,212, 6,412 and 1,242). Of the 18,212 without a soft hyphen beyond
+±1/64 px, 17,524 are at zoom 130% (10,196 `lines` and truncate end, 7,328 one-line policies and rows), which points at
+Chromium's 1/64 px grid snapping and the zoomed-size cause rather than at line breaking; 688 are at zoom 100%.
+For one-line text without a soft hyphen at zoom 100% (as-is, truncate middle, shrinkTo) Chromium's slack is 0 to 1/64 px
+less than Pretext's, "Nebenrollen-Takes" aside (recomputed from verify/dist/check-results.json.gz). None is the checker's: in each it agrees with the reference. The vacuity guard requires passes with
+and without a near-miss in every policy by condition kind, and holds. The verdict-only runs report no near-miss (the
+harness fails if they do).
+
+**Mutants** (CHECK_RESULTS.md, "Mutants"; each a copy of `src` with the edits listed there, run as the checker side of the same sweep;
+caught means at least one check-mismatch of its own; the counts include the near-miss family's): 8 of 8 caught.
+
+| planted bug | check-mismatch | of them near-miss family | caught |
+|---|---:|---:|---|
+| ignore `reserve` | 93,562 | 16,472 | yes |
+| treat zoom as text scale | 148,617 | 40,796 | yes |
+| ignore `textTransform` | 1,634 | 360 | yes |
+| lines off by one (`<` for `<=`) | 76,753 | 21,898 | yes |
+| skip the last collapse stage | 144 | 108 | yes |
+| tabular ignored (alias not used) | 1,041 | 547 | yes |
+| ignore `overflowWrap` (every slot `'break-word'`) | 39,898 | 1,108 | yes |
+| ignore `nearMiss` | 51,083 | 51,083 | yes |
+
+The verdict cases alone give the counts of the run before (77,090, 107,821, 1,274, 54,855, 36, 494 and 38,790).
+
+**Excluded**: none. **Check-mismatch cases**: none. The Linux profile needed the headless fix in this release first: the first run exposed a stand-in
+rounding defect for fractional sizes on Linux; the model (CHANGELOG 0.2.0) fixed it, and the sweep records, as a limit, that in-page metric sharing between nearby fractional sizes is not
+modelled and that none of the sweep's nearby pairs shares an entry (17.94 and 18, 27 and 27.04, 21.97 and 22, 16.9 and 17px).
+
 ## 4. Sensitivity (mutation testing)
 
 `node verify/mutants.ts` plants each bug below, one at a time, in `src/` of a throwaway detached worktree of HEAD
@@ -493,13 +646,20 @@ before paint), not speed. The kit and the DOM baselines agreed on every height a
 | **Zoom is emulated.** deviceScaleFactor 1.25 and 2 via Playwright, at a 4px width step. | Real page zoom also changes CSS px per device pixel through the layout viewport; a zoom-only bug at a width not divisible by 4 would be missed. | A step-1 run at every factor (about 28 minutes); a real browser-zoom run. |
 | **The bench ran on a loaded machine**, of a commit with uncommitted changes, with the browser rarely frontmost, and Firefox at devicePixelRatio 2. | Timings are upper bounds; ratios within one browser are more trustworthy than absolute values; Firefox's kit-versus-DOM ratios compare against DOM layout at ratio 2. | `npm run bench` on a quiet machine at one pinned ratio, the browser frontmost (quit apps, stop screen recording, leave it about 15 minutes). |
 | **Headless scope.** Chromium's rules, registered fonts, one Chromium build (149) on macOS, Linux and Windows, variable fonts only for Inter Variable's `wght` axis, on macOS (§8); on Linux and Windows Chromium measured equal to HarfBuzz's rounding (CI run 37410732972), which `install({ platform: 'linux' \| 'windows' })` uses, its own CI confirmation pending. | Nothing is claimed for WebKit or Gecko profiles, OS fallback fonts, variable fonts beyond that (other axes, other fonts; Linux and Windows until the option's CI run), or other Chromium builds. | One measured check each on Windows and Linux Chrome before claiming them (the spec requires it). One independent Linux run on Chromium 141 agreed (§3, independently reported, raw data not in the repo). Since 0.1.1 CI makes that check on every push: the `parity` job (headed Chromium 149, Node 24; xvfb on Linux) uploads HEADLESS_RESULTS.md as `headless-results-ubuntu-latest` and `headless-results-windows-latest`, and a headless-mismatch there is recorded rather than failing CI. First run ([37407438278](https://github.com/Z003Y89/pretext-kit/actions/runs/37407438278)): Linux 3,720/4,992 widths bit-exact, max 0.001862px, 0 headless-mismatch, 178 pretext-gap; Windows 3,842/4,992, max 0.000427px, 0 headless-mismatch, 179 pretext-gap (§7). |
+| **Label checker: one environment.** `verify:check` ran on a Linux container, Chromium 141.0.7390.37, Node 22.22.0, not the maintainer's Mac and not Chromium 149; `platforms: ['linux']` only. | Nothing is claimed for the checker's `'macos'` and `'windows'` profiles beyond the headless parity evidence (C8), and the sweep's Chromium build differs from the one the other claims use. The macOS and Windows runs of `verify:check` have not been made: the Windows run is unverified on Windows until the CI artifact `check-results-windows-latest` exists. | The same sweep on a Mac and from CI (`check-results-<os>`). |
+| **Label checker: fonts.** Inter Regular for every sweep case; one language setting (`lang` = the label's locale on the slot, `en` on the page). | Other fonts, weights, variable fonts' `opsz` and web-font loading are untested by the checker's own sweep. `opsz` on the `'linux'` profile takes the stand-in's hundredths size and is unmeasured against Chromium. | Add fonts and a variable font to `verify:check`; measure `opsz` on Linux. |
+| **Label checker: the Linux fractional-size model.** The stand-in measures a fractional size by Chromium on Linux's rule (float32 hundredths, advances truncated to 1/64 px), derived on Chromium 141. Chromium reuses glyph metrics of a nearby fractional size measured earlier in the same page, in either direction; the stand-in does not model that. | Exact for the first use of a size in a page; a page with two fractional sizes a few hundredths of a px apart can differ by one 1/64 px advance step. The sweep's sizes avoid shared entries, which was checked, so the sweep cannot see it. | Model Chromium's metric cache; sweep pages with nearby fractional sizes. |
+| **Label checker: gaps at the exact boundary box.** 5,027 of 7,292 pretext-gaps involve soft-hyphenated text, of which 2,445 are nowrap-width cases (Chromium's text wider than Pretext's natural width: 0.125 to 0.828px for as-is at text 100% · zoom 100%, up to 1.23 zoomed px over all conditions) and 2,582 are line-break cases (lines, truncate end, with either `overflowWrap`); the other 2,265 have no soft hyphen (e.g. English "Just tried": DOM 3 lines, Pretext 2), and 6,300 of the 7,292 sit at the exact boundary box and 908 at an `overflowWrap: 'normal'` word's own width, all under zoom 130%; all recomputed from verify/dist/check-cases.md (§3). | At a box exactly as wide as the measured width the checker can pass a label that overflows in the DOM, by up to about 1px; the sweep tests that exact boundary, so it records the gap, but a real app's boxes are rarely exactly there. | The upstream soft-hyphen report (§8); a tolerance option. |
+| **Label checker: `overflowWrap: 'normal'` approximations and zoomed layout.** Words are Pretext's segments: a boundary between two text segments counts as a break opportunity, and Pretext's internal no-break flag for the rare one that is not (around zero-width glue and controls) is not read; `hyphens: auto` and `word-break: keep-all` are not modelled, and `anywhere`/`break-all` map to `'break-word'`. The sweep's 908 "(normal)" gaps at the word's own width are all under zoom 130%: Chromium lays out text 130% · zoom 130% (20.8px × 1.3) like an unzoomed 27.02 to 27.03px, not 27.04px, which the Linux fractional-size model does not cover, and the rest is consistent with snapping zoomed slot, icon and text widths to its 1/64 px layout grid (confirmed for box widths only: DOM box less box −0.0156 to +0.0094 zoomed px). With one word in the 1/64 px window every line of that text is laid out at the box plus 1/64 px: a line within 1/64 px of the box can pass where Chromium, whose width is 1/64 px wider than Pretext's, wraps it (a probe: 48 of 3,000 adversarial `lines: 2` cases at 20.8px, 0 at 16px). | A label whose words Chromium hyphenates (`hyphens: auto`) or joins across a no-break boundary can get the wrong verdict; under zoom a word within about 1/32 px of the box can go either way; under `'normal'` a line within 1/64 px of the box can pass and wrap in Chromium. | Read Pretext's break flags through a public API; model `hyphens: auto` and zoomed font sizes. |
+| **Label checker: near-miss slack.** The slack `nearMiss` is compared with is Pretext's: a word broken across lines (or at a soft hyphen) is measured as the sum of its pieces and a hyphen-minus compound as its halves, losing kerning and ligatures across them (up to about 1.6 px at 16px in plain text, 2.1 px for "Nebenrollen-Takes" at text 130% · zoom 130%); soft-hyphen widths and zoomed sizes add their own gaps. For `lines` and `truncate: 'end'` the slack means how far the box can shrink before the greedy layout changes, not before the label fails. The sweep's boxes sit 1/4 px from the margin, so the DOM comparison cannot resolve a systematic slack error under 1/4 px (CHECK_RESULTS.md, "Resolution", gives the measured spread). | 1,565 of 98,172 near-miss cases fall on the other side of the 2 px margin in Chromium (§3); in plain text the broken-word and compound gaps make Pretext's slack smaller, so labels are flagged sooner; at a soft hyphen the sign is mixed (−0.77 to +0.91 px), so a label can be flagged later; and a `lines` label that would wrap again and still fit is flagged. | Measure a line's pieces as a whole in Pretext (kerning across a mid-word break); boxes nearer the margin in the sweep. |
+| **Label checker: ICU not expanded, `shrinkTo` oracle whole-pixel.** `plural` and `select` messages are a warning, not checked; the sweep's shrinkTo oracle checks that the chosen size fits and the next candidate up (a whole pixel, or the slot size) does not. | Sizes between two whole pixels are not a claim the checker makes; ICU variants are not measured. | Expand ICU variants; a finer `fitFontSize`. |
 | **One-off probes.** The `box-decoration-break: slice` probe for fitFontSizeRich (RESULTS.md, "Painting") ran once and its "168 + 1 err small" figure cannot be recomputed from stored data. | Its numbers are anecdotal. | Make it a flagged sweep mode whose output is stored. |
 | **Run-to-run determinism** is shown by repeats, not argued: the full three-browser sweep, rerun in this evaluation, reproduced every count and the non-pass listing byte for byte (§4); a reviewer reproduced the headless sweep byte for byte; §7's fresh clone reproduced Chromium at factor 1. All repeats were on this one machine. | A case that flips between runs, or between machines, would not have shown. | Rerun from a fresh clone on another Mac and diff RESULTS.md and the listing. |
 
 ## 7. Reproduction
 
 ```sh
-verify/reproduce.sh                        # everything: about 25 minutes with the browsers cached
+verify/reproduce.sh                        # everything: about 25 minutes with the browsers cached (before the label checker's step, which took 94 s of Chromium and 80 s of checker runs on the machine in CHECK_RESULTS.md)
 verify/reproduce.sh --sweep=chromium@1     # the browser sweep in Chromium at factor 1 only: about 3 minutes
 ```
 
@@ -522,12 +682,23 @@ hash difference). Not checked by a full run: that claim, since only the Chromium
 clone; the in-place full rerun in §4 changed nothing in RESULTS.md beyond timings and what this evaluation's harness
 changes changed (the fontFromStyle cases and the overflow sentences).
 
+**Label checker sweep (C11).** `npm run verify:check` (`verify/check-labels.ts`; `verify/reproduce.sh` runs it after the
+headless sweep) renders the cases in headed Chromium and runs the checker against the same data; `PW_CHROMIUM=<path>`
+picks the Chromium executable (the recorded run used `/opt/pw-browsers/chromium`, Chromium 141.0.7390.37), and on Linux
+without a display run it as `xvfb-run -a npm run verify:check`. It writes `verify/CHECK_RESULTS.md` (committed summary), the full
+per-case listing `verify/dist/check-cases.md` and `verify/dist/check-results.json.gz` (neither committed; CI uploads
+`check-cases.md` with `CHECK_RESULTS.md` and `check-run.log` as `check-results-<os>`), and exits non-zero on any
+check-mismatch or uncaught mutant. Expected, on the recorded environment: `375564 cases: 0 check-mismatch, 7292 pretext-gap,
+0 excluded, 368272 pass`, seven mutants caught (77,090 / 107,821 / 1,274 / 54,855 / 36 / 494 / 38,790 check-mismatches); the run took
+Chromium 155 s and the checker runs 108 s. On another OS, platform or Chromium the tallies differ and that is the measurement (§6);
+a Windows or macOS run has not been recorded. The unit tests are `npm run test:check`.
+
 **Continuous integration** (`.github/workflows/ci.yml`, since 0.1.1) lays the two repositories out the same way and
 builds Pretext the same way on every push and pull request. It runs `npm test` and `npm run check` on Linux, Windows
 and macOS under Node 22 and 24 (these must pass); the headless parity sweep, headed, on Linux (under xvfb) and
 Windows under Node 24, uploading each HEADLESS_RESULTS.md as an artifact without failing on a headless-mismatch,
 since off macOS that is what is being measured; and `verify/consumer-smoke.mjs` against freshly packed release
-tarballs on Linux under Node 22 and 24. It does not run the browser sweep, whose pinned fonts are macOS fonts.
+tarballs on Linux under Node 22 and 24. In the same `parity` job it runs `npm run verify:check` (the label checker's sweep, C11), headed, on Linux under xvfb and on Windows, uploading `check-results-<os>` without failing on a check-mismatch. It does not run the browser sweep, whose pinned fonts are macOS fonts.
 Node 22 was also checked locally before the 0.1.1 change to `engines`: Node 22.23.3 on the Mac above passed `npm
 test` (90 + 70 tests) and the consumer smoke test.
 
@@ -600,7 +771,15 @@ and may be off by a line, or a pixel of width, in what the browser paints. RESUL
   without HVAR, or with an HVAR that fails its structural checks keeps HarfBuzz's whole-unit advances (up to ½ font
   unit per glyph off Chrome on macOS away from the default instance); a malformed HVAR never makes `measureText`
   throw.
-- **Headless** is Chromium's rules with registered fonts, measured on macOS, Linux and Windows with Chromium 149 (variable fonts per `install({ platform })`, default `'macos'`): an uncovered code point throws
+- **Label checker** (C11): measured on Linux, Chromium 141, Inter Regular only; the macOS and Windows runs of
+  `verify:check` are pending (unverified on Windows until the CI artifact exists). Its verdicts are the kit's on Pretext's layout, so
+  every Pretext gap is its too: at a box exactly at the measured width (mostly, not only, soft-hyphenated text) it can pass a label that overflows in the DOM
+  by up to about 1px (6,300 of 7,292 pretext-gaps sit at that exact boundary box and 908 at an `overflowWrap: 'normal'` word's own width under zoom 130%; 5,027 involve soft hyphens: 2,445 nowrap-width and 2,582 line-break cases; 2,265 do not, §3). The Linux fractional-size model is exact for the first use of a size in a page
+  only; `opsz` on Linux is unmeasured; `shrinkTo` tries whole pixels, the exact slot size and its (scaled) minimum; `truncate: 'end'` passes a
+  single character (grapheme) wider than the box (`clamp`'s flag; under `overflowWrap: 'normal'` a word wider than the box is reported `truncated`); `overflowWrap` has two values (`anywhere` and `break-all` map to `'break-word'`, `keep-all` and `hyphens: auto` are not modelled, so Chromium may hyphenate a word reported as `overflow`); words are Pretext's segments, and Pretext's internal flag for the rare text-segment boundary that is no break opportunity is not read; the `near-miss` slack is Pretext's, so it carries Pretext's gaps, mostly a broken word's pieces measured without kerning or ligatures between them, which flags labels sooner in plain text but can flag them later at a soft hyphen (1,565 of the 98,172 near-miss cases fall on the other side of the margin in Chromium, §3), and for `lines` and `truncate: 'end'` it measures when the layout would change, not when the label would fail; under `overflowWrap: 'normal'` a line within 1/64 px of the box can pass where Chromium wraps it; ICU plural/select is not expanded; a Node call runs
+  alone and wipes fonts registered through `pretext-kit/headless`; no WebKit or Gecko profile and no CSS parsing.
+  README "Label checker, Limits" has the same list.
+- **Headless** is Chromium's rules with registered fonts, measured on macOS, Linux and Windows with Chromium 149 at whole-pixel sizes (variable fonts per `install({ platform })`, default `'macos'`). On the `'linux'` profile a fractional font size is modelled by Chromium on Linux's rule, exact only for the first use of a size in a page: Chromium reuses glyph metrics from a nearby fractional size measured earlier in the same page, which the stand-in does not model, and the committed headless sweep uses whole pixels only (derived on Chromium 141, not 149): an uncovered code point throws
   `HeadlessCoverageError`; a weight with no registered face measures the nearest one; a `small-caps` font throws.
 - **truncateMiddle works on the collapsed text.** `prepareLabel` collapses white space as CSS does, so the result,
   and `keepEnd.from`, refer to `label.text`, not to the string passed in; an index taken from the original string

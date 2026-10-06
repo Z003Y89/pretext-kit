@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.2.0 — unreleased
+
+The label checker, and a fractional-size model for the headless Linux profile. `package.json` stays at 0.1.2 until the release.
+
+- **`pretext-kit/check` and `pretext-kit/check/browser`.** `checkLabels` checks every UI label against the slot it is
+  shown in, per language, text scale, zoom and platform, with each slot's own policy (as-is, `shrinkTo`, `lines`,
+  `truncate`), rows with collapse stages, and a stable, diffable report (failures, warnings, notes, unchecked keys);
+  `slotFromStyle` builds slots from computed styles and `conditionGrid` builds condition products. The Node entry runs
+  on `pretext-kit/headless` (macOS, Windows and Linux profiles); the browser entry uses the page's own fonts and
+  cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 473,736 cases (375,564
+  verdict cases and 98,172 near-miss cases), 0 check-mismatch, 10,255 pretext-gap (7,292 and 2,963), 8 of 8 planted bugs
+  caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
+  `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and
+  `pretext-kit/check/browser` do not. Placeholders are `{name}` and `{{name}}`. README "Label checker" lists the limits,
+  among them one call at a time (a call wipes fonts registered through `pretext-kit/headless`) and the gap at a box
+  exactly at the measured width (mostly, not only, soft-hyphenated text).
+- **`overflowWrap` on a slot** (`'break-word'`, the default, or `'normal'`; overridable per condition). Under `'normal'`
+  a word (the text between two break opportunities; one ending at a soft hyphen with the hyphen it paints) whose natural
+  width is past the box by more than 1/64 px is the failure `overflow` under `lines`, with `missing.px` and the word in `detail`, and makes `truncate: 'end'`
+  `truncated`, as Chromium cuts it with an ellipsis on its line of the clamp. `slotFromStyle` reads `overflow-wrap` and
+  `word-break` from the computed style, so a slot it builds from plain CSS is `'normal'`, while a hand-written slot defaults to
+  `'break-word'`.
+- **`nearMiss` margin** (px, off by default; `--near-miss <px>` on the command line, a plain decimal). A label or row that passes with
+  less slack than the margin is the warning `near-miss` (so `--strict` fails on it), with `missing.px` the slack to
+  spare: the box less the natural width (as-is, truncate middle), the width at the fitted size (shrinkTo), the widest
+  line and, under `overflowWrap: 'normal'`, the widest word (lines, truncate end when not cut), or the row's total at
+  the stage it fits at. A pass only within the fit tolerance (Pretext's 0.005 px on one line; 1/64 px for `overflowWrap` words and rows) has 0px to spare; a label checked with a missing sample gets none. Off, reports are unchanged. Asked
+  for by CueFlow ('Buchungen' fitting with 0.1px to spare).
+- **`check-labels` command** (`bin`, `npx pretext-kit check-labels [--config] [--json] [--strict] [--platform] [--near-miss] [--help]`):
+  exit 0, 1 on failures (or warnings with `--strict`), 2 on a usage or config error, including unusable `labels`, a
+  missing harfbuzzjs and a run where no key matched a slot or row; label files by its own minimal glob.
+- **Headless: `featureSettings` on `registerFont`**, the `@font-face` descriptor (`"tnum" 1`), so tabular digits can be
+  measured; the checker uses it for slots with `numeric: 'tabular'`.
+- **Headless: the `'linux'` profile models Chromium on Linux's fractional font sizes** (the size in float32 hundredths,
+  advances at it truncated to 1/64 px; `src/headless/canvas.ts`, `test/headless/fractional-size.test.ts`). Derived and
+  measured on Chromium 141, exact for the first use of a size in a page; Chromium's reuse of glyph metrics between
+  nearby fractional sizes later in a page is not modelled. `'macos'` and `'windows'` are unchanged.
+- **`verify:check`** (verify/check-labels.ts) in CI on Linux and Windows, uploading CHECK_RESULTS.md as
+  `check-results-<os>` without failing the build on a check-mismatch, as for the parity sweep.
+
 ## 0.1.2 (2026-10-06)
 
 Headless variable fonts and split families; the browser-side helpers are unchanged.

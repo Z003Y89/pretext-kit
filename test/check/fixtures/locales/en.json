@@ -1,0 +1,5 @@
+{
+  "button": { "save": "Save", "cancel": "Cancel", "export": "Export as file" },
+  "title": { "intro": "Welcome back to your workspace" },
+  "toolbar": { "save": "Save", "share": "Share" }
+}

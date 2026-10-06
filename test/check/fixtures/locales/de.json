@@ -1,0 +1,5 @@
+{
+  "button": { "save": "Speichern", "cancel": "Abbrechen", "export": "Als Datei exportieren" },
+  "title": { "intro": "Willkommen zurück in Ihrem Arbeitsbereich" },
+  "toolbar": { "save": "Speichern", "share": "Freigeben und Zusammenarbeiten" }
+}

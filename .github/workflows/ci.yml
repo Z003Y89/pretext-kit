@@ -50,8 +50,9 @@ jobs:
       - run: npm test
       - run: npm run check
 
-  # Headless parity (verify/HEADLESS_RESULTS.md) off macOS. A headless-mismatch here is the measurement, not a CI
-  # failure: the sweep step may fail without failing the workflow, and its results are uploaded either way.
+  # Headless parity (verify/HEADLESS_RESULTS.md) and the label checker sweep (verify/CHECK_RESULTS.md) off macOS. A
+  # headless-mismatch or check-mismatch here is the measurement, not a CI failure: the sweep steps may fail without
+  # failing the workflow, and their results are uploaded either way.
   parity:
     name: parity (${{ matrix.os }})
     strategy:
@@ -59,7 +60,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 50
     defaults:
       run:
         shell: bash
@@ -101,6 +102,26 @@ jobs:
           path: |
             pretext-kit/verify/HEADLESS_RESULTS.md
             pretext-kit/verify/headless-run.log
+          if-no-files-found: warn
+      # The label checker's oracle sweep (verify/CHECK_RESULTS.md), recorded the same way: a check-mismatch here is the
+      # measurement, not a CI failure.
+      - run: rm -f verify/CHECK_RESULTS.md
+      - name: verify:check (Linux, headed under xvfb)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: xvfb-run -a npm run verify:check 2>&1 | tee verify/check-run.log
+      - name: verify:check (Windows, headed)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: npm run verify:check 2>&1 | tee verify/check-run.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: check-results-${{ matrix.os }}
+          path: |
+            pretext-kit/verify/CHECK_RESULTS.md
+            pretext-kit/verify/check-run.log
+            pretext-kit/verify/dist/check-cases.md
           if-no-files-found: warn
 
   # The release tarballs, packed as verify/pack-release.sh packs them for a release, installed into a fresh project.

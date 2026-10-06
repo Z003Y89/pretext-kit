@@ -93,9 +93,10 @@ A release is tagged only when all of these hold on the exact commit being tagged
 | 3 | Every headless mutant caught on every platform | HEADLESS_RESULTS.md mutant table |
 | 4 | If helpers changed: the browser sweep, 0 kit-mismatch, and every helper mutant caught | verify/RESULTS.md, verify/results/mutants.txt |
 | 5 | If `src/headless/hvar.ts` changed: `npm run verify:hvar`, max difference 0 | HEADLESS_RESULTS.md |
-| 6 | If a parser changed: malformed-input tests and a fuzz run with no throw | the review's report |
-| 7 | README, CHANGELOG and EVALUATION carry the same numbers and limits as the results files | whole-branch review |
-| 8 | Tarballs packed, sums recorded, consumer smoke on Node 22 and 24, SBOM and notices current | verify/RELEASING.md steps 2–4 |
-| 9 | After upload: assets downloaded, sums match, consumer smoke and README's install line pass | verify/RELEASING.md step 6 |
+| 6 | If `src/check/` changed: `npm run verify:check`, 0 check-mismatch, and every check mutant caught | verify/CHECK_RESULTS.md, CI artifacts `check-results-<os>` |
+| 7 | If a parser changed: malformed-input tests and a fuzz run with no throw | the review's report |
+| 8 | README, CHANGELOG and EVALUATION carry the same numbers and limits as the results files | whole-branch review |
+| 9 | Tarballs packed, sums recorded, consumer smoke on Node 22 and 24, SBOM and notices current | verify/RELEASING.md steps 2–4 |
+| 10 | After upload: assets downloaded, sums match, consumer smoke and README's install line pass | verify/RELEASING.md step 6 |
 
 "Waiting for CI" is not green: a document edit after a green run needs its own run before the tag (RELEASING.md).

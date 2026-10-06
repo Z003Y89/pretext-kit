@@ -16,6 +16,11 @@ claims, the confidence bounds, the threats to validity and the known limitations
   weights 300-800, widths within 0.0001px and none of 69,408 more line counts differing. Variable fonts measure per
   target platform: `install({ platform })`, macOS by default. Registered fonts and Chromium's rules only
   ([the claim and its limits](#the-claim-and-its-limits)).
+- **`pretext-kit/check`**: a test-time and CI check that every UI label fits its slot in every language, at every
+  text scale and zoom you ship, with the policy each slot declares (as-is, shrink to a minimum, N lines, truncate), as
+  Chromium lays it out. A function (`checkLabels`), a browser entry and the `check-labels` command. It makes no
+  measurement beyond Pretext's: it runs `fitFontSize`, `clamp` and `prepareLabel` through `pretext-kit/headless`
+  ([the checker, its evidence and its limits](#label-checker)).
 
 What it adds that CSS can't do:
 
@@ -41,7 +46,7 @@ tarballs, installed by URL with no npm account or registry publish involved: the
 
 ```sh
 npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/pretext-kit-0.1.2.tgz
-npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
+npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-kit/check and check-labels (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
 Check the downloads against the SHA-256 sums: `chenglou-pretext-0.0.10-main.f10d888.tgz` is
@@ -71,7 +76,7 @@ Or build from source, the route the evaluation used:
 git clone https://github.com/chenglou/pretext && (cd pretext && git checkout f10d888 && npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json)
 git clone https://github.com/Z003Y89/pretext-kit && (cd pretext-kit && npm install && npm run build)
 npm install ./pretext ./pretext-kit
-npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
+npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-kit/check and check-labels (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
 `@chenglou/pretext` is a peer dependency: your app and the kit share one Pretext, and one cache. Its range is
@@ -391,7 +396,7 @@ font files. Pretext and every pretext-kit helper then run in Node, Bun, vitest a
 browser, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" becomes a unit test.
 
 ```sh
-npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # optional peers, loaded only by pretext-kit/headless (wawoff2: WOFF2 fonts)
+npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # optional peers, loaded by pretext-kit/headless, pretext-kit/check and check-labels, not by the root or pretext-kit/check/browser (wawoff2: WOFF2 fonts)
 ```
 
 wawoff2 is loaded only when a WOFF2 font is registered; without it, the entry loads and TTF, OTF, TTC and WOFF fonts
@@ -415,8 +420,9 @@ A runnable version is `examples/vitest-label-fit.test.ts`.
 
 ### The claim and its limits
 
-On Chrome (Chromium 149 measured on macOS, Linux and Windows), for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas, and
-Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. Measured twice:
+On Chrome (Chromium 149 measured on macOS, Linux and Windows), for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas at the whole-pixel font sizes the sweep uses, and
+Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. Fractional font sizes are outside this
+claim; see below. Measured twice:
 
 - **Parity sweep** (`npm run verify:headless`, [verify/HEADLESS_RESULTS.md](verify/HEADLESS_RESULTS.md)), Chromium
   149.0.7827.55 via Playwright 1.61.0 on macOS 14.6.1, fonts loaded by `@font-face` from the same files: 7,344 widths
@@ -493,6 +499,16 @@ The claim is scoped exactly so:
   [37412616029](https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029) measured Linux 6,072/7,344 widths bit-exact (max 0.001862px) and Windows 6,194/7,344
   (max 0.000427px), Inter Variable 2,352/2,352 on both, and 0 headless-mismatch in 141,226 line counts on each. An earlier
   independent Linux run on Chromium 141 (raw data not in the repository) gave the same tallies (EVALUATION §3).
+- **Fractional font sizes on Linux.** On the `'linux'` profile the stand-in measures a fractional size (13.455px, for
+  instance) by Chromium on Linux's own rule: the size in float32 hundredths, advances at that size
+  truncated to 1/64 px (`sizedFor` in `src/headless/canvas.ts`, `test/headless/fractional-size.test.ts`). That rule was
+  derived and measured on Chromium 141.0.7390.37 on Linux, not on the Chromium 149 quoted above, and it is exact for the
+  first use of a size in a page. Later in the same page Chromium can reuse the glyph metrics of a nearby fractional size
+  it measured earlier, in either direction, which the stand-in does not model: a page that uses two fractional sizes a
+  few hundredths of a px apart can measure one 1/64 px advance step differently from the stand-in. Optical size
+  (`opsz`) on a variable font takes that same hundredths size on this profile; how Chromium sets `opsz` from a
+  fractional size is unmeasured. `'macos'` and `'windows'` measure at the size asked for, with no fractional-size
+  evidence for either. The parity sweep (`HEADLESS_RESULTS.md`) uses whole-pixel sizes.
 
 ### Install order
 
@@ -569,6 +585,307 @@ The [headless parity example](#examples) runs the same comparison live, in which
 Chromium on macOS every line count, fitted size and width matches; in WebKit and Firefox, which are outside the claim
 (Pretext there uses that engine's rules and Canvas), it compares line counts and fitted sizes, and shows the widths
 apart.
+
+## Label checker
+
+`pretext-kit/check` answers, for a whole catalogue at once, "does „Zahlungspflichtig abonnieren“ fit the 160px button
+at 130% text size?", and for each failure says what is missing: the px of width, or the font size that would fit. It
+is a test-time and CI check. It runs `fitFontSize`, `prepareSizes`, `clamp` and `prepareLabel` (middle truncation
+uses `prepareLabel`'s white-space collapse and its own fit test, not `truncateMiddle`), and Pretext's `measureNaturalWidth`
+and `measureLineStats` for widths, line counts and row totals, through `pretext-kit/headless`, so its verdicts carry the
+headless parity evidence ([the claim](#the-claim-and-its-limits)) and add the checker's own, in [verify/CHECK_RESULTS.md](verify/CHECK_RESULTS.md) and EVALUATION.md C11.
+
+It needs `harfbuzzjs` (and `wawoff2` for WOFF2 fonts) installed: `pretext-kit/check` and the `check-labels` command import the headless stand-in. Without it the command prints `npm i -D harfbuzzjs@1.6.2` and exits 2. The root entry and `pretext-kit/check/browser` need neither.
+
+```ts
+import { checkLabels, conditionGrid } from 'pretext-kit/check'
+
+const report = await checkLabels({
+  fonts: [{ family: 'Inter', path: 'fonts/Inter-Regular.ttf' }],      // what registerFont gets, plus featureSettings
+  labels: { de: { button: { pay: 'Zahlungspflichtig abonnieren' } }, en: { button: { pay: 'Subscribe and pay' } } },
+  slots: { button: { width: 160, reserve: 20, font: '15px Inter', policy: 'as-is', uses: ['button.*'] } },
+  conditions: conditionGrid({ textScale: [1, 1.15, 1.3] }),
+})
+if (report.failures.length > 0) throw new Error(JSON.stringify(report.failures, null, 2))
+```
+
+| `CheckInput` field | what it is |
+|---|---|
+| `fonts` | the font files, `{ family, path \| data, weight?, style?, unicodeRange?, featureSettings? }` as `registerFont` takes them |
+| `labels` | parsed i18n files, a list of labels or a function returning one (below) |
+| `slots` | where each label is shown (below), or a function returning them |
+| `rows` | several slots sharing one line ([Rows](#rows)) |
+| `conditions` | text scale, zoom, viewport and slot overrides ([Conditions](#conditions-text-size-and-zoom-are-different)); default one condition, `default` |
+| `platforms` | `'macos'`, `'windows'`, `'linux'`; default all three ([Where it runs](#where-it-runs)) |
+| `samples` | placeholder values per key ([The report](#the-report)) |
+| `nearMiss` | px, off by default: a label or row that passes with less slack than this is the warning `near-miss` ([Policies](#policies)); a finite number above 0, else a `RangeError` |
+
+`labels` is parsed i18n files (`{ locale: { key: text } }`, nested objects flatten to dotted keys), a list of
+`{ key, text, slot, locale? }`, or a function returning one. A slot says where a label is shown: `width` (content box
+px at zoom 1, or a function of the window width), `reserve` (an icon and its gap, which scale with the text), `font`
+(CSS shorthand at scale 1), `letterSpacing`, `lineHeight` (optional; no verdict uses it, `slotFromStyle` records it), `whiteSpace`,
+`overflowWrap` (`'break-word'`, the default, or `'normal'`: whether a word wider than the box may break inside, see
+[Policies](#policies)), `numeric` (`'tabular'` for `font-variant-numeric: tabular-nums`), `textTransform` (applied with
+the label's locale: uppercase tabs are much wider than their source text), `policy`, and `uses` (key patterns such as
+`'toolbar.*'` that bind i18n keys to the slot). Slots that live in CSS come from
+`slotFromStyle(getComputedStyle(el), el.getBoundingClientRect(), policy, { reserve, uses }?)`, run once in a browser
+test (or from the async `slots` hook), so they follow the design instead of drifting from it; the checker does not
+parse CSS.
+
+`overflowWrap` defaults differ by where the slot comes from. A slot written by hand defaults to `'break-word'`, which
+is how Pretext lays text out. `slotFromStyle` returns what the element's computed style does: `'break-word'` for
+`overflow-wrap: break-word` (Tailwind's `break-words`) or `anywhere`, or for `word-break: break-all` or `break-word`, and
+otherwise `'normal'`, CSS's initial value. So a slot taken from an element with plain CSS is `'normal'`, and a long word
+in its `{ lines: 2 }` slot fails, as the browser overflows it, where the same slot written by hand would pass by
+breaking the word mid-word.
+
+### Policies
+
+Each slot declares what its design does with a label that is too long. The box is `width − reserve`.
+
+| policy | passes when | otherwise |
+|---|---|---|
+| `'as-is'` | the label is one line wide enough at the slot's size | failure `overflow`, with `missing.px` |
+| `{ shrinkTo: 12 }` | the label fits on one line at some size from 12px to the slot's size (the minimum scales with text scale and zoom: 15.6px at text 130%) | failure `below-min-size`, with `missing.px` at the minimum and `missing.fitsAtPx` |
+| `{ lines: 2 }` | at most 2 lines at the slot's size; with `overflowWrap: 'normal'`, also every word fits the box | failure `too-many-lines`; a word wider than the box under `'normal'`: failure `overflow`, with `missing.px` |
+| `{ truncate: 'end', lines?: 1 }` | `clamp` does not cut it; with `overflowWrap: 'normal'`, also every word fits the box | warning `truncated` |
+| `{ truncate: 'middle' }` | the white-space-collapsed text fits on one line | warning `truncated` |
+
+A "word" under `overflowWrap: 'normal'` is the text between two of the browser's break opportunities (spaces, the break
+after a hyphen-minus, soft hyphens, CJK breaks; Pretext's own segmentation): an unbroken word paints at its natural
+width, so it fits when that width is at most the box plus 1/64 px (lines are then counted and clamped at that width too,
+so such a word stays whole), and a word ending at a soft hyphen fits only with the hyphen it paints when the line breaks
+there. That 1/64 px then applies to every line of the text, not only the word's: a line within 1/64 px of the box can pass
+where Chromium, whose width is 1/64 px wider than Pretext's, wraps it (a probe found 48 of 3,000 adversarial `lines: 2`
+cases at 20.8px, none at 16px). The issue's `missing.px` is the widest failing word's width less the box,
+`measured.width` that word's width, and its `detail` names the word. `measured.lines` on such an `overflow` is the line
+count Pretext gives at the box with words broken mid-word (`'break-word'`), not what the browser paints under
+`'normal'`, where the word stays whole and can take fewer lines. Under `'break-word'`
+(as Pretext lays text out) such a word breaks between letters, which is how a `{ lines: 2 }` slot with `break-words`
+holds „Benachrichtigungen“ in two lines. Under truncate end, Chromium cuts an unbreakable word at the box with an
+ellipsis on whichever line of the clamp it sits (`text-overflow` applies to every line), so the label is `truncated`
+even when it takes no more lines than allowed. `'as-is'`, `shrinkTo` and middle truncation are one line already and
+ignore `overflowWrap`.
+
+**Near-miss.** With `nearMiss` set (px), a label that passes with less than that much slack is the warning
+`near-miss`, so a label that fits with 0.1px to spare, and can break with the next font or locale change, shows up
+before it does. The slack is taken in the box the verdict used (`width − reserve`, scaled by text scale and zoom as above),
+rounded to 1/64 px as the report is, and compared in the report's px (zoomed px under `zoom`):
+
+| policy | slack |
+|---|---|
+| `'as-is'`, `{ truncate: 'middle' }` | the box less the label's natural width (middle: of the white-space-collapsed text) |
+| `{ shrinkTo }` | the box less the label's width at the size it fits at: the slot's size, or the size it shrank to |
+| `{ lines }`, `{ truncate: 'end' }` (not cut) | the box less the widest line, laid out as the verdict lays it out; under `overflowWrap: 'normal'` no less than the widest word |
+| a row (passing, or collapsed) | the row's width less its items and gaps at the stage it fits at (0, or the collapse stage) |
+
+A pass only within the fit tolerance (Pretext's 0.005 px on one line; 1/64 px for `overflowWrap` words and rows) has 0px to spare, the most fragile case, so it is always a near-miss when `nearMiss` is set. A
+failing verdict is never a near-miss, a near-miss is never a failure, and the label is checked (and counted in
+`checked`) once either way. A label checked with a placeholder left in (`missing-sample`) gets no near-miss: its text
+is not what the app shows. A collapsed row can carry both its `row-collapsed` note and a `near-miss`.
+
+For `lines` and `truncate: 'end'` the slack is how far the box can shrink before the layout changes (a line takes a
+word or a letter less), not how far before the label fails: a text that would wrap again and still fit is flagged.
+„Speichern unter“ in `{ lines: 2 }` at its natural width less 0.004px still takes one line and is a near-miss with
+0px; at 0.006px less it wraps into two lines with room to spare and is none. In Pretext's model that is conservative:
+a near-miss never misses a real failure, it can flag a label that would still fit.
+
+Truncation is a warning because cutting is what the design asked for; `--strict` turns warnings into a failing exit.
+A code point the registered font does not cover is the failure `uncovered`, never a thrown error. `shrinkTo` tries the
+slot's size, every whole pixel below it down to the minimum, and the minimum itself.
+
+### Conditions: text size and zoom are different
+
+A condition names a combination the app ships (names must be unique); conditions are listed, not multiplied out, and
+`conditionGrid({ textScale: [1, 1.15, 1.3], zoom: [1, 1.3], viewport: [1024, 1440] })` builds the full product when you
+want it (names like `text 115% · zoom 130% · 1024px`). `slots` per condition overrides slot fields (a compact theme
+with another base size); `viewport` is passed to `width` functions (default 1440).
+
+- **`textScale`** is a text-size setting: font size, letter spacing, line height, `reserve` and a `shrinkTo` minimum grow
+  (12px becomes 15.6px at 1.3); boxes, rows and gaps keep their px width.
+- **`zoom`** is CSS `zoom` or page zoom: everything grows, boxes and gaps too, so the boundary stays where it was at zoom 1.
+
+For a 160px slot with a 20px icon reserve and a label about 120px wide at 16px: at `textScale: 1.3` the label is about
+156px and the box is 160 − 20 × 1.3 = 134px, so it overflows; at `zoom: 1.3` the label is about 156px and the box is
+160 × 1.3 − 20 × 1.3 = 182px, so it fits. Treating zoom as a text scale would report the second as a failure. The
+sweep renders both in Chromium (a font-size change in a fixed box, and CSS `zoom` on the container) and the planted
+bug "treat zoom as textScale" is caught ([EVALUATION.md](EVALUATION.md) C11).
+
+### Rows
+
+A `rows` entry is several slots sharing one line (a toolbar), with the row's `width`, the `gap` between items, and per
+item the label `key`, its `slot`, optionally `collapse: { order, iconWidth }` (it may drop to icon only; lower
+`order` collapses first) and `shortKey` (a shorter label tried before icon only). Stage 0 is every item with its
+label; each later stage applies the next step in collapse order to one item. The row passes at the first stage whose
+widths and gaps fit. If that is a later stage the report holds a note, `row-collapsed`, naming the stage: information, not a failure. If even the last
+stage does not fit it is the failure `row-overflow`. A row issue uses the row's name as its slot and, as its text, the item texts joined by ` | `.
+
+### The report
+
+```ts
+type Report = {
+  schema: 1
+  failures: Issue[]    // overflow, too-many-lines, below-min-size, row-overflow, uncovered
+  warnings: Issue[]    // truncated, missing-sample, unsupported-message, unverifiable, near-miss
+  notes: Issue[]       // row-collapsed
+  unchecked: string[]  // 'locale:key' of labels no slot or row uses
+  checked: number      // label verdicts and row verdicts, per condition and platform
+}
+```
+
+An `Issue` has `kind`, `locale`, `key`, `slot`, `condition`, `platforms` (issues for different platforms are merged
+into one when their numbers differ by at most 1/64 px, showing the worst platform's numbers; larger differences stay
+separate; the grouping is greedy in platform order, so a spread of 2/64 px across platforms can split into two issues),
+`text` (with samples filled in), `measured` (`width`, `box`, `lines`, `fontPx`, and `stage` for rows)
+and, where it applies, `missing: { px?, fitsAtPx? }` and a `detail`. For `near-miss`, `missing.px` is the slack to
+spare, not what is missing, and `measured` is what the passing verdict measured; issues of different platforms merge
+with the smallest slack as the worst. The order is stable: by slot or row, condition,
+locale, key, platform; numbers are rounded to 1/64 px; there are no timestamps or paths. Two runs, before and after a
+font change, diff line by line.
+
+`samples` gives a key's placeholder values (`{ 'cart.items': [{ count: 1 }, { count: 12345 }] }`); every sample is
+checked. Placeholders are `{name}` and i18next's `{{name}}` (the whole group is replaced by the sample). A placeholder with no sample is the warning `missing-sample` and is checked as written. ICU
+`plural` and `select` messages are not expanded: they give the warning `unsupported-message` and are not checked
+(so are `{n, number}` placeholders).
+
+### Where it runs
+
+- **Node** (`pretext-kit/check`): fonts from `fonts` through `pretext-kit/headless`, checked on the `'macos'`,
+  `'windows'` and `'linux'` profiles by default (`platforms`); the report names which platforms an issue holds on.
+  Measurement differs between platforms, so a label can fit on one and not another. A tabular slot (`numeric:
+  'tabular'`) is measured with a second registration of its font under an internal alias family with `tnum` on
+  (`featureSettings` on `registerFont` is the `@font-face` descriptor), because Canvas cannot express
+  `font-variant-numeric`. `textTransform` is applied with the label's locale.
+- **Browser** (`pretext-kit/check/browser`, for Playwright or the app's own test runner): the page's own fonts and
+  canvas, so `fonts` must be absent (it throws a `RangeError` otherwise); one platform, `'browser'`. What one mode
+  cannot check is reported, not passed: Canvas cannot apply `font-variant-numeric`, so in the browser a `tabular` slot
+  (and a row containing one) gives the warning `unverifiable` and is not counted in `checked`.
+
+### `npx pretext-kit check-labels`
+
+```sh
+npx pretext-kit check-labels [--config labels.config.mjs] [--json] [--strict] [--platform macos,windows,linux] [--near-miss <px>]
+```
+
+The config module default-exports a `CheckInput`; `labels` may also be `{ files: 'locales/*.json', locale?: (path) => name }`
+(the locale defaults to the file name without `.json`; several files of one locale merge, and a repeated top-level key
+is an error), and `fonts[].path` is resolved from the config's directory. Output: failures, then warnings, then notes,
+grouped by slot and condition, one line each with the locale, key, text and what is missing, then a count line.
+`--json` prints the Report. Exit codes: 0 no failures (and, with `--strict`, no warnings), 1 failures (or warnings with
+`--strict`), 2 a usage or config error (bad flag, unreadable config, no file matches, `labels` of the wrong type, harfbuzzjs not installed, or nothing checked because no key matched a slot or row). The line `N keys matched no slot or row` follows the count when N is not 0. `--help` prints the usage. `--platform` limits the run;
+`--config` defaults to `labels.config.mjs`. `--near-miss <px>` (or `--near-miss=<px>`) sets the config's `nearMiss` or
+overrides it. The value is px above 0 written as digits with an optional decimal part: `0.5`, not `.5`, `1e1` or `+2`;
+anything else is exit 2. A near-miss prints as `near-miss: 0.09375px to
+spare` and counts as a warning, so it exits 0, and 1 with `--strict`. A value that starts with `--` needs the `=` form (`--config=--x.mjs`).
+The repository's own fixture, `test/check/fixtures/labels.config.mjs` with its two locale files:
+
+```js
+export default {
+  fonts: [{ family: 'Inter', path: '../../fonts/Inter-Regular.ttf' }],
+  labels: { files: 'locales/*.json' },
+  slots: {
+    button: { width: 90, font: '16px Inter', policy: 'as-is', uses: ['button.*'] },
+    title: { width: 200, font: '16px Inter', policy: { truncate: 'end', lines: 1 }, uses: ['title.*'] },
+    tool: { width: 100, font: '16px Inter', policy: 'as-is' },
+  },
+  rows: {
+    toolbar: {
+      width: 220,
+      gap: 8,
+      items: [
+        { key: 'toolbar.save', slot: 'tool' },
+        { key: 'toolbar.share', slot: 'tool', collapse: { order: 1, iconWidth: 20 } },
+      ],
+    },
+  },
+  conditions: [{ name: 'default' }],
+}
+```
+
+```sh
+$ npx pretext-kit check-labels --config test/check/fixtures/labels.config.mjs
+button · default
+  de button.export  "Als Datei exportieren"  overflow: 67.515625px too wide
+  en button.export  "Export as file"  overflow: 8.6875px too wide
+
+title · default
+  de title.intro  "Willkommen zurück in Ihrem Arbeitsbereich"  truncated: cut at 200px
+  en title.intro  "Welcome back to your workspace"  truncated: cut at 200px
+
+toolbar · default
+  de toolbar  "Speichern | Freigeben und Zusammenarbeiten"  row-collapsed: stage 1
+
+30 checked, 2 failures, 2 warnings
+$ echo $?
+1
+```
+
+Under the fixture's `button` slot (90px, `as-is`) the German "Als Datei exportieren" is 67.515625px too wide; the `title`
+slot (200px, `truncate: 'end'`, one line) cuts both introductions; the toolbar collapses to its stage 1, which is a
+note and is neither a failure nor a warning (so it is not in the counts).
+
+### Limits
+
+- **Platforms differ.** The three Chromium profiles measure differently (variable-font advances; fractional sizes on
+  Linux), which is why an issue lists its platforms. Chromium only: no WebKit or Gecko profile.
+- **Linux fractional font sizes.** See [the headless limits](#the-claim-and-its-limits). Exact for the first use of a
+  size in a page; Chromium reuses the glyph metrics of a nearby fractional size measured earlier in the same page,
+  which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart can differ by
+  one 1/64 px step. The model was derived on Chromium 141, not 149; `opsz` on Linux is unmeasured.
+- **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 6,300 of the
+  7,292 pretext-gaps of the verdict cases sit at the exact boundary box, 72 at 1.1 times it, 12 are rows and 908 are `overflowWrap: 'normal'`
+  slots within 1/32 px of the widest word's own width (all under zoom 130%, none at zoom 100%), from Chromium
+  behaviour the checker does not model: at text 130% · zoom 130% Chromium lays out the zoomed 20.8px like an unzoomed 27.02 to
+  27.03px, not 27.04px (322 per policy; the Linux fractional-size model covers sizes, not zoom), and the rest is
+  consistent with Chromium snapping zoomed slot, icon and text widths to its 1/64 px layout grid, which is confirmed
+  for the box widths only (the DOM box less the checker's box is −0.0156 to +0.0094 zoomed px over those 908 cases, 0 at zoom 100%). Mostly, not only, soft-hyphenated text: 5,027 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle,
+  shrinkTo), where Chromium's text is wider than Pretext's natural width (for as-is at text 100% and zoom 100%, 0.125 to
+  0.828px, most often 0.25px; up to 1.23 zoomed px over all conditions), and 2,582 line-break cases (lines and truncate
+  end, with either `overflowWrap`), where Chromium breaks differently); the other 2,265 have none (English "Just tried":
+  DOM 3 lines, Pretext 2). At a box exactly as wide as
+  Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on boxes sized
+  from a measured width, most of all for soft-hyphenated German and French.
+- **Near-miss slack is Pretext's.** The slack `nearMiss` is compared with is Pretext's width, so it carries Pretext's
+  gaps. In the sweep's near-miss family (98,172 cases, `nearMiss: 2`) the checker's decision and slack equal the
+  reference's in every case. Chromium's free space falls on the other side of the margin in 1,565 cases. The largest cause is
+  Pretext's width for the pieces of a word: a word broken mid-word (`overflowWrap: 'break-word'`) or at a soft hyphen
+  is measured as the sum of its pieces, without the kerning and ligatures between them („d’offres.“ breaks as „d’off“ /
+  „res.“ in Chromium too, and Pretext's „d’off“ is 1.6px wider: the `ff` ligature), and a hyphen-minus compound as its
+  two halves („Nebenrollen-Takes“ loses the `-T` kerning, 1.2px at 16px, 0.27 to 2.12px over the sweep). That makes
+  Pretext's line wider and its slack smaller in plain text and in the compound, so the label is flagged sooner: the
+  safe direction. At a soft hyphen the sign is mixed (Chromium's slack −0.77 to +0.91px from Pretext's, smaller in most
+  cases), so such a label can be flagged later. Apart from the compound, one-line text without soft hyphens at zoom
+  100% has 0 to 1/64px less room in Chromium than in Pretext. The other gaps: soft-hyphenated one-line text (−1.26 to
+  +2.17px), soft-hyphenated lines that do not match even measured whole (a different break, or at text 130% · zoom
+  130% the zoomed size), one-line text and rows under zoom (text 130% · zoom 130%: +0.26 to +0.66px; one shrinkTo case at
+  text 115% · zoom 130%, 1/32px less room), and 8 cases where Chromium breaks a line at another place („of library. If
+  you can't“ with a line 1/64px past the box, „unequally at birth.“). The comparison resolves 1/4px: the sweep's boxes
+  sit that far from the margin (CHECK_RESULTS.md, "Resolution"). Choose a margin wider than the gap you want to absorb.
+- **Near-miss for `lines` and `truncate: 'end'`** means the layout would change, not that the label would fail (see
+  [Policies](#policies)), so it can flag a label that would wrap again and still fit.
+- **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
+  size between two whole pixels, so a design that shrinks continuously fits at sizes the checker does not try.
+- **`truncate: 'end'`** passes a single character (grapheme) wider than the box (an `W` in an 8px box): `clamp` flags
+  that case and the checker does not turn the flag into a verdict. Under `overflowWrap: 'break-word'` a long word breaks
+  and is `truncated` only when that makes too many lines; under `'normal'` a word wider than the box is `truncated`.
+- **`overflowWrap` has two values.** `overflow-wrap: anywhere` and `word-break: break-all` map to `'break-word'`, which
+  breaks a word only where it does not fit; `break-all` breaks between any two letters to fill each line, so its line
+  counts can be lower than the checker's. `word-break: keep-all` (CJK) is not modelled, nor is `hyphens: auto`: Chromium
+  may hyphenate a word the checker reports as `overflow` under `'normal'`. Words are Pretext's segments, and a boundary
+  between two text segments counts as a break opportunity; the flag Pretext keeps internally for the rare boundary that
+  is not one (around zero-width glue and controls, which the checker joins to the text beside them) is not read.
+- **`truncate: 'middle'`** collapses white space as `truncateMiddle` does, then measures the collapsed text with the slot's
+  `letterSpacing` and `whiteSpace` and applies the same fit test as the other policies; `truncateMiddle`'s own result can
+  disagree with it within 1/64 px above the box width, which the checker's fit test (the kit's, 1/64 px) allows.
+- **One call at a time (Node).** `checkLabels` uses Pretext's and the headless stand-in's global state: the font
+  registry and install options are shared, so concurrent calls corrupt each other. Each call starts from an empty font
+  registry, so **fonts you registered through `pretext-kit/headless` are wiped**, and it leaves the `OffscreenCanvas`
+  stand-in installed afterwards. Await each call before the next; use `fonts` rather than `registerFont` beforehand.
+- **The CLI's glob is its own** and minimal: `*`, `**` and `?`; it skips dot entries and `node_modules`.
+- **Not in this version:** ICU plural/select expansion, CSS parsing, WebKit and Gecko profiles, React Native.
+- **Evidence.** The sweep ran on Linux, Chromium 141, with Inter Regular only; macOS and Windows
+  runs of `verify:check` have not been made (CI produces the artifact), so the macOS and Windows verdicts are
+  unverified until it exists. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
 
 ## Not in v1
 

@@ -8,9 +8,11 @@
 // Steps: `npm init -y`, "type": "module", `npm install <both tarballs> harfbuzzjs@1.6.2` with no --legacy-peer-deps
 // (npm 7+ refuses a peer range the Pretext tarball does not satisfy), `npm ls` (fails on an invalid peer), then a
 // script that registers Inter (test/fonts in this repository), calls install(), and runs prepareWithSegments,
-// measureLineStats, fitFontSize and truncateMiddle, printing and checking the results. Exits non-zero on any failure.
+// measureLineStats, fitFontSize and truncateMiddle, printing and checking the results; imports pretext-kit/check and
+// pretext-kit/check/browser; and runs the installed `check-labels` command on a config the script writes (exit 1 with
+// an overflow, and --help exit 0). Exits non-zero on any failure.
 // Needs Node >= 22, npm, and network access for harfbuzzjs unless npm's cache has it.
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -57,6 +59,8 @@ import { readFileSync } from 'node:fs'
 import { measureLineStats, prepareWithSegments } from '@chenglou/pretext'
 import { fitFontSize, prepareLabel, prepareSizes, truncateMiddle } from 'pretext-kit'
 import { install, registerFont } from 'pretext-kit/headless'
+import { checkLabels } from 'pretext-kit/check'
+import { checkLabels as checkInBrowser } from 'pretext-kit/check/browser'
 
 // Read from node_modules: pretext-kit's exports map does not expose its package.json.
 const version = name => JSON.parse(readFileSync('node_modules/' + name + '/package.json', 'utf8')).version
@@ -87,6 +91,40 @@ console.log('truncateMiddle(path, 14px Inter, 220px):', JSON.stringify(cut))
 assert.ok(cut.includes('…') && cut.endsWith('/line-breaker.test.ts'))
 assert.ok(measureLineStats(prepareWithSegments(cut, '14px Inter'), Infinity).maxLineWidth <= 220)
 
+assert.equal(typeof checkLabels, 'function')
+assert.equal(typeof checkInBrowser, 'function')
+const report = await checkLabels({
+  fonts: [{ family: 'Inter', path: 'Inter-Regular.ttf' }],
+  labels: [{ key: 'save', text: 'Save as', slot: 'button' }],
+  slots: { button: { width: 40, font: '16px Inter', policy: 'as-is' } },
+  platforms: ['linux'],
+})
+console.log('checkLabels:', report.failures.map(i => i.kind), 'checked', report.checked)
+assert.deepEqual(report.failures.map(i => i.kind), ['overflow'])
+
 console.log('consumer smoke: ok')
 `)
+writeFileSync(join(dir, 'labels.config.mjs'), `\
+export default {
+  fonts: [{ family: 'Inter', path: 'Inter-Regular.ttf' }],
+  labels: { en: { button: { save: 'Save as' } } },
+  slots: { button: { width: 40, font: '16px Inter', policy: 'as-is', uses: ['button.*'] } },
+}
+`)
 execFileSync(process.execPath, ['smoke.js'], { cwd: dir, stdio: 'inherit' })
+
+// The installed command, run by file path (not through .bin, which is a cmd shim on Windows).
+const bin = join('node_modules', 'pretext-kit', 'bin', 'pretext-kit.mjs')
+const cli = (...cliArgs) => spawnSync(process.execPath, [bin, ...cliArgs], { cwd: dir, encoding: 'utf8' })
+const run = cli('check-labels', '--config', 'labels.config.mjs', '--platform', 'linux')
+console.log(`$ pretext-kit check-labels (exit ${run.status})\n${run.stdout}${run.stderr}`)
+if (run.status !== 1 || !/button\.save/.test(run.stdout) || !/1 checked, 1 failures, 0 warnings/.test(run.stdout)) {
+  console.error('check-labels: expected exit 1 with one overflow of button.save')
+  process.exit(1)
+}
+const help = cli('--help')
+if (help.status !== 0 || !help.stdout.startsWith('usage: pretext-kit check-labels')) {
+  console.error('check-labels --help: expected usage on stdout and exit 0')
+  process.exit(1)
+}
+console.log('consumer smoke (command): ok')
