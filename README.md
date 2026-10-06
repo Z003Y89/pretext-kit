@@ -46,7 +46,7 @@ tarballs, installed by URL with no npm account or registry publish involved: the
 
 ```sh
 npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/pretext-kit-0.1.2.tgz
-npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
+npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-kit/check and check-labels (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
 Check the downloads against the SHA-256 sums: `chenglou-pretext-0.0.10-main.f10d888.tgz` is
@@ -76,7 +76,7 @@ Or build from source, the route the evaluation used:
 git clone https://github.com/chenglou/pretext && (cd pretext && git checkout f10d888 && npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json)
 git clone https://github.com/Z003Y89/pretext-kit && (cd pretext-kit && npm install && npm run build)
 npm install ./pretext ./pretext-kit
-npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
+npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-kit/check and check-labels (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
 `@chenglou/pretext` is a peer dependency: your app and the kit share one Pretext, and one cache. Its range is
@@ -396,7 +396,7 @@ font files. Pretext and every pretext-kit helper then run in Node, Bun, vitest a
 browser, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" becomes a unit test.
 
 ```sh
-npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # optional peers, loaded only by pretext-kit/headless (wawoff2: WOFF2 fonts)
+npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # optional peers, loaded by pretext-kit/headless, pretext-kit/check and check-labels, not by the root or pretext-kit/check/browser (wawoff2: WOFF2 fonts)
 ```
 
 wawoff2 is loaded only when a WOFF2 font is registered; without it, the entry loads and TTF, OTF, TTC and WOFF fonts
@@ -595,6 +595,8 @@ uses `prepareLabel`'s white-space collapse and its own fit test, not `truncateMi
 and `measureLineStats` for widths, line counts and row totals, through `pretext-kit/headless`, so its verdicts carry the
 headless parity evidence ([the claim](#the-claim-and-its-limits)) and add the checker's own, in [verify/CHECK_RESULTS.md](verify/CHECK_RESULTS.md) and EVALUATION.md C11.
 
+It needs `harfbuzzjs` (and `wawoff2` for WOFF2 fonts) installed: `pretext-kit/check` and the `check-labels` command import the headless stand-in. Without it the command prints `npm i -D harfbuzzjs@1.6.2` and exits 2. The root entry and `pretext-kit/check/browser` need neither.
+
 ```ts
 import { checkLabels, conditionGrid } from 'pretext-kit/check'
 
@@ -627,7 +629,7 @@ Each slot declares what its design does with a label that is too long. The box i
 | `{ shrinkTo: 12 }` | the label fits on one line at some size from 12px to the slot's size (the minimum scales with text scale and zoom: 15.6px at text 130%) | failure `below-min-size`, with `missing.px` at the minimum and `missing.fitsAtPx` |
 | `{ lines: 2 }` | at most 2 lines at the slot's size | failure `too-many-lines` |
 | `{ truncate: 'end', lines?: 1 }` | `clamp` does not cut it | warning `truncated` |
-| `{ truncate: 'middle' }` | `truncateMiddle` does not cut it (one line) | warning `truncated` |
+| `{ truncate: 'middle' }` | the white-space-collapsed text fits on one line | warning `truncated` |
 
 Truncation is a warning because cutting is what the design asked for; `--strict` turns warnings into a failing exit.
 A code point the registered font does not cover is the failure `uncovered`, never a thrown error. `shrinkTo` tries the
@@ -635,7 +637,7 @@ slot's size, every whole pixel below it down to the minimum, and the minimum its
 
 ### Conditions: text size and zoom are different
 
-A condition names a combination the app ships; conditions are listed, not multiplied out, and
+A condition names a combination the app ships (names must be unique); conditions are listed, not multiplied out, and
 `conditionGrid({ textScale: [1, 1.15, 1.3], zoom: [1, 1.3], viewport: [1024, 1440] })` builds the full product when you
 want it (names like `text 115% · zoom 130% · 1024px`). `slots` per condition overrides slot fields (a compact theme
 with another base size); `viewport` is passed to `width` functions (default 1440).
@@ -679,7 +681,7 @@ locale, key, platform; numbers are rounded to 1/64 px; there are no timestamps o
 font change, diff line by line.
 
 `samples` gives a key's placeholder values (`{ 'cart.items': [{ count: 1 }, { count: 12345 }] }`); every sample is
-checked. A `{name}` placeholder with no sample is the warning `missing-sample` and is checked as written. ICU
+checked. Placeholders are `{name}` and i18next's `{{name}}` (the whole group is replaced by the sample). A placeholder with no sample is the warning `missing-sample` and is checked as written. ICU
 `plural` and `select` messages are not expanded: they give the warning `unsupported-message` and are not checked
 (so are `{n, number}` placeholders).
 
@@ -707,7 +709,7 @@ The config module default-exports a `CheckInput`; `labels` may also be `{ files:
 is an error), and `fonts[].path` is resolved from the config's directory. Output: failures, then warnings, then notes,
 grouped by slot and condition, one line each with the locale, key, text and what is missing, then a count line.
 `--json` prints the Report. Exit codes: 0 no failures (and, with `--strict`, no warnings), 1 failures (or warnings with
-`--strict`), 2 a usage or config error (bad flag, unreadable config, no file matches). `--platform` limits the run;
+`--strict`), 2 a usage or config error (bad flag, unreadable config, no file matches, `labels` of the wrong type, harfbuzzjs not installed, or nothing checked because no key matched a slot or row). The line `N keys matched no slot or row` follows the count when N is not 0. `--help` prints the usage. `--platform` limits the run;
 `--config` defaults to `labels.config.mjs`. A value that starts with `--` needs the `=` form (`--config=--x.mjs`).
 The repository's own fixture, `test/check/fixtures/labels.config.mjs` with its two locale files:
 
@@ -764,16 +766,18 @@ note and is neither a failure nor a warning (so it is not in the counts).
   size in a page; Chromium reuses the glyph metrics of a nearby fractional size measured earlier in the same page,
   which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart can differ by
   one 1/64 px step. The model was derived on Chromium 141, not 149; `opsz` on Linux is unmeasured.
-- **Soft-hyphenated text at the exact boundary.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 3,835 of 5,260 pretext-gaps involve soft-hyphenated
-  text: 2,445 `nowrap` width cases (as-is, truncate middle, shrinkTo), where Chromium's text is wider than Pretext's
-  natural width (for as-is at text 100% and zoom 100%, 0.125 to 0.828px, most often 0.25px; up to 1.23 zoomed px over
-  all conditions), and 1,390 line-break cases (lines, truncate end), where Chromium breaks differently. At a box exactly
-  as wide as Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on soft-hyphenated
-  German and French boxes sized from a measured width.
+- **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 5,176 of the
+  5,260 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it and 12 are rows. Mostly, not only, soft-hyphenated
+  text: 3,835 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle, shrinkTo), where Chromium's text
+  is wider than Pretext's natural width (for as-is at text 100% and zoom 100%, 0.125 to 0.828px, most often 0.25px; up
+  to 1.23 zoomed px over all conditions), and 1,390 line-break cases (lines, truncate end), where Chromium breaks
+  differently); the other 1,425 have none (English "Just tried": DOM 3 lines, Pretext 2). At a box exactly as wide as
+  Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on boxes sized
+  from a measured width, most of all for soft-hyphenated German and French.
 - **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
   size between two whole pixels, so a design that shrinks continuously fits at sizes the checker does not try.
-- **`truncate: 'end'`** treats a single unbreakable word wider than the box as passing: `clamp` flags that case
-  and the checker does not turn the flag into a verdict.
+- **`truncate: 'end'`** passes a single character (grapheme) wider than the box (an `W` in an 8px box): `clamp` flags
+  that case and the checker does not turn the flag into a verdict. A long word wider than the box is reported `truncated`.
 - **`truncate: 'middle'`** collapses white space as `truncateMiddle` does, then measures the collapsed text with the slot's
   `letterSpacing` and `whiteSpace` and applies the same fit test as the other policies; `truncateMiddle`'s own result can
   disagree with it within 1/64 px above the box width, which the checker's fit test (the kit's, 1/64 px) allows.
