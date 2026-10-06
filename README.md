@@ -609,6 +609,17 @@ const report = await checkLabels({
 if (report.failures.length > 0) throw new Error(JSON.stringify(report.failures, null, 2))
 ```
 
+| `CheckInput` field | what it is |
+|---|---|
+| `fonts` | the font files, `{ family, path \| data, weight?, style?, unicodeRange?, featureSettings? }` as `registerFont` takes them |
+| `labels` | parsed i18n files, a list of labels or a function returning one (below) |
+| `slots` | where each label is shown (below), or a function returning them |
+| `rows` | several slots sharing one line ([Rows](#rows)) |
+| `conditions` | text scale, zoom, viewport and slot overrides ([Conditions](#conditions-text-size-and-zoom-are-different)); default one condition, `default` |
+| `platforms` | `'macos'`, `'windows'`, `'linux'`; default all three ([Where it runs](#where-it-runs)) |
+| `samples` | placeholder values per key ([The report](#the-report)) |
+| `nearMiss` | px, off by default: a label or row that passes with less slack than this is the warning `near-miss` ([Policies](#policies)); a finite number above 0, else a `RangeError` |
+
 `labels` is parsed i18n files (`{ locale: { key: text } }`, nested objects flatten to dotted keys), a list of
 `{ key, text, slot, locale? }`, or a function returning one. A slot says where a label is shown: `width` (content box
 px at zoom 1, or a function of the window width), `reserve` (an icon and its gap, which scale with the text), `font`
@@ -644,7 +655,9 @@ A "word" under `overflowWrap: 'normal'` is the text between two of the browser's
 after a hyphen-minus, soft hyphens, CJK breaks; Pretext's own segmentation): an unbroken word paints at its natural
 width, so it fits when that width is at most the box plus 1/64 px (lines are then counted and clamped at that width too,
 so such a word stays whole), and a word ending at a soft hyphen fits only with the hyphen it paints when the line breaks
-there. The issue's `missing.px` is the widest failing word's width less the box,
+there. That 1/64 px then applies to every line of the text, not only the word's: a line within 1/64 px of the box can pass
+where Chromium, whose width is 1/64 px wider than Pretext's, wraps it (a probe found 48 of 3,000 adversarial `lines: 2`
+cases at 20.8px, none at 16px). The issue's `missing.px` is the widest failing word's width less the box,
 `measured.width` that word's width, and its `detail` names the word. `measured.lines` on such an `overflow` is the line
 count Pretext gives at the box with words broken mid-word (`'break-word'`), not what the browser paints under
 `'normal'`, where the word stays whole and can take fewer lines. Under `'break-word'`
@@ -653,6 +666,22 @@ holds „Benachrichtigungen“ in two lines. Under truncate end, Chromium cuts a
 ellipsis on whichever line of the clamp it sits (`text-overflow` applies to every line), so the label is `truncated`
 even when it takes no more lines than allowed. `'as-is'`, `shrinkTo` and middle truncation are one line already and
 ignore `overflowWrap`.
+
+**Near-miss.** With `nearMiss` set (px), a label that passes with less than that much slack is the warning
+`near-miss`, so a label that fits with 0.1px to spare, and breaks with the next font or locale change, shows up before
+it breaks. The slack is taken in the box the verdict used (`width − reserve`, scaled by text scale and zoom as above),
+rounded to 1/64 px as the report is, and compared in the report's px (zoomed px under `zoom`):
+
+| policy | slack |
+|---|---|
+| `'as-is'`, `{ truncate: 'middle' }` | the box less the label's natural width (middle: of the white-space-collapsed text) |
+| `{ shrinkTo }` | the box less the label's width at the size it fits at: the slot's size, or the size it shrank to |
+| `{ lines }`, `{ truncate: 'end' }` (not cut) | the box less the widest line, laid out as the verdict lays it out; under `overflowWrap: 'normal'` no less than the widest word |
+| a row (passing, or collapsed) | the row's width less its items and gaps at the stage it fits at (0, or the collapse stage) |
+
+A pass only within the 1/64 px tolerance has 0px to spare, the most fragile case, so it is always a near-miss when
+`nearMiss` is set. A failing verdict is never a near-miss, a near-miss is never a failure, and the label is checked
+(and counted in `checked`) once either way. A collapsed row can carry both its `row-collapsed` note and a `near-miss`.
 
 Truncation is a warning because cutting is what the design asked for; `--strict` turns warnings into a failing exit.
 A code point the registered font does not cover is the failure `uncovered`, never a thrown error. `shrinkTo` tries the
@@ -690,7 +719,7 @@ stage does not fit it is the failure `row-overflow`. A row issue uses the row's 
 type Report = {
   schema: 1
   failures: Issue[]    // overflow, too-many-lines, below-min-size, row-overflow, uncovered
-  warnings: Issue[]    // truncated, missing-sample, unsupported-message, unverifiable
+  warnings: Issue[]    // truncated, missing-sample, unsupported-message, unverifiable, near-miss
   notes: Issue[]       // row-collapsed
   unchecked: string[]  // 'locale:key' of labels no slot or row uses
   checked: number      // label verdicts and row verdicts, per condition and platform
@@ -701,7 +730,9 @@ An `Issue` has `kind`, `locale`, `key`, `slot`, `condition`, `platforms` (issues
 into one when their numbers differ by at most 1/64 px, showing the worst platform's numbers; larger differences stay
 separate; the grouping is greedy in platform order, so a spread of 2/64 px across platforms can split into two issues),
 `text` (with samples filled in), `measured` (`width`, `box`, `lines`, `fontPx`, and `stage` for rows)
-and, where it applies, `missing: { px?, fitsAtPx? }` and a `detail`. The order is stable: by slot or row, condition,
+and, where it applies, `missing: { px?, fitsAtPx? }` and a `detail`. For `near-miss`, `missing.px` is the slack to
+spare, not what is missing, and `measured` is what the passing verdict measured; issues of different platforms merge
+with the smallest slack as the worst. The order is stable: by slot or row, condition,
 locale, key, platform; numbers are rounded to 1/64 px; there are no timestamps or paths. Two runs, before and after a
 font change, diff line by line.
 
@@ -726,7 +757,7 @@ checked. Placeholders are `{name}` and i18next's `{{name}}` (the whole group is 
 ### `npx pretext-kit check-labels`
 
 ```sh
-npx pretext-kit check-labels [--config labels.config.mjs] [--json] [--strict] [--platform macos,windows,linux]
+npx pretext-kit check-labels [--config labels.config.mjs] [--json] [--strict] [--platform macos,windows,linux] [--near-miss <px>]
 ```
 
 The config module default-exports a `CheckInput`; `labels` may also be `{ files: 'locales/*.json', locale?: (path) => name }`
@@ -735,7 +766,9 @@ is an error), and `fonts[].path` is resolved from the config's directory. Output
 grouped by slot and condition, one line each with the locale, key, text and what is missing, then a count line.
 `--json` prints the Report. Exit codes: 0 no failures (and, with `--strict`, no warnings), 1 failures (or warnings with
 `--strict`), 2 a usage or config error (bad flag, unreadable config, no file matches, `labels` of the wrong type, harfbuzzjs not installed, or nothing checked because no key matched a slot or row). The line `N keys matched no slot or row` follows the count when N is not 0. `--help` prints the usage. `--platform` limits the run;
-`--config` defaults to `labels.config.mjs`. A value that starts with `--` needs the `=` form (`--config=--x.mjs`).
+`--config` defaults to `labels.config.mjs`. `--near-miss <px>` (or `--near-miss=<px>`) sets the config's `nearMiss` or
+overrides it; a value that is not a finite number above 0 is exit 2. A near-miss prints as `near-miss: 0.09375px to
+spare` and counts as a warning, so it exits 0, and 1 with `--strict`. A value that starts with `--` needs the `=` form (`--config=--x.mjs`).
 The repository's own fixture, `test/check/fixtures/labels.config.mjs` with its two locale files:
 
 ```js
@@ -792,17 +825,23 @@ note and is neither a failure nor a warning (so it is not in the counts).
   which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart can differ by
   one 1/64 px step. The model was derived on Chromium 141, not 149; `opsz` on Linux is unmeasured.
 - **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 6,300 of the
-  7,292 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it, 12 are rows and 908 are `overflowWrap: 'normal'`
-  slots within 1/32 px of the widest word's own width (all under zoom 130%, none at zoom 100%), from two Chromium causes
-  the checker does not model: at text 130% · zoom 130% Chromium lays out the zoomed 20.8px like an unzoomed 27.02 to
-  27.03px, not 27.04px (322 per policy; the Linux fractional-size model covers sizes, not zoom), and it snaps zoomed slot,
-  icon and text widths to its 1/64 px layout grid. Mostly, not only, soft-hyphenated text: 5,027 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle,
+  7,292 pretext-gaps of the verdict cases sit at the exact boundary box, 72 at 1.1 times it, 12 are rows and 908 are `overflowWrap: 'normal'`
+  slots within 1/32 px of the widest word's own width (all under zoom 130%, none at zoom 100%), from Chromium
+  behaviour the checker does not model: at text 130% · zoom 130% Chromium lays out the zoomed 20.8px like an unzoomed 27.02 to
+  27.03px, not 27.04px (322 per policy; the Linux fractional-size model covers sizes, not zoom), and the rest is
+  consistent with Chromium snapping zoomed slot, icon and text widths to its 1/64 px layout grid, which is confirmed
+  for the box widths only (the DOM box less the checker's box is −0.0156 to +0.0094 zoomed px over those 908 cases, 0 at zoom 100%). Mostly, not only, soft-hyphenated text: 5,027 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle,
   shrinkTo), where Chromium's text is wider than Pretext's natural width (for as-is at text 100% and zoom 100%, 0.125 to
   0.828px, most often 0.25px; up to 1.23 zoomed px over all conditions), and 2,582 line-break cases (lines and truncate
   end, with either `overflowWrap`), where Chromium breaks differently); the other 2,265 have none (English "Just tried":
   DOM 3 lines, Pretext 2). At a box exactly as wide as
   Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on boxes sized
   from a measured width, most of all for soft-hyphenated German and French.
+- **Near-miss slack is Pretext's.** The slack `nearMiss` is compared with is Pretext's width, so it carries the same
+  gaps: in the sweep's near-miss family (98,172 cases, `nearMiss: 2`) the checker's decision equals the reference's in
+  every case, and Chromium's free space falls on the other side of the margin in 1,565: 1,230 with soft-hyphenated
+  text (Chromium's slack −1.26 to +2.58px from Pretext's), the others mostly at text 130% · zoom 130% or where Chromium
+  breaks a line differently (−2.27 to +2.77px). Choose a margin wider than the gap you want to absorb.
 - **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
   size between two whole pixels, so a design that shrinks continuously fits at sizes the checker does not try.
 - **`truncate: 'end'`** passes a single character (grapheme) wider than the box (an `W` in an 8px box): `clamp` flags

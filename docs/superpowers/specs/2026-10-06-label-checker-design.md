@@ -36,6 +36,8 @@ type CheckInput = {
   conditions?: Condition[]            // default [{ name: 'default' }]
   platforms?: Platform[]              // default ['macos', 'windows', 'linux']
   samples?: Record<string, Record<string, string | number>[]>   // per key: placeholder values to try
+  nearMiss?: number                   // px, off by default: a pass with less slack is the warning near-miss;
+                                      // finite and above 0, else RangeError (CLI: --near-miss <px>, exit 2)
 }
 
 type LabelSource =
@@ -95,11 +97,11 @@ type Report = {
 // timestamps or paths. Two runs (before and after a font change) diff line by line.
 type Issue = {
   kind: 'overflow' | 'too-many-lines' | 'below-min-size' | 'truncated' | 'row-overflow' | 'row-collapsed'
-      | 'uncovered' | 'missing-sample' | 'unsupported-message' | 'unverifiable'
+      | 'uncovered' | 'missing-sample' | 'unsupported-message' | 'unverifiable' | 'near-miss'   // near-miss: a warning
   locale: string, key: string, slot: string, condition: string, platforms: Platform[]
   text: string                                   // with samples filled in
   measured: { width: number, box: number, lines: number, fontPx: number, stage?: number }
-  missing?: { px?: number, fitsAtPx?: number }   // what would make it fit
+  missing?: { px?: number, fitsAtPx?: number }   // what would make it fit; for near-miss, px is the slack to spare
 }
 ```
 
@@ -124,9 +126,19 @@ warning, not checked. Then by policy, with `width − reserve` as the box:
   word (text between two break opportunities, Pretext's segments; before a soft hyphen with the hyphen it paints) that
   is wider than the box plus 1/64 px at its natural width (what an unbroken word paints) → `overflow` with
   `missing.px` (the widest such word less the box); when every word passes but one is wider than the box, lines are
-  counted (and clamped, for truncate 'end') at the box plus 1/64 px, so that word stays whole.
+  counted (and clamped, for truncate 'end') at the box plus 1/64 px, so that word stays whole. That 1/64 px then applies
+  to every line of the text: a line within 1/64 px of the box can pass where Chromium, whose width is 1/64 px wider
+  than Pretext's, wraps it (a probe: 48 of 3,000 adversarial `lines: 2` cases at 20.8px, 0 at 16px).
 - `{ truncate }`: `clamp` / `truncateMiddle`; cut → `truncated` (a warning). With `overflowWrap: 'normal'`, a word
   that does not fit the box also → `truncated` under `'end'` (Chromium cuts it with an ellipsis on its line).
+With `nearMiss` set, a pass with less slack than `nearMiss` px (rounded to 1/64 px) → `near-miss` (a warning, so a
+failure with `--strict`), `missing.px` the slack, `measured` as for the pass. The slack is taken in the box the verdict
+used: as-is and truncate 'middle', the box less the natural width; shrinkTo, less the width at the size it fits at (the
+slot's size or the one it shrank to); lines and truncate 'end' when not cut, less the widest line where the verdict lays
+the lines out (under `overflowWrap: 'normal'` no less than the widest word); a row that passes or collapses, the row box
+less its total at that stage. It is at least 0: a pass only within the 1/64 px tolerance is a near-miss with 0px. The
+verdict is evaluated and counted in `checked` once; a failing verdict is never a near-miss; across platforms near-misses
+merge like other issues, with the smallest slack shown.
 An uncovered code point → `uncovered` (a failure: the app's font can't draw it), never a thrown error. Issues for
 different platforms are merged into one with the platforms listed when their numbers differ by at most 1/64 px, showing
 the worst platform's numbers; larger differences stay separate.
@@ -148,7 +160,7 @@ tabular row against Chromium's DOM (`font-variant-numeric: tabular-nums`).
 
 ## CLI
 
-`npx pretext-kit check-labels [--config labels.config.mjs] [--json] [--strict] [--platform macos,linux]`
+`npx pretext-kit check-labels [--config labels.config.mjs] [--json] [--strict] [--platform macos,linux] [--near-miss <px>]`
 
 The config module default-exports a `CheckInput`, where `labels` may also be a glob of JSON files (locale from the
 file name) and `fonts[].path` a file path. Output: failures then warnings, grouped by slot and condition, one line
@@ -181,7 +193,10 @@ src/check/
 - **Zoom vs text size:** the sweep renders both (CSS `zoom` on the container, and a font-size change with fixed
   boxes) and must agree with the checker in each.
 - **Mutants:** ignore `reserve`; treat `zoom` as `textScale`; ignore `textTransform`; off-by-one in `lines`; skip a
-  row collapse stage; tabular ignored. Each must be caught.
+  row collapse stage; tabular ignored; ignore `overflowWrap`; ignore `nearMiss`. Each must be caught.
+- **Near-miss:** a family of slots and rows at the boundary box plus offsets around the margin, run with `nearMiss`:
+  the checker's near-miss and slack against the slack recomputed in the page, then against the DOM's free space (the
+  box less the text's width or widest line), equal within 1/64 px of the margin.
 - **Statistics:** one unit per label text (PROTOCOL §4).
 
 ## Not in this version
