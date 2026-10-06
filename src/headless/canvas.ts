@@ -1,5 +1,6 @@
-import { Buffer, Feature, Font, Variation, shape } from 'harfbuzzjs'
+import { Buffer, Feature, Font, FontFuncs, Variation, shape } from 'harfbuzzjs'
 import { findFace, hbFace, type FontFace } from './fonts.ts'
+import { normalizedCoords, readAdvanceVariations, variedAdvance, type AdvanceVariations } from './hvar.ts'
 import { HEADLESS, sharedState } from './shared.ts'
 import { parseFont, type ParsedFont } from './shorthand.ts'
 
@@ -85,6 +86,60 @@ export function instanceWeight(face: FontFace, weight: number): number | null {
   return axisValue(face, 'wght', Math.min(face.weightMax, Math.max(face.weightMin, weight)))
 }
 
+// Each face's hmtx + HVAR, read once, or null where it has none (or avar version 2).
+const advanceVariations = new WeakMap<FontFace, AdvanceVariations | null>()
+
+function advanceVariationsOf(face: FontFace): AdvanceVariations | null {
+  let variations = advanceVariations.get(face)
+  if (variations === undefined) {
+    variations = face.axes.length === 0 ? null : readAdvanceVariations(face.data, face.index)
+    advanceVariations.set(face, variations)
+  }
+  return variations
+}
+
+// The advances of a varied instance, by the HarfBuzz font that shapes it.
+type VariedAdvances = { variations: AdvanceVariations; coords: Int16Array; pxPerUnit: number; byGlyph: Map<number, number> }
+const variedFonts = new Map<number, VariedAdvances>()
+const forgetVaried = new FinalizationRegistry<number>(ptr => variedFonts.delete(ptr))
+let variedFuncs: FontFuncs | undefined
+
+// A glyph's advance in Chrome on macOS, in 1/65536 px: CoreText's unrounded advance in font units
+// (hvar.ts), scaled to px in float32 (Skia's SkScalar) and truncated to HarfBuzz's 16.16 position
+// (Blink's SkiaScalarToHarfBuzzPosition). Fitted to Chrome 149: 6549 of 6555 single-glyph widths
+// of Inter Variable (95 glyphs, 23 weights, 16, 13.5 and 1000px) bit-exact, the rest 1/65536 px off.
+function variedAdvanceFunc(font: Font, glyph: number): number {
+  const varied = variedFonts.get(font.ptr)!
+  let advance = varied.byGlyph.get(glyph)
+  if (advance === undefined) {
+    const units = variedAdvance(varied.variations, varied.coords, glyph)
+    advance = Math.trunc(Math.fround(Math.fround(units) * varied.pxPerUnit) * 65536)
+    varied.byGlyph.set(glyph, advance)
+  }
+  return advance
+}
+
+// HarfBuzz rounds a variable font's HVAR delta to whole font units (hvar.ts); a varied instance
+// is therefore shaped with a sub font whose horizontal advances are Chrome's, everything else
+// (glyphs, GPOS with its variation deltas, extents) coming from HarfBuzz's own font. The default
+// instance, where every delta is 0, and static faces keep HarfBuzz's font as it is.
+function withVariedAdvances(font: Font, face: FontFace, sizePx: number, design: Map<string, number>): Font {
+  const variations = advanceVariationsOf(face)
+  if (variations === null) return font
+  const coords = normalizedCoords(variations, design)
+  if (coords.every(coord => coord === 0)) return font
+  variedFuncs ??= (() => {
+    const funcs = new FontFuncs()
+    funcs.setGlyphHAdvanceFunc(variedAdvanceFunc)
+    return funcs
+  })()
+  const sub = font.subFont()
+  sub.setFuncs(variedFuncs)
+  variedFonts.set(sub.ptr, { variations, coords, pxPerUnit: Math.fround(sizePx / face.upem), byGlyph: new Map() })
+  forgetVaried.register(sub, sub.ptr)
+  return sub
+}
+
 // A registered weight picks the face; on a variable face the weight, optical size (Chrome
 // applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes.
 function fontFor(face: FontFace, parsed: ParsedFont): Font {
@@ -103,10 +158,15 @@ function fontFor(face: FontFace, parsed: ParsedFont): Font {
     const scale = Math.round(parsed.sizePx * 65536)
     font.setScale(scale, scale)
     const variations: Variation[] = []
-    if (wght !== null) variations.push(new Variation('wght', wght))
-    if (opsz !== null) variations.push(new Variation('opsz', opsz))
-    if (wdth !== null) variations.push(new Variation('wdth', wdth))
-    if (variations.length > 0) font.setVariations(variations)
+    const design = new Map<string, number>()
+    if (wght !== null) design.set('wght', wght)
+    if (opsz !== null) design.set('opsz', opsz)
+    if (wdth !== null) design.set('wdth', wdth)
+    for (const [tag, value] of design) variations.push(new Variation(tag, value))
+    if (variations.length > 0) {
+      font.setVariations(variations)
+      font = withVariedAdvances(font, face, parsed.sizePx, design)
+    }
     bySize.set(key, font)
   }
   return font
@@ -171,16 +231,21 @@ type Shaping = {
 // Where each glyph was put, for the ink bounds, which only Pretext's Han kerning asks for.
 type Placed = { fonts: Font[]; glyphs: number[]; xs: number[] }
 
-function advancePx(xAdvance: number, rounding: Shaping['rounding']): number {
-  const px = Math.fround(xAdvance / 65536)
-  return rounding === 'whole-px' ? Math.round(px) : px
+// A glyph advance in 1/65536 px, the unit Blink keeps glyph advances in (TextRunLayoutUnit).
+function advanceUnits(xAdvance: number, rounding: Shaping['rounding']): number {
+  return rounding === 'whole-px' ? Math.round(Math.fround(xAdvance / 65536)) * 65536 : xAdvance
 }
 
-// Shapes one word in runs of one face each and returns the width so far, accumulated as
-// Blink does, in float32. Spacing is added after each grapheme the word ends.
+// Shapes one word in runs of one face each and returns the width so far, accumulated as Blink
+// does: a run's glyph advances and spacing are summed in 1/65536 px (TextRunLayoutUnit) and the
+// run's width is added to the total in float32. Summing glyph by glyph in float32 instead loses
+// the low bits of fractional advances (a variable font's, measured with Inter Variable at wght
+// 500, 1000px: "abonnieren" is fround(sum) in Chrome, one float32 step above the float sum).
+// Spacing is added after each grapheme the word ends.
 function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number, end: number, shaping: Shaping, width: number, placed: Placed): number {
   let runStart = start
   let runFace: FontFace | null = null
+  const spacingUnits = Math.round(shaping.spacing * 65536)
   const flush = (runEnd: number): void => {
     if (runFace === null || runEnd === runStart) return
     const font = fontFor(runFace, shaping.parsed)
@@ -197,18 +262,20 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
     shape(font, buffer, shaping.features)
     const infos = buffer.getGlyphInfos()
     const positions = buffer.getGlyphPositions()
+    let run = 0
     for (let i = 0; i < infos.length; i++) {
       const cluster = start + infos[i]!.cluster
       placed.fonts.push(font)
       placed.glyphs.push(infos[i]!.codepoint)
-      placed.xs.push(width + positions[i]!.xOffset / 65536)
-      width = Math.fround(width + advancePx(positions[i]!.xAdvance, shaping.rounding))
+      placed.xs.push(width + (run + positions[i]!.xOffset) / 65536)
+      run += advanceUnits(positions[i]!.xAdvance, shaping.rounding)
       // Spacing goes after the last glyph of a grapheme's cluster.
       const next = i + 1 < infos.length ? start + infos[i + 1]!.cluster : runEnd
-      if (shaping.spacing !== 0 && next !== cluster) {
-        for (let c = cluster; c < next; c++) if (graphemeEnds[c] === 1) width = Math.fround(width + shaping.spacing)
+      if (spacingUnits !== 0 && next !== cluster) {
+        for (let c = cluster; c < next; c++) if (graphemeEnds[c] === 1) run += spacingUnits
       }
     }
+    width = Math.fround(width + Math.fround(run / 65536))
     runStart = runEnd
   }
   for (let i = start; i < end; i++) {
