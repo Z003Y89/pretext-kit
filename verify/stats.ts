@@ -298,7 +298,10 @@ function report(): void {
   console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × family × weight (8 cases each)', wUnits, wMiss))
   // Distinct string × face pairs: a requested weight with no face of its own measures the face CSS matching picks
   // (Chromium synthesises bold from it; the stand-in uses the nearest), so it is not a separate unit.
-  // A variable face ("as 100 900") is a face at every weight it is measured at: each instance is a distinct unit.
+  // A variable face ("as 100 900") is one unit per string however many instances it is measured at: the instances
+  // share one file, one HVAR store and one code path, so their failures are correlated (the one bug 0.1.2 fixed
+  // failed at every non-default weight at once), and counting each instance would let the number of weights
+  // sampled, not the evidence, set n.
   const faces = new Map<string, number[]>()
   const variable = new Set<string>()
   for (const m of hr.matchAll(/ as (\d+)( \d+)? "([^"]+)"/g)) {
@@ -327,11 +330,26 @@ function report(): void {
   }
   let distinct = 0
   for (const [fam, have] of faces) {
-    for (const face of new Set((variable.has(fam) ? variableWeights : weights).map(x => faceFor(have, x)))) distinct += nStrings - (skipped.get(`${fam}|${face}`)?.size ?? 0)
+    if (variable.has(fam)) {
+      // A string is out of the unit only when it is skipped at every instance.
+      const skippedAll = variableWeights.map(x => skipped.get(`${fam}|${x}`) ?? new Set<string>())
+        .reduce((all, set) => new Set([...all].filter(label => set.has(label))))
+      distinct += nStrings - skippedAll.size
+      continue
+    }
+    for (const face of new Set(weights.map(x => faceFor(have, x)))) distinct += nStrings - (skipped.get(`${fam}|${face}`)?.size ?? 0)
   }
   console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × distinct face', distinct, wMiss))
   console.log(`| line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | ${lJudged} | ${lMis} | ${pct(wilsonUpper(lMis, lJudged))} | ${pct(clopperPearsonUpper(lMis, lJudged))} |`)
-  console.log(unitRow('line count equal to Pretext in Chromium', `text × font (${lWidths} widths each)`, lUnits, lMis))
+  // Line counts per text × font, with a variable file's instances one font, as for widths: a text counts once for
+  // the file (the instances' pair counts are equal, the same texts skipped at each, so the largest is the file's).
+  let lFileUnits = lUnits
+  for (const fam of variable) {
+    const label = fam.replace(/^HX /, '')
+    const pairs = [...hr.matchAll(new RegExp(`^\\| ${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\d+ \\| (\\d+) \\|`, 'gm'))].map(m => Number(m[1]) / lWidths)
+    if (pairs.length > 0) lFileUnits -= pairs.reduce((a, b) => a + b, 0) - Math.max(...pairs)
+  }
+  console.log(unitRow('line count equal to Pretext in Chromium', `text × font (${lWidths} widths each; a variable file once)`, lFileUnits, lMis))
   console.log('')
   console.log(`Skipped as out of scope by the fixed coverage rule: ${wm[1]} string × face pairs (widths).`)
   console.log('')

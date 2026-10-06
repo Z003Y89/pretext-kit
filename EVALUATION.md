@@ -107,11 +107,15 @@ from the same files. Widths: 54 strings × 4 families × weights 400/600/700 × 
 54 strings × weights 300/400/500/600/700/800 × the same sizes and spacings = 2,592, less 30 pairs (240 cases) out of
 scope = 2,352; 7,344 cases in all. The 918 string × family × weight units are not 918 distinct faces: Inter and
 Roboto have one face, so their 600 and 700 (synthesised by Chromium) measure the 400 face, and Shantell Sans 600
-takes its 700 face; each Inter Variable weight is an instance of its own. Counted by distinct face, they are 555
-string × face pairs (Inter TTF 53, Inter WOFF2 53, Roboto 49, Shantell Sans 2 × 53, Inter Variable 6 × 49), for
-which 0 misses bound the rate at 0.687% (Wilson; printed by `node verify/stats.ts`, which derives the faces from
-HEADLESS_RESULTS.md). Line counts: 586 text × font pairs (Latin, German and French from the corpora, 336 with soft
-hyphens, plus special characters; 288 of them in Inter Variable at its six weights) × 241 widths (141,226 cases). The scope rule was fixed before the first
+takes its 700 face; Inter Variable's six weights are instances of one file. Counted by distinct face, they are 310
+string × face pairs (Inter TTF 53, Inter WOFF2 53, Roboto 49, Shantell Sans 2 × 53, Inter Variable 49), for
+which 0 misses bound the rate at 1.22% (Wilson; printed by `node verify/stats.ts`, which derives the faces from
+HEADLESS_RESULTS.md). The instances of one variable file count as one unit, not six: they share the file, its HVAR
+store and the stand-in's code path, so their failures are correlated (the one bug 0.1.2 fixed failed at every
+non-default weight at once), and counting each would let the number of weights sampled set n. Line counts: 586 text
+× font pairs (Latin, German and French from the corpora, 336 with soft hyphens, plus special characters; 288 of
+them in Inter Variable at its six weights) × 241 widths (141,226 cases); with Inter Variable's instances as one font,
+346 text × font units, 0 misses, Wilson 1.10%. The scope rule was fixed before the first
 run, from the font files' cmaps, not from the stand-in.
 
 **Statistics** (`node verify/stats.ts`). It reads `verify/RESULTS.md`, `verify/results/latest.json.gz`,
@@ -278,9 +282,9 @@ painting.
 |---|---|---:|---:|---:|---:|
 | widths within 0.02px of Chromium's Canvas | case | 7344 | 0 | 0.052% | 0.050% |
 | widths within 0.02px of Chromium's Canvas | string × family × weight (8 cases each) | 918 | 0 | 0.417% | 0.401% |
-| widths within 0.02px of Chromium's Canvas | string × distinct face | 555 | 0 | 0.687% | 0.662% |
+| widths within 0.02px of Chromium's Canvas | string × distinct face | 310 | 0 | 1.22% | 1.18% |
 | line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | 140938 | 0 | 0.0027% | 0.0026% |
-| line count equal to Pretext in Chromium | text × font (241 widths each) | 586 | 0 | 0.651% | 0.628% |
+| line count equal to Pretext in Chromium | text × font (241 widths each; a variable file once) | 346 | 0 | 1.10% | 1.06% |
 
 Inter Variable alone (0.1.2; HEADLESS_RESULTS.md, by instance): 2,352 widths, 2,284 bit-exact, max |Δ| 0.000092px;
 69,408 line counts, 0 headless-mismatch, 112 pretext-gap. Before the fix (0.1.1's stand-in, which rounds the
