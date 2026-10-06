@@ -7,7 +7,11 @@ import type { Corpus, Text } from './corpora.ts'
 
 // One registered face: the file under test/fonts, the family it is registered and declared as, and
 // the weight its @font-face rule declares (the stand-in reads the same weight from OS/2).
-export type FaceFile = { family: string, file: string, format: 'truetype' | 'woff2', weight: number }
+// A variable face declares its weight range ([min, max], `font-weight: min max` in CSS) and is
+// registered in Node with no weight, so the stand-in reads the range from the font's own wght axis
+// (headless.ts checks the two agree). dir: the file's directory relative to the repository, when
+// not test/fonts.
+export type FaceFile = { family: string, file: string, format: 'truetype' | 'woff2', weight: number | [number, number], dir?: string }
 
 // Family names carry an "HX " prefix in both Chromium (@font-face) and Node (registerFont), so no
 // installed font of the same name can stand in for a file that failed to load.
@@ -20,13 +24,29 @@ export const FACES: FaceFile[] = [
   { family: 'HX Roboto', file: 'Roboto-Regular.ttf', format: 'truetype', weight: 400 },
   { family: 'HX Shantell Sans', file: 'ShantellSans-Regular.ttf', format: 'truetype', weight: 400 },
   { family: 'HX Shantell Sans', file: 'ShantellSans-Bold.ttf', format: 'truetype', weight: 700 },
+  // @fontsource-variable/inter (exact-pinned devDependency, OFL-1.1): the latin subset of 'Inter
+  // Variable' as that package's CSS loads it, one variable face with a wght axis of 100-900. Loaded
+  // in Chromium without the package's unicode-range, so the cmap alone decides coverage on both sides.
+  {
+    family: 'HX Inter Variable', file: 'inter-latin-wght-normal.woff2', format: 'woff2', weight: [100, 900],
+    dir: 'node_modules/@fontsource-variable/inter/files',
+  },
 ]
 
-export const WIDTH_FAMILIES = ['HX Inter', 'HX Inter WOFF2', 'HX Roboto', 'HX Shantell Sans']
+// The CSS font-weight descriptor of a face: '400', or '100 900' for a variable face.
+export const cssWeight = (f: FaceFile): string => (typeof f.weight === 'number' ? String(f.weight) : f.weight.join(' '))
+
+export const WIDTH_FAMILIES = ['HX Inter', 'HX Inter WOFF2', 'HX Roboto', 'HX Shantell Sans', 'HX Inter Variable']
 // 2048 units per em: every advance is a dyadic fraction of a pixel at these sizes, so Chromium and
 // HarfBuzz must agree bit for bit. A tripwire beside the formal bar: any inexact width here fails.
 export const EXACT_FAMILIES = ['HX Inter', 'HX Inter WOFF2', 'HX Roboto']
 export const WEIGHTS = [400, 600, 700]
+// Instances of the variable family: its default (400) and the non-default ones an app uses. Not in
+// EXACT_FAMILIES: a variable instance's advances are interpolated (HVAR), so they need not be dyadic
+// fractions of a pixel; the formal bar still applies.
+export const VARIABLE_FAMILIES = ['HX Inter Variable']
+export const VARIABLE_WEIGHTS = [300, 400, 500, 600, 700, 800]
+export const weightsOf = (family: string): number[] => (VARIABLE_FAMILIES.includes(family) ? VARIABLE_WEIGHTS : WEIGHTS)
 export const SIZES = [12, 14, 16, 20]
 export const SPACINGS = [0, 0.5]
 // Pass bar for a width, in px.
@@ -109,6 +129,7 @@ export const LINE_FONTS: LineFont[] = [
   { label: 'Roboto 400', family: 'HX Roboto', weight: 400, letterSpacing: 0 },
   { label: 'Shantell Sans 400', family: 'HX Shantell Sans', weight: 400, letterSpacing: 0 },
   { label: 'Shantell Sans 700', family: 'HX Shantell Sans', weight: 700, letterSpacing: 0 },
+  ...VARIABLE_WEIGHTS.map(weight => ({ label: `Inter Variable ${weight}`, family: 'HX Inter Variable', weight, letterSpacing: 0 })),
 ]
 export const LINE_SIZE = 16
 export const LINE_HEIGHT = 24

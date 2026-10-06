@@ -298,11 +298,22 @@ function report(): void {
   console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × family × weight (8 cases each)', wUnits, wMiss))
   // Distinct string × face pairs: a requested weight with no face of its own measures the face CSS matching picks
   // (Chromium synthesises bold from it; the stand-in uses the nearest), so it is not a separate unit.
+  // A variable face ("as 100 900") is one unit per string however many instances it is measured at: the instances
+  // share one file, one HVAR store and one code path, so their failures are correlated (the one bug 0.1.2 fixed
+  // failed at every non-default weight at once), and counting each instance would let the number of weights
+  // sampled, not the evidence, set n.
   const faces = new Map<string, number[]>()
-  for (const m of hr.matchAll(/ as (\d+) "([^"]+)"/g)) faces.set(m[2]!, [...(faces.get(m[2]!) ?? []), Number(m[1])])
-  const nStrings = Number(/^(\d+) strings × \d+ families × weights ([\d/]+)/m.exec(hr)?.[1])
-  const weights = (/^\d+ strings × \d+ families × weights ([\d/]+)/m.exec(hr)?.[1] ?? '').split('/').map(Number)
-  if (faces.size === 0 || !(nStrings > 0) || weights.length === 0) throw new Error('HEADLESS_RESULTS.md: fonts or strings not found')
+  const variable = new Set<string>()
+  for (const m of hr.matchAll(/ as (\d+)( \d+)? "([^"]+)"/g)) {
+    if (m[2] !== undefined) variable.add(m[3]!)
+    else faces.set(m[3]!, [...(faces.get(m[3]!) ?? []), Number(m[1])])
+  }
+  const sweep = /^(\d+) strings × \d+ families × weights ([\d/]+)(?: \(([^:]+): ([\d/]+)\))?/m.exec(hr)
+  const nStrings = Number(sweep?.[1])
+  const weights = (sweep?.[2] ?? '').split('/').map(Number)
+  const variableWeights = (sweep?.[4] ?? '').split('/').filter(x => x !== '').map(Number)
+  for (const fam of variable) faces.set(fam, variableWeights)
+  if (faces.size === 0 || !(nStrings > 0) || weights.length === 0 || (variable.size > 0 && variableWeights.length === 0)) throw new Error('HEADLESS_RESULTS.md: fonts or strings not found')
   // CSS font matching: at or below 500 the nearest lighter face first, above 500 the nearest heavier first.
   const faceFor = (have: number[], want: number): number => {
     const sorted = [...have].sort((x, y) => x - y)
@@ -319,11 +330,26 @@ function report(): void {
   }
   let distinct = 0
   for (const [fam, have] of faces) {
+    if (variable.has(fam)) {
+      // A string is out of the unit only when it is skipped at every instance.
+      const skippedAll = variableWeights.map(x => skipped.get(`${fam}|${x}`) ?? new Set<string>())
+        .reduce((all, set) => new Set([...all].filter(label => set.has(label))))
+      distinct += nStrings - skippedAll.size
+      continue
+    }
     for (const face of new Set(weights.map(x => faceFor(have, x)))) distinct += nStrings - (skipped.get(`${fam}|${face}`)?.size ?? 0)
   }
   console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × distinct face', distinct, wMiss))
   console.log(`| line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | ${lJudged} | ${lMis} | ${pct(wilsonUpper(lMis, lJudged))} | ${pct(clopperPearsonUpper(lMis, lJudged))} |`)
-  console.log(unitRow('line count equal to Pretext in Chromium', `text × font (${lWidths} widths each)`, lUnits, lMis))
+  // Line counts per text × font, with a variable file's instances one font, as for widths: a text counts once for
+  // the file (the instances' pair counts are equal, the same texts skipped at each, so the largest is the file's).
+  let lFileUnits = lUnits
+  for (const fam of variable) {
+    const label = fam.replace(/^HX /, '')
+    const pairs = [...hr.matchAll(new RegExp(`^\\| ${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\d+ \\| (\\d+) \\|`, 'gm'))].map(m => Number(m[1]) / lWidths)
+    if (pairs.length > 0) lFileUnits -= pairs.reduce((a, b) => a + b, 0) - Math.max(...pairs)
+  }
+  console.log(unitRow('line count equal to Pretext in Chromium', `text × font (${lWidths} widths each; a variable file once)`, lFileUnits, lMis))
   console.log('')
   console.log(`Skipped as out of scope by the fixed coverage rule: ${wm[1]} string × face pairs (widths).`)
   console.log('')

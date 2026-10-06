@@ -1,7 +1,7 @@
 # Third-party notices
 
-What ships in, or is needed at runtime by, pretext-kit 0.1.1, and what the repository uses only for testing. A
-machine-readable CycloneDX SBOM of the packed package's runtime tree, `pretext-kit-0.1.1.sbom.cdx.json`, is built
+What ships in, or is needed at runtime by, pretext-kit 0.1.2, and what the repository uses only for testing. A
+machine-readable CycloneDX SBOM of the packed package's runtime tree, `pretext-kit-0.1.2.sbom.cdx.json`, is built
 beside the tarballs by `verify/pack-release.sh` and attached to the release. The SBOM is not byte-reproducible: it
 records a timestamp and a random serial number.
 
@@ -37,8 +37,10 @@ devDependencies, for the tests, the parity sweeps and the examples.
 | Inter (Regular TTF and WOFF2, and a subset without U+2010) | SIL OFL 1.1, copyright 2016 The Inter Project Authors | `test/fonts`, [OFL.txt](https://github.com/Z003Y89/pretext-kit/blob/main/test/fonts/OFL.txt); the examples bundle Inter too ([inter-OFL.txt](https://github.com/Z003Y89/pretext-kit/blob/main/examples/fonts/inter-OFL.txt)). Not shipped. |
 | Roboto Regular | Apache-2.0 | `test/fonts`, [Roboto-LICENSE.txt](https://github.com/Z003Y89/pretext-kit/blob/main/test/fonts/Roboto-LICENSE.txt). Not shipped. |
 | Shantell Sans (Regular, Bold) | SIL OFL 1.1, copyright 2022 The Shantell Sans Project Authors | `test/fonts`, [ShantellSans-OFL.txt](https://github.com/Z003Y89/pretext-kit/blob/main/test/fonts/ShantellSans-OFL.txt). Not shipped. |
-| Inter Variable (`@fontsource-variable/inter` 5.3.0) | SIL OFL 1.1, copyright 2016 The Inter Project Authors | Not a dependency of 0.1.1. Only the branch `v0.1.1-variable-font`, which holds the variable-font parity sweep (see CHANGELOG), pins it as a devDependency. Not shipped. |
+| Inter Variable (`@fontsource-variable/inter` 5.3.0) | SIL OFL 1.1, copyright 2016 The Inter Project Authors | devDependency since 0.1.2, for the variable-font tests, the headless parity sweep and `npm run verify:hvar`. Not shipped. |
 | `hyphen` 1.14.1 | ISC (its TeX hyph-utf8 patterns: MIT) | devDependency; the examples ship strings hyphenated at build time. Not shipped in the package. |
 
 Other devDependencies (TypeScript, esbuild, Playwright, jsdom, type packages) are build and test tools only and are
 not shipped.
+`npm run verify:hvar` also needs fontTools 4.62.1 (MIT) and brotli (MIT), installed with pip, not npm; test tools
+only, not shipped.

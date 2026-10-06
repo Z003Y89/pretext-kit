@@ -11,8 +11,10 @@ claims, the confidence bounds, the threats to validity and the known limitations
 
 - **`pretext-kit/headless`**: Pretext and every helper in Node, vitest, jest (jsdom too) and CI, shaping your own
   font files with HarfBuzz, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" becomes a unit test.
-  Against Chromium on macOS, Linux and Windows with the same font files: every Inter and Roboto width bit-exact, and of 71,818 line
-  counts none differing from Pretext inside Chromium. Registered fonts and Chromium's rules only
+  Against Chromium on macOS, Linux and Windows with the same font files: every static Inter and Roboto width
+  bit-exact, and of 71,818 line counts none differing from Pretext inside Chromium; on macOS also Inter Variable at
+  weights 300-800, widths within 0.0001px and none of 69,408 more line counts differing. Variable fonts measure per
+  target platform: `install({ platform })`, macOS by default. Registered fonts and Chromium's rules only
   ([the claim and its limits](#the-claim-and-its-limits)).
 
 What it adds that CSS can't do:
@@ -38,12 +40,12 @@ pretext-kit is not on npm yet. Each [GitHub release](https://github.com/Z003Y89/
 tarballs, installed by URL with no npm account or registry publish involved: the kit, and the Pretext it needs.
 
 ```sh
-npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.1/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.1/pretext-kit-0.1.1.tgz
+npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/pretext-kit-0.1.2.tgz
 npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
 Check the downloads against the SHA-256 sums: `chenglou-pretext-0.0.10-main.f10d888.tgz` is
-`9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`; `pretext-kit-0.1.1.tgz`'s sum is in
+`9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`; `pretext-kit-0.1.2.tgz`'s sum is in
 [CHANGELOG.md](CHANGELOG.md) and the release notes, not here, because this README ships inside that tarball and so
 cannot hold its own hash. Both builds are reproducible in content: `npm run pack:release` from the tagged commits
 gives tarballs whose contents are identical file for file on any machine, and whose compressed bytes (and so sums)
@@ -403,7 +405,7 @@ import { registerFont, install } from 'pretext-kit/headless'
 // The same files your CSS @font-face loads, under the same family names. TTF/OTF/TTC, WOFF or WOFF2.
 // Register each weight you measure: '600 14px Inter' needs the 600 file, registered with { weight: 600 }.
 await registerFont('Inter', new Uint8Array(readFileSync('fonts/Inter-Regular.ttf')))
-install()
+install() // Chrome on macOS; install({ platform: 'linux' }) or 'windows' for their variable-font widths
 
 // Before the first prepare(): a static import of Pretext above is fine, as Pretext reads the engine only then.
 const { lineCount } = measureLineStats(prepareWithSegments('Speichern', '14px Inter'), 160)
@@ -417,16 +419,17 @@ On Chrome (Chromium 149 measured on macOS, Linux and Windows), for code points c
 Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. Measured twice:
 
 - **Parity sweep** (`npm run verify:headless`, [verify/HEADLESS_RESULTS.md](verify/HEADLESS_RESULTS.md)), Chromium
-  149.0.7827.55 via Playwright 1.61.0 on macOS 14.6.1, fonts loaded by `@font-face` from the same files: 4,992 widths
-  (Inter TTF and WOFF2, Roboto, Shantell Sans; weights 400/600/700, 12-20px, letter spacing 0/0.5px), 3,842 bit-exact
-  (all Inter and Roboto ones), max 0.000427px; 71,818 line counts (Latin, German with soft hyphens, French, quoted,
-  pictographic and separator texts at 120-600px), 0 differing from Pretext inside Chromium.
+  149.0.7827.55 via Playwright 1.61.0 on macOS 14.6.1, fonts loaded by `@font-face` from the same files: 7,344 widths
+  (Inter TTF and WOFF2, Roboto, Shantell Sans at weights 400/600/700, Inter Variable at 300-800; 12-20px, letter
+  spacing 0/0.5px), 6,126 bit-exact (all static Inter and Roboto ones), max 0.000427px (Inter Variable: max
+  0.000092px); 141,226 line counts (Latin, German with soft hyphens, French, quoted, pictographic and separator texts
+  at 120-600px), 0 differing from Pretext inside Chromium.
 - **Initial research**, Chrome 154: 320/352 widths bit-exact, max 0.019px; line counts 2,021/2,024.
 
 The sweep launches Chromium headed, as users see it. `npm run verify:headless -- --headless` uses Playwright's
 headless Chromium instead, for machines with no display, and says so in HEADLESS_RESULTS.md: on the Mac above it gave
-the same widths and 0 headless-mismatch, but 179 pretext-gaps rather than 176, as headless Chromium's page wraps three
-more lines differently (so CI runs headed, under xvfb on Linux).
+the same widths and 0 headless-mismatch, but 179 pretext-gaps rather than 176 (0.1.1's sweep, before Inter Variable
+was added), as headless Chromium's page wraps three more lines differently (so CI runs headed, under xvfb on Linux).
 
 The claim is scoped exactly so:
 
@@ -442,13 +445,39 @@ The claim is scoped exactly so:
   lacks (Inter has no `✔`) throws for that glyph.
 - **small-caps.** A `small-caps` font (which `fontFromStyle` emits for `font-variant: small-caps`) throws when it is
   set on the context: Canvas widths change with small capitals, and the stand-in does not model them.
-- **Variable fonts: default instance only.** A variable font registers as one face and measures, but only its
-  default instance matches Chromium: Inter Variable (`@fontsource-variable/inter`) at 400 is bit-exact, while 300 and
-  500-800 differ by up to 0.055px and changed 11 of 69,408 line counts on macOS Chromium 149. The stand-in rounds each
-  glyph's interpolated advance to whole font units and Chromium does not (EVALUATION §8). Register static instance
-  files for other weights. This is the 0.1.1 behaviour; the fix is landing in 0.1.2.
 - **Weights.** A weight with no matching registered face (600 or 700 with only a Regular file) silently measures the
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
+- **Target platform: `install({ platform: 'macos' | 'windows' | 'linux' })`.** Chrome measures a variable font
+  differently per OS away from its default instance. On macOS (CoreText) it keeps the fractional HVAR advance
+  delta; Chromium 149 on Linux and Windows rounds it to whole font units, as HarfBuzz does (measured by CI run
+  [37410732972](https://github.com/Z003Y89/pretext-kit/actions/runs/37410732972) as equal to HarfBuzz's rounding:
+  the unrounded stand-in was off there by 232 widths beyond 0.02px, max 0.055115px, and 11 line counts). `'macos'`
+  (the default) measures with the unrounded advances, `'windows'` and `'linux'` with HarfBuzz's own. Pick the
+  platform whose Chrome your users run, not the one your tests run on: the default is fixed rather than read from
+  `process.platform`, so a test gives the same widths on a Mac laptop and a Linux CI runner, and it stays the macOS
+  profile the measurements below were first made for. Static fonts, and a variable font at its default instance,
+  measure the same under all three. The option is independent of `rounding`: `'whole-px'` rounds whatever advances
+  the platform gives. Like the other options, a later `install()` call sets it again (omitted, back to `'macos'`);
+  call Pretext's `clearCache()` if widths it already measured should follow. Anything else throws a `RangeError`.
+  Confirmed by CI run [37412616029](https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029): with the option, Inter Variable is bit-exact on Linux and Windows (2,352/2,352 widths, 0 line-count headless-mismatches of 69,408), and the planted "unround variable-font advances" mutant is caught there (232 widths beyond 0.02px, 11 headless-mismatches).
+- **Variable fonts and split families.** A variable font is shaped at the requested weight on its `wght` axis
+  (and `opsz`, `wdth`), with its advances unrounded under `platform: 'macos'`, as Chrome on macOS keeps them. That is
+  verified against Chromium for Inter Variable's `wght` axis only, on macOS: at 300-800, 2,352 widths within 0.0001px and 0 of 69,408 line
+  counts differing (0.1.1 rounded the advances to whole font units: up to 0.055px off, 11 line counts differing).
+  For other instances the unrounded advance is checked against fontTools 4.62.1, exact: Inter Variable's `wght`,
+  `opsz`+`wght` and standard (`opsz`+`wght`) latin files, 326 instances, 50 of them distinct `wght` values in the
+  `wght` file (`npm run verify:hvar`, results in verify/HEADLESS_RESULTS.md). Nothing committed covers `wdth`. A family your CSS splits into several files by
+  `unicode-range` (Fontsource does) is registered file by file, each with its own @font-face unicode-range:
+  `registerFont('Inter Variable', data, { unicodeRange: 'U+0000-00FF,U+0131,…' })`. Files sharing a family,
+  weight and style must each have a range, or draw disjoint code points; where only one has a range, only its
+  code points inside that range count, so a ranged subset beside an unranged file is accepted when they do not
+  overlap there. An invalid `unicodeRange` (`U+00FF-0000`, a start past U+10FFFF, a malformed token) makes
+  `registerFont` throw a `RangeError` rather than being dropped as CSS would; an end past U+10FFFF is clamped to
+  U+10FFFF, as in CSS.
+- **Variable fonts the stand-in does not unround.** A variable font with avar version 2, or without an HVAR table
+  (or with one that fails its structural checks), keeps HarfBuzz's own advances, rounded to whole font units: under
+  `platform: 'macos'`, away from the default instance each glyph can be up to ½ font unit off Chrome on macOS. A malformed HVAR never makes
+  `measureText` throw.
 - **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
   so Pretext uses its Blink rules. WebKit and Gecko profiles are not supported.
 - **Platforms.** Parity is measured for Chromium 149 on macOS (locally), Linux and Windows (CI run
@@ -456,7 +485,13 @@ The claim is scoped exactly so:
   `parity` job runs the same sweep, headed, on `ubuntu-latest` (under xvfb) and `windows-latest` with Node 24.
   Linux: 3,720 of 4,992 widths bit-exact (every Inter and Roboto one), max |Δ| 0.001862px; 0 headless-mismatch in
   71,818 line counts (178 pretext-gap). Windows: 3,842 bit-exact, max |Δ| 0.000427px; 0 headless-mismatch (179
-  pretext-gap). So `install({ rounding: 'whole-px' })` is not needed on either with Chromium 149. An earlier
+  pretext-gap). So `install({ rounding: 'whole-px' })` is not needed on either with Chromium 149. These CI numbers
+  are 0.1.1's sweep, without Inter Variable. With Inter Variable, CI run
+  [37410732972](https://github.com/Z003Y89/pretext-kit/actions/runs/37410732972) found Chromium on Linux and Windows
+  equal to HarfBuzz's whole-unit rounding (the default instance exact), which `platform: 'linux'`/`'windows'` now
+  uses; `verify:headless` installs the platform of the OS it runs on and prints it. With the option, CI run
+  [37412616029](https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029) measured Linux 6,072/7,344 widths bit-exact (max 0.001862px) and Windows 6,194/7,344
+  (max 0.000427px), Inter Variable 2,352/2,352 on both, and 0 headless-mismatch in 141,226 line counts on each. An earlier
   independent Linux run on Chromium 141 (raw data not in the repository) gave the same tallies (EVALUATION §3).
 
 ### Install order

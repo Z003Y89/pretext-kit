@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.1.2 (2026-10-06)
+
+Headless variable fonts and split families; the browser-side helpers are unchanged.
+
+Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; reproducible as described under 0.1.1 and in verify/RELEASING.md):
+
+- `chenglou-pretext-0.0.10-main.f10d888.tgz`: `9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`
+- `pretext-kit-0.1.2.tgz`: `a97145e3812abd095e66770bc3e09de64355e9c38161c0b14da5452c0cc70330`
+- `pretext-kit-0.1.2.sbom.cdx.json`: no fixed sum, because the SBOM records a timestamp and a random serial number.
+
+- **Headless: variable fonts away from the default instance.** HarfBuzz rounds a variable font's HVAR advance
+  delta to whole font units; Chrome on macOS keeps the fraction. The stand-in now computes the unrounded advance
+  (fvar, avar, hmtx, HVAR; the normalized coordinate as CoreText computes it) and hands it to HarfBuzz, and sums a
+  run's advances in 1/65536 px as Blink does. In the headless parity sweep on macOS (Chromium 149), Inter Variable at
+  wght 300-800 measured up to 0.055px off before (232 of 2,352 widths beyond 0.02px), with 11 line-count mismatches
+  in 69,408; now max 0.000092px, 0 beyond 0.02px, and 0 mismatches (verify/HEADLESS_RESULTS.md). Default instances
+  and static fonts measure as before.
+- **Headless: `install({ platform: 'macos' | 'windows' | 'linux' })`, default `'macos'`.** Chromium 149 on Linux and
+  Windows rounds a variable font's HVAR advance delta to whole font units, as HarfBuzz does; macOS keeps the
+  fraction. CI run 37410732972 measured it: with the unrounded advances the stand-in was off on both by exactly the
+  pre-fix macOS numbers (232 widths beyond 0.02px, max 0.055115px, 11 line-count headless-mismatches; the default
+  instance exact), i.e. Chromium there equals HarfBuzz's rounding. `'macos'` keeps the unrounded advances above;
+  `'windows'` and `'linux'` shape with HarfBuzz's own. The default is fixed, not `process.platform`, so tests give the
+  same widths on any machine. Static fonts and default instances measure the same under all three; the option is
+  independent of `rounding`; a value outside the three throws a `RangeError`; like the other options, a later
+  `install()` sets it again. `verify:headless` installs the platform of the OS it runs on and prints it in
+  HEADLESS_RESULTS.md. Confirmed by CI run https://github.com/Z003Y89/pretext-kit/actions/runs/37412616029: with the option, Inter Variable is bit-exact on Linux and Windows (2,352/2,352 widths, 0 line-count headless-mismatches of 69,408), and the planted "unround variable-font advances" mutant is caught there (232 widths beyond 0.02px, 11 headless-mismatches).
+- **Limits of the fix.** Unrounded advances verified against Chromium for Inter Variable's `wght` axis only, on macOS
+  only; Linux and Windows measured equal to HarfBuzz's rounding by CI run 37410732972. Beyond that, the unrounded advance is
+  exact against fontTools 4.62.1 for what `npm run verify:hvar` covers: Inter Variable's latin `wght`, `opsz`+`wght`
+  and standard files, 326 instances (50 distinct `wght` values in the `wght` file), 168,868 glyph × instance pairs; nothing committed covers `wdth`. A font with avar
+  version 2, or without HVAR, keeps HarfBuzz's whole-unit advances: away from the default instance each glyph can be
+  up to ½ font unit off Chrome on macOS.
+- **Malformed HVAR falls back.** An HVAR table that fails its structural checks is ignored and the font keeps
+  HarfBuzz's whole-unit advances, as above; it never makes `registerFont` or `measureText` throw.
+- **Headless: a family split across files by unicode-range** (`registerFont(family, data, { unicodeRange })`, the
+  `@font-face` descriptor's syntax), as Fontsource ships its families: files may share a family, weight and style when
+  each has a range (overlaps resolve to the last registered, as in CSS) or their cmaps are disjoint (where only one
+  has a range, within that range). The same file registered twice with the same range is an error, as before. An
+  invalid `unicodeRange` throws a `RangeError`; an end past U+10FFFF is clamped to it, as in CSS.
+- **`verify:hvar`** (verify/hvar-fonttools.py, verify/hvar-fonttools.ts): the HVAR advances against fontTools 4.62.1
+  (`pip install fonttools==4.62.1 brotli`), on the Inter Variable files from the `@fontsource-variable/inter` 5.3.0
+  devDependency, plus any font paths given on the command line.
+- **Parity sweep** plants a fourth mutant, "round variable-font advances" (0.1.2's fix undone): caught, 232 widths
+  beyond 0.02px and 11 line-count headless-mismatches, the pre-fix numbers. On Linux and Windows, where the stand-in
+  rounds, the mutant is its inverse, "unround variable-font advances" (`platform: 'macos'`'s advances forced).
+- **Parity sweep** now includes Inter Variable at 300-800: 7,344 widths (6,126 bit-exact, max 0.000427px) and
+  141,226 line counts, 0 headless-mismatch (verify/HEADLESS_RESULTS.md). `node verify/stats.ts` counts a variable file
+  once in its clustered units (instances share the file, HVAR store and code path): 310 string × face units, Wilson
+  upper 1.22%; 346 text × font units, 1.10%. `npm test`: 194 tests (90 + 104).
+
 ## 0.1.1 (2026-10-06)
 
 Packaging and platform coverage; no change to the helpers' behaviour.

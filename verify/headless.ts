@@ -34,7 +34,7 @@ import * as wawoff2 from 'wawoff2'
 import { HeadlessCoverageError, install, registerFont } from '../src/headless/index.ts'
 import {
   EXACT_FAMILIES, FACES, LINE_CORPORA, LINE_FONTS, LINE_HEIGHT, LINE_SIZE, LINE_WIDTH_MAX, LINE_WIDTH_MIN, LINE_WIDTH_STEP,
-  SIZES, SPACINGS, WEIGHTS, WIDTH_FAMILIES, WIDTH_STRINGS, WIDTH_TOLERANCE,
+  SIZES, SPACINGS, VARIABLE_FAMILIES, VARIABLE_WEIGHTS, WEIGHTS, WIDTH_FAMILIES, WIDTH_STRINGS, WIDTH_TOLERANCE, cssWeight, weightsOf,
 } from './headless-cases.ts'
 import type { FaceFile } from './headless-cases.ts'
 import { canvasFont } from './headless-measure.ts'
@@ -44,7 +44,7 @@ import type { LoadedFace, Painted } from './headless-page.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
-const fontDir = join(root, 'test/fonts')
+const facePath = (f: FaceFile): string => join(root, f.dir ?? 'test/fonts', f.file)
 const dist = join(here, 'dist')
 const pkg = (name: string): string => JSON.parse(readFileSync(join(root, 'node_modules', name, 'package.json'), 'utf8')).version
 
@@ -54,20 +54,31 @@ const failures: string[] = []
 
 const cmaps = new Map<FaceFile, Set<number>>()
 for (const face of FACES) {
-  let data = new Uint8Array(readFileSync(join(fontDir, face.file)))
+  let data = new Uint8Array(readFileSync(facePath(face)))
   if (face.format === 'woff2') data = new Uint8Array(await wawoff2.decompress(data))
-  cmaps.set(face, new Set(new Face(new Blob(data), 0).collectUnicodes()))
+  const hb = new Face(new Blob(data), 0)
+  cmaps.set(face, new Set(hb.collectUnicodes()))
+  // A variable face's CSS range must be its wght axis, which is what the stand-in registers it with.
+  if (typeof face.weight !== 'number') {
+    const wght = Object.values(hb.getAxisInfos()).find(a => a.tag === 'wght')
+    if (wght === undefined || wght.min !== face.weight[0] || wght.max !== face.weight[1]) {
+      failures.push(`${face.file}: wght axis ${wght === undefined ? 'missing' : `${wght.min}-${wght.max}`}, CSS declares ${cssWeight(face)}`)
+    }
+  }
 }
+const inRange = (f: FaceFile, weight: number): boolean =>
+  typeof f.weight === 'number' ? f.weight === weight : f.weight[0] <= weight && weight <= f.weight[1]
+const nominal = (f: FaceFile): number => (typeof f.weight === 'number' ? f.weight : f.weight[0])
 
 // The face CSS font matching picks: the exact weight, else above 500 the nearest heavier face first,
 // at or below it the nearest lighter first (CSS Fonts 4, 5.2; the 400-500 band only matters for
 // requests of 400-500 between faces, which this sweep never makes).
 function matchFace(family: string, weight: number): FaceFile {
   const faces = FACES.filter(f => f.family === family)
-  const exact = faces.find(f => f.weight === weight)
+  const exact = faces.find(f => inRange(f, weight))
   if (exact !== undefined) return exact
-  const heavier = faces.filter(f => f.weight > weight).sort((a, b) => a.weight - b.weight)
-  const lighter = faces.filter(f => f.weight < weight).sort((a, b) => b.weight - a.weight)
+  const heavier = faces.filter(f => nominal(f) > weight).sort((a, b) => nominal(a) - nominal(b))
+  const lighter = faces.filter(f => nominal(f) < weight).sort((a, b) => nominal(b) - nominal(a))
   const pick = (weight > 500 ? [...heavier, ...lighter] : [...lighter, ...heavier])[0]
   if (pick === undefined) throw new Error(`no face for ${weight} ${family}`)
   return pick
@@ -94,8 +105,13 @@ function uncovered(text: string, family: string, weight: number): string[] {
 }
 
 // The stand-in, checked against that rule on every case, in scope or not.
-for (const face of FACES) await registerFont(face.family, new Uint8Array(readFileSync(join(fontDir, face.file))), { weight: face.weight })
-install()
+for (const face of FACES) {
+  await registerFont(face.family, new Uint8Array(readFileSync(facePath(face))), typeof face.weight === 'number' ? { weight: face.weight } : {})
+}
+// install()'s platform is the OS this sweep runs on, whose Chromium it is compared with.
+const platform = process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : process.platform === 'linux' ? 'linux' : null
+if (platform === null) throw new Error(`verify:headless: no install() platform for ${process.platform}; run it on macOS, Windows or Linux`)
+install({ platform })
 const scopeCtx = new OffscreenCanvas(1, 1).getContext('2d')!
 let scopeChecked = 0
 const scopeDisagreements: string[] = []
@@ -121,7 +137,7 @@ type WidthMeta = { label: string }
 const widthCases: (WidthCase & WidthMeta)[] = []
 for (const { label, text } of WIDTH_STRINGS) {
   for (const family of WIDTH_FAMILIES) {
-    for (const weight of WEIGHTS) {
+    for (const weight of weightsOf(family)) {
       const missing = uncovered(text, family, weight)
       checkScope(`"${label}" in ${weight} ${family}`, text, family, weight, missing.length === 0)
       if (missing.length > 0) {
@@ -169,7 +185,7 @@ await build({
 })
 
 const fontFace = (f: (typeof FACES)[number]): string =>
-  `@font-face { font-family: "${f.family}"; src: url("fonts/${f.file}") format("${f.format}"); font-weight: ${f.weight}; font-display: block; }`
+  `@font-face { font-family: "${f.family}"; src: url("fonts/${f.file}") format("${f.format}"); font-weight: ${cssWeight(f)}; font-display: block; }`
 // The probe pins every property Pretext models, as v1's sweep.html does.
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -208,7 +224,7 @@ const server = createServer((req, res) => {
   } else {
     const face = FACES.find(f => url === `/fonts/${f.file}`)
     if (face !== undefined) {
-      body = readFileSync(join(fontDir, face.file))
+      body = readFileSync(facePath(face))
       type = face.format === 'woff2' ? 'font/woff2' : 'font/ttf'
     }
   }
@@ -231,10 +247,10 @@ const page = await browser.newPage()
 page.on('pageerror', e => failures.push(`page error: ${e.message}`))
 page.on('console', m => { if (m.type() === 'error') console.error(`[chromium] ${m.text()}`) })
 await page.goto(origin)
-const loaded: LoadedFace[] = await page.evaluate(faces => window.hx.load(faces), FACES.map(f => ({ family: f.family, weight: f.weight })))
+const loaded: LoadedFace[] = await page.evaluate(faces => window.hx.load(faces), FACES.map(f => ({ family: f.family, weight: nominal(f) })))
 for (const f of FACES) {
-  const hit = loaded.find(l => l.family.replace(/"/g, '') === f.family && l.weight === String(f.weight))
-  if (hit?.status !== 'loaded') failures.push(`Chromium did not load ${f.file} as ${f.weight} "${f.family}" (${hit?.status ?? 'not declared'})`)
+  const hit = loaded.find(l => l.family.replace(/"/g, '') === f.family && l.weight === cssWeight(f))
+  if (hit?.status !== 'loaded') failures.push(`Chromium did not load ${f.file} as ${cssWeight(f)} "${f.family}" (${hit?.status ?? 'not declared'})`)
 }
 const strip = <T extends object>(cases: T[], keys: string[]): T[] =>
   cases.map(c => Object.fromEntries(Object.entries(c).filter(([k]) => !keys.includes(k))) as T)
@@ -252,7 +268,7 @@ server.close()
 
 mkdirSync(dist, { recursive: true })
 const inputPath = join(dist, 'headless-input.json')
-const input: NodeInput = { fontDir, faces: FACES, widthCases: plainWidthCases, lineCases: plainLineCases, widths }
+const input: NodeInput = { root, faces: FACES, widthCases: plainWidthCases, lineCases: plainLineCases, widths, platform }
 writeFileSync(inputPath, JSON.stringify(input))
 
 function runNode(modulePath: string, name: string): NodeOutput {
@@ -277,10 +293,28 @@ const MUTANTS: Mutant[] = [
   {
     name: 'ignore weight',
     file: 'canvas.ts',
-    from: 'findFace(parsed.families[i]!, parsed.weight, style)',
-    to: 'findFace(parsed.families[i]!, 400, style)',
+    from: 'findFaces(parsed.families[i]!, parsed.weight, style)',
+    to: 'findFaces(parsed.families[i]!, 400, style)',
     lines: true,
   },
+  // 0.1.2's per-platform variable-font advances, mutated the other way on each platform.
+  platform === 'macos'
+    ? {
+        // A varied instance shaped with HarfBuzz's own advances (HVAR delta rounded to whole font units).
+        name: 'round variable-font advances',
+        file: 'canvas.ts',
+        from: 'withVariedAdvances(font, face, parsed.sizePx, design)',
+        to: '({ font, varied: null })',
+        lines: true,
+      }
+    : {
+        // A varied instance shaped with CoreText's unrounded advances, as on macOS.
+        name: 'unround variable-font advances',
+        file: 'canvas.ts',
+        from: "const unrounded = platform === 'macos'",
+        to: 'const unrounded = true',
+        lines: true,
+      },
   {
     name: 'drop the U+0020 word cut',
     file: 'canvas.ts',
@@ -382,7 +416,10 @@ const nodeAt = (text: string, family: string): number | undefined => {
 }
 
 // Synthetic bold: HX Inter and HX Roboto have one face each, so Chromium synthesizes 600 and 700 from it.
-const singleFace = WIDTH_FAMILIES.filter(f => FACES.filter(face => face.family === f).length === 1)
+const singleFace = WIDTH_FAMILIES.filter(f => {
+  const faces = FACES.filter(face => face.family === f)
+  return faces.length === 1 && typeof faces[0]!.weight === 'number'
+})
 const boldChanged: string[] = []
 let boldCompared = 0
 widthCases.forEach((c, i) => {
@@ -478,6 +515,15 @@ const familyTable = WIDTH_FAMILIES.map(family => {
   const misses = deltas.filter(d => !(d <= WIDTH_TOLERANCE)).length
   return `| ${family} | ${idx.length} | ${exact} | ${px(max)} | ${misses} |`
 })
+// The variable family by instance: the default (400) and the interpolated ones.
+const variableTable = VARIABLE_FAMILIES.flatMap(family => VARIABLE_WEIGHTS.map(weight => {
+  const idx = widthCases.map((c, i) => (c.family === family && c.weight === weight ? i : -1)).filter(i => i >= 0)
+  const deltas = idx.map(i => Math.abs(node.widths[i]! - chromeWidths[i]!))
+  const max = deltas.reduce((a, b) => Math.max(a, b), 0)
+  const lines = lineResults.filter(r => r.c.family === family && r.c.weight === weight)
+  return `| ${family} ${weight} | ${idx.length} | ${deltas.filter(d => d === 0).length} | ${px(max)} | ${deltas.filter(d => !(d <= WIDTH_TOLERANCE)).length} | ` +
+    `${lines.length} | ${count(lines, 'headless-mismatch')} | ${count(lines, 'pretext-gap')} |`
+}))
 const nodeVsDom = lineResults.filter(r => r.dom.lines >= 0 && r.node !== r.dom.lines).length
 
 // A | inside a table cell ends the cell, even in a code span.
@@ -493,10 +539,11 @@ const md: string[] = [
   `- harfbuzzjs ${pkg('harfbuzzjs')} (HarfBuzz ${versionString()}), wawoff2 ${pkg('wawoff2')}`,
   `- Pretext ${pkg('@chenglou/pretext')} (../pretext ${pretextCommit}), \`setLocale('en')\` on both sides`,
   `- Node ${process.version}, ${osLabel}, ${process.arch}`,
+  `- \`install({ platform: '${platform}' })\` (this OS's)`,
   '',
   'Fonts: test/fonts, loaded in Chromium through `@font-face` from the same files the stand-in registers, each',
   'awaited with `document.fonts.load` and checked `loaded`: ' +
-    FACES.map(f => `${f.file} as ${f.weight} "${f.family}"`).join(', ') + '.',
+    FACES.map(f => `${f.file} as ${cssWeight(f)} "${f.family}"`).join(', ') + '.',
   'Every family name carries an "HX " prefix on both sides, so no installed Inter or Roboto can stand in for a file; the',
   'family Canvas reads back must equal the one set. Inter and Roboto have one face, so Chromium synthesizes 600 and 700;',
   'Shantell Sans has a 400 and a 700 face (added for this sweep so that a stand-in ignoring the requested weight can be',
@@ -519,9 +566,26 @@ const md: string[] = [
   'test/headless/canvas.test.ts, which fails without the fix. Pretext\'s own line counts never showed it: Pretext measures',
   'those characters as segments of their own.',
   '',
+  '**Stand-in bug the variable font found, fixed in src/headless/hvar.ts and canvas.ts.** HarfBuzz rounds a variable',
+  'font\'s HVAR advance delta to whole font units; Chrome on macOS (CoreText through Skia) keeps the fraction, so away',
+  'from the default instance every advance was off by up to half a unit (the space at wght 500: 546/2048 em against',
+  '545.76/2048 em): before the fix 232 widths beyond 0.02px (max 0.055115px) and 11 headless-mismatches, all in Inter',
+  'Variable at 300/500-800. The stand-in now hands HarfBuzz the unrounded advance, with the normalized coordinate',
+  'computed by OpenType 1.9.1\'s precision rules (16.16 normalization and avar, then F2Dot14), which CoreText follows',
+  'and HarfBuzz does not, and the px conversion Blink uses, and sums a run\'s advances in 1/65536 px as Blink does.',
+  'Regression tests: test/headless/variable.test.ts (Chromium widths pinned at six weights: 300/399/401/500/700/899),',
+  'which fail without the fix.',
+  '',
+  '**Per platform (0.1.2).** Chromium 149 on Linux and Windows does not keep the fraction: CI run 37410732972 measured it',
+  'equal to HarfBuzz\'s whole-unit rounding (the fixed stand-in was off there by exactly the pre-fix macOS numbers above).',
+  'So `install({ platform })` picks the behaviour: \'macos\' (the default) unrounded HVAR advances, \'windows\' and \'linux\'',
+  'HarfBuzz\'s own. This sweep installs the platform of the OS it runs on' +
+    (platform === 'macos' ? '' : `, here '${platform}'; its variable-font mutant forces the unrounded macOS advances instead`) +
+    '. CI run 37412616029 confirmed the option on Linux and Windows: Inter Variable bit-exact on both.',
+  '',
   '## Widths',
   '',
-  `${WIDTH_STRINGS.length} strings × ${WIDTH_FAMILIES.length} families × weights ${WEIGHTS.join('/')} × sizes ${SIZES.join('/')}px ×`,
+  `${WIDTH_STRINGS.length} strings × ${WIDTH_FAMILIES.length} families × weights ${WEIGHTS.join('/')} (${VARIABLE_FAMILIES.join(', ')}: ${VARIABLE_WEIGHTS.join('/')}) × sizes ${SIZES.join('/')}px ×`,
   `letter spacing ${SPACINGS.map(s => `${s}px`).join('/')}: **${widthCases.length} cases, ${widthResult.exact} exact, max |Δ| ${px(widthResult.max)}px,`,
   `${widthResult.misses.length} beyond ${WIDTH_TOLERANCE}px.** Chromium's OffscreenCanvas \`measureText\` against the stand-in's.`,
   '',
@@ -535,6 +599,14 @@ const md: string[] = [
   '| family | cases | exact | max abs Δ px | > 0.02px |',
   '|---|---:|---:|---:|---:|',
   ...familyTable,
+  '',
+  'Variable font (@fontsource-variable/inter ' + pkg('@fontsource-variable/inter') + ', its latin subset as one variable face, wght 100-900;',
+  'loaded in Chromium with `font-weight: 100 900`, registered in Node with no weight so the stand-in reads the axis) by',
+  'instance: widths as above, line counts as in the next section.',
+  '',
+  '| instance | width cases | exact | max abs Δ px | > 0.02px | line cases | headless-mismatch | pretext-gap |',
+  '|---|---:|---:|---:|---:|---:|---:|---:|',
+  ...variableTable,
   '',
   `Skipped (out of scope): ${skips.widths.length} string × font pairs.`,
   '',
@@ -609,7 +681,7 @@ const md: string[] = [
   '',
   'Each mutant is a copy of src/headless under verify/dist/mutants with one edit (src itself is never edited), run as the',
   'Node side of the same sweep against the same Chromium data. A mutant is caught when it produces widths beyond the bar',
-  'or line-count headless-mismatches; the first two must produce line-count headless-mismatches. Dropping the U+0020',
+  'or line-count headless-mismatches; all but the U+0020 cut must produce line-count headless-mismatches. Dropping the U+0020',
   'cut cannot change a Pretext line count: Pretext measures each space as a segment of its own and never hands Canvas a',
   `U+0020 beside other text (${node.spaced.length} of the ${node.measured} distinct strings it measured for the line cases here),`,
   'so only the width sweep sees it, through Roboto, which kerns with the space glyph.',
@@ -623,7 +695,13 @@ const md: string[] = [
     `- ${r.m.name}, e.g. ${r.example!.c.font} / ${r.example!.c.corpus} "${r.example!.c.label}" @ ${r.example!.width}px: Node ${r.example!.node}, Chromium-Pretext ${r.example!.chrome}`),
   '',
 ]
-writeFileSync(join(here, 'HEADLESS_RESULTS.md'), md.join('\n'))
+// The fontTools section is written by hand from `npm run verify:hvar`, not by this sweep: keep it as it stands.
+const resultsPath = join(here, 'HEADLESS_RESULTS.md')
+const hvarHeading = '\n## Variable-font advances against fontTools\n'
+let previous = ''
+try { previous = readFileSync(resultsPath, 'utf8') } catch {}
+const hvarAt = previous.indexOf(hvarHeading)
+writeFileSync(resultsPath, md.join('\n') + (hvarAt === -1 ? '' : previous.slice(hvarAt)))
 console.log('wrote verify/HEADLESS_RESULTS.md')
 console.log(`widths: ${widthCases.length} cases, ${widthResult.exact} exact, max ${px(widthResult.max)}px, ${widthResult.misses.length} misses`)
 console.log(`lines: ${lineResults.length} cases, ${mismatches} headless-mismatch, ${count(lineResults, 'pretext-gap')} pretext-gap, ${count(lineResults, 'unreliable')} unreliable`)

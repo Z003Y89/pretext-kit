@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 import { afterEach, describe, test } from 'node:test'
 import { Font } from 'harfbuzzjs'
-import { clearFonts, findFace, registerFont } from '../../src/headless/fonts.ts'
+import { decompress } from 'wawoff2'
+import { clearFonts, findFace, findFaces, parseUnicodeRange, registerFont } from '../../src/headless/fonts.ts'
 
 const ttf = new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.ttf', import.meta.url)))
 const woff2 = new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.woff2', import.meta.url)))
+const roboto = new Uint8Array(readFileSync(new URL('../fonts/Roboto-Regular.ttf', import.meta.url)))
 
 // No WOFF1 fixture is committed, so one is built from the TTF's own tables (every table deflated).
 function ttfToWoff(sfnt: Uint8Array): Uint8Array {
@@ -116,6 +118,65 @@ describe('font registry', () => {
   test('registering the same family, weight and style twice throws', async () => {
     await registerFont('Inter', ttf)
     await assert.rejects(registerFont('inter', ttf), /already registered/)
+  })
+
+  test('two files of one family, weight and style register when each has a unicodeRange', async () => {
+    await registerFont('Split', ttf, { unicodeRange: 'U+0000-00FF' })
+    await registerFont('Split', roboto, { unicodeRange: 'U+0100-024F, U+0041' })
+    const faces = findFaces('Split', 400, 'normal')
+    // The last registered first, as CSS checks the last-defined @font-face rule first.
+    assert.deepEqual(faces.map(face => face.unicodeRange), [[[0x41, 0x41], [0x100, 0x24f]], [[0, 0xff]]])
+    assert.equal(findFace('Split', 400, 'normal'), faces[0])
+  })
+
+  test('two files whose cmaps overlap need a unicodeRange each', async () => {
+    await registerFont('Split', ttf, { unicodeRange: 'U+0000-00FF' })
+    await assert.rejects(registerFont('Split', roboto), /already registered, and both files have U\+0000.*unicode-range/)
+    await assert.rejects(registerFont('Split', roboto, { weight: 400, style: 'normal' }), /already registered/)
+  })
+
+  test('a ranged file beside an unranged one is checked within its range only', async () => {
+    // Fontsource's latin-ext subset of Inter Variable also maps 5 Basic Latin code points (U+0041 among
+    // them), which its unicode-range leaves out; the latin subset has them too. Within the range the
+    // files are disjoint, so CSS draws each code point from one of them: accepted in either order.
+    const subset = async (name: string) =>
+      new Uint8Array(await decompress(readFileSync(new URL(`../../node_modules/@fontsource-variable/inter/files/inter-${name}-wght-normal.woff2`, import.meta.url))))
+    const latin = await subset('latin')
+    const latinExt = await subset('latin-ext')
+    const LATIN_EXT = 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF'
+    await registerFont('Split', latin)
+    await registerFont('Split', latinExt, { unicodeRange: LATIN_EXT })
+    clearFonts()
+    await registerFont('Split', latinExt, { unicodeRange: LATIN_EXT })
+    await registerFont('Split', latin)
+    assert.equal(findFaces('Split', 400, 'normal').length, 2)
+    // A range that takes in those shared code points is still an overlap, in either order.
+    clearFonts()
+    await registerFont('Split', latin)
+    await assert.rejects(registerFont('Split', latinExt, { unicodeRange: 'U+0000-024F' }), /both files have U\+00/)
+    clearFonts()
+    await registerFont('Split', latinExt, { unicodeRange: 'U+0000-024F' })
+    await assert.rejects(registerFont('Split', latin), /both files have U\+00/)
+  })
+
+  test('the same file with the same unicodeRange twice is a duplicate', async () => {
+    await registerFont('Split', ttf, { unicodeRange: 'U+0000-00FF' })
+    await assert.rejects(registerFont('split', ttf, { unicodeRange: 'u+0000-00ff' }), /already registered with this file and unicode-range/)
+    // The same file under another range is a split, as is another file under the same range.
+    await registerFont('Split', ttf, { unicodeRange: 'U+0100-024F' })
+    await registerFont('Split', roboto, { unicodeRange: 'U+0000-00FF' })
+    assert.equal(findFaces('Split', 400, 'normal').length, 3)
+  })
+
+  test('parseUnicodeRange reads single code points, ranges and wildcards, and rejects the rest', () => {
+    assert.deepEqual(parseUnicodeRange('U+0131, u+0000-00ff,U+4??'), [[0, 0xff], [0x131, 0x131], [0x400, 0x4ff]])
+    // An end past U+10FFFF is clamped to it, as in CSS; a start past it is invalid.
+    assert.deepEqual(parseUnicodeRange('U+10FF00-1FFFFF'), [[0x10ff00, 0x10ffff]])
+    assert.deepEqual(parseUnicodeRange('U+??????'), [[0, 0x10ffff]])
+    assert.deepEqual(parseUnicodeRange('U+1?????'), [[0x100000, 0x10ffff]])
+    for (const bad of ['U+00FF-0000', 'U+11FFFF', 'U+110000-120000', '0041', 'U+0?1', 'U+4??-4FF', '']) {
+      assert.throws(() => parseUnicodeRange(bad), RangeError, bad)
+    }
   })
 
   test('rejects data that is not a font', async () => {

@@ -8,7 +8,8 @@ import { measureWidths, pretextLines } from './headless-measure.ts'
 import type { LineCase, WidthCase } from './headless-measure.ts'
 import type { FaceFile } from './headless-cases.ts'
 
-export type NodeInput = { fontDir: string, faces: FaceFile[], widthCases: WidthCase[], lineCases: LineCase[], widths: number[] }
+// platform: install()'s, the OS the sweep runs on (Chromium's own widths are that OS's).
+export type NodeInput = { root: string, faces: FaceFile[], widthCases: WidthCase[], lineCases: LineCase[], widths: number[], platform: 'macos' | 'windows' | 'linux' }
 // measured: the distinct strings Pretext handed the stand-in while preparing the line cases;
 // spaced: those holding a U+0020 beside other text, the only ones the U+0020 word cut can change.
 export type NodeOutput = { widths: number[], lines: number[][], measured: number, spaced: string[] }
@@ -20,9 +21,11 @@ if (modulePath === undefined || inputPath === undefined || outputPath === undefi
 const input: NodeInput = JSON.parse(readFileSync(inputPath, 'utf8'))
 const headless: typeof import('../src/headless/index.ts') = await import(pathToFileURL(modulePath).href)
 for (const face of input.faces) {
-  await headless.registerFont(face.family, new Uint8Array(readFileSync(join(input.fontDir, face.file))), { weight: face.weight })
+  const data = new Uint8Array(readFileSync(join(input.root, face.dir ?? 'test/fonts', face.file)))
+  // A variable face is registered with no weight: the stand-in reads the range from its wght axis.
+  await headless.registerFont(face.family, data, typeof face.weight === 'number' ? { weight: face.weight } : {})
 }
-headless.install()
+headless.install({ platform: input.platform })
 const widths = measureWidths(OffscreenCanvas, input.widthCases)
 
 // Records what Pretext measures: every context made from here on (Pretext makes its own on first

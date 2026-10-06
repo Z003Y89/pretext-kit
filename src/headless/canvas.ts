@@ -1,6 +1,7 @@
-import { Buffer, Feature, Font, Variation, shape } from 'harfbuzzjs'
-import { findFace, hbFace, type FontFace } from './fonts.ts'
-import { HEADLESS, sharedState } from './shared.ts'
+import { Buffer, Feature, Font, FontFuncs, Variation, shape } from 'harfbuzzjs'
+import { findFaces, hbFace, inUnicodeRange, type FontFace } from './fonts.ts'
+import { normalizedCoords, readAdvanceVariations, readAxisNormalization, variedAdvance, type AdvanceVariations, type AxisNormalization } from './hvar.ts'
+import { HEADLESS, sharedState, type Platform } from './shared.ts'
 import { parseFont, type ParsedFont } from './shorthand.ts'
 
 // Pretext picks its engine profile from the user agent; Node's and jsdom's pick Blink but not
@@ -16,6 +17,11 @@ export type InstallOptions = {
   // 'whole-px' rounds each glyph advance to a whole px before summing, as Linux Chrome
   // (FreeType without subpixel positioning) is expected to; 'none' (default) keeps them exact.
   rounding?: 'none' | 'whole-px'
+  // The desktop Chrome whose widths a variable font measures with away from its default instance.
+  // 'macos' (default): CoreText's unrounded HVAR advances. 'windows' and 'linux': HarfBuzz's own,
+  // with the HVAR delta rounded to whole font units, as Chromium on Linux and Windows measured in
+  // CI. Static fonts and a variable font's default instance measure the same on all three.
+  platform?: Platform
 }
 
 // A class so `instanceof` tells it from other errors; it carries what was missing.
@@ -57,15 +63,17 @@ const markRe = /\p{M}/u
 const lengthRe = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(px|pt|em|rem)\s*$/i
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-// What each registered face covers, read once per face.
+// What each registered face covers (its cmap, within its unicode-range), read once per face.
 const coverage = new WeakMap<FontFace, Set<number>>()
 // HarfBuzz fonts per face, by size and variation instance.
-const fonts = new WeakMap<FontFace, Map<string, Font>>()
+const fonts = new WeakMap<FontFace, Map<string, ShapingFont>>()
 
 function covers(face: FontFace, codePoint: number): boolean {
   let set = coverage.get(face)
   if (set === undefined) {
-    set = new Set(hbFace(face).collectUnicodes())
+    set = new Set()
+    const cmap = hbFace(face).collectUnicodes()
+    for (let i = 0; i < cmap.length; i++) if (inUnicodeRange(face, cmap[i]!)) set.add(cmap[i]!)
     coverage.set(face, set)
   }
   return set.has(codePoint)
@@ -85,40 +93,122 @@ export function instanceWeight(face: FontFace, weight: number): number | null {
   return axisValue(face, 'wght', Math.min(face.weightMax, Math.max(face.weightMin, weight)))
 }
 
+// Each face's variation tables, read once: its axes and avar (null without fvar, with avar
+// version 2, or malformed), and, the first time an instance away from the default is shaped, its
+// hmtx + HVAR (null without HVAR or malformed). A null keeps HarfBuzz's own advances.
+type FaceVariations = { axes: AxisNormalization | null; advances?: AdvanceVariations | null }
+const faceVariations = new WeakMap<FontFace, FaceVariations>()
+
+function variationsOf(face: FontFace): FaceVariations {
+  let variations = faceVariations.get(face)
+  if (variations === undefined) {
+    variations = { axes: face.axes.length === 0 ? null : readAxisNormalization(face.data, face.index) }
+    faceVariations.set(face, variations)
+  }
+  return variations
+}
+
+// The advances of a varied instance, by the HarfBuzz font that shapes it.
+type VariedAdvances = { variations: AdvanceVariations; coords: Int16Array; pxPerUnit: number; byGlyph: Map<number, number> }
+const variedFonts = new Map<number, VariedAdvances>()
+// A sub font's entry goes when the sub font does. Its pointer can be reused by a new sub font
+// before this runs, so only the entry registered with it is removed, never its successor's.
+const forgetVaried = new FinalizationRegistry<{ ptr: number; entry: VariedAdvances }>(({ ptr, entry }) => {
+  if (variedFonts.get(ptr) === entry) variedFonts.delete(ptr)
+})
+let variedFuncs: FontFuncs | undefined
+
+// A glyph's advance in Chrome on macOS, in 1/65536 px: CoreText's unrounded advance in font units
+// (hvar.ts), scaled to px in float32 (Skia's SkScalar) and truncated to HarfBuzz's 16.16 position
+// (Blink's SkiaScalarToHarfBuzzPosition). Measured against Chrome 149: 6549 of 6555 single-glyph
+// widths of Inter Variable (95 glyphs, 23 weights, 16, 13.5 and 1000px) bit-exact, the rest
+// 1/65536 px off.
+function variedAdvanceFunc(font: Font, glyph: number): number {
+  const varied = variedFonts.get(font.ptr)
+  // Unreachable: fontFor puts a sub font's entry back into variedFonts before every return, shaping
+  // is synchronous so no FinalizationRegistry callback can run in between, and the sub font cannot
+  // be collected while it is being shaped. The guard only keeps a missing entry from throwing out
+  // of HarfBuzz's callback (the glyph would get no advance).
+  if (varied === undefined) return 0
+  let advance = varied.byGlyph.get(glyph)
+  if (advance === undefined) {
+    const units = variedAdvance(varied.variations, varied.coords, glyph)
+    advance = Math.trunc(Math.fround(Math.fround(units) * varied.pxPerUnit) * 65536)
+    varied.byGlyph.set(glyph, advance)
+  }
+  return advance
+}
+
+// HarfBuzz rounds a variable font's HVAR delta to whole font units (hvar.ts); a varied instance
+// is therefore shaped with a sub font whose horizontal advances are Chrome's, everything else
+// (glyphs, GPOS with its variation deltas, extents) coming from HarfBuzz's own font. The default
+// instance, where every delta is 0, static faces, and faces whose tables the stand-in cannot read
+// keep HarfBuzz's font as it is.
+function withVariedAdvances(font: Font, face: FontFace, sizePx: number, design: Map<string, number>): ShapingFont {
+  const variations = variationsOf(face)
+  if (variations.axes === null) return { font, varied: null }
+  const coords = normalizedCoords(variations.axes, design)
+  if (coords.every(coord => coord === 0)) return { font, varied: null }
+  if (variations.advances === undefined) variations.advances = readAdvanceVariations(face.data, face.index, variations.axes.axisTags.length)
+  if (variations.advances === null) return { font, varied: null }
+  variedFuncs ??= (() => {
+    const funcs = new FontFuncs()
+    funcs.setGlyphHAdvanceFunc(variedAdvanceFunc)
+    return funcs
+  })()
+  const sub = font.subFont()
+  sub.setFuncs(variedFuncs)
+  const entry: VariedAdvances = { variations: variations.advances, coords, pxPerUnit: Math.fround(sizePx / face.upem), byGlyph: new Map() }
+  variedFonts.set(sub.ptr, entry)
+  forgetVaried.register(sub, { ptr: sub.ptr, entry })
+  return { font: sub, varied: entry }
+}
+
+type ShapingFont = { font: Font; varied: VariedAdvances | null }
+
 // A registered weight picks the face; on a variable face the weight, optical size (Chrome
-// applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes.
-function fontFor(face: FontFace, parsed: ParsedFont): Font {
+// applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes. Only Chrome
+// on macOS keeps HVAR's fractions; on Windows and Linux a varied instance keeps HarfBuzz's font.
+function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
+  const unrounded = platform === 'macos'
   const wght = instanceWeight(face, parsed.weight)
   const opsz = axisValue(face, 'opsz', parsed.sizePx)
   const wdth = axisValue(face, 'wdth', parsed.stretch)
-  const key = `${parsed.sizePx}|${wght}|${opsz}|${wdth}`
+  const key = `${parsed.sizePx}|${wght}|${opsz}|${wdth}|${unrounded ? 'unrounded' : 'harfbuzz'}`
   let bySize = fonts.get(face)
   if (bySize === undefined) {
     bySize = new Map()
     fonts.set(face, bySize)
   }
-  let font = bySize.get(key)
-  if (font === undefined) {
-    font = new Font(hbFace(face))
+  let shaping = bySize.get(key)
+  if (shaping === undefined) {
+    const font = new Font(hbFace(face))
     const scale = Math.round(parsed.sizePx * 65536)
     font.setScale(scale, scale)
     const variations: Variation[] = []
-    if (wght !== null) variations.push(new Variation('wght', wght))
-    if (opsz !== null) variations.push(new Variation('opsz', opsz))
-    if (wdth !== null) variations.push(new Variation('wdth', wdth))
+    const design = new Map<string, number>()
+    if (wght !== null) design.set('wght', wght)
+    if (opsz !== null) design.set('opsz', opsz)
+    if (wdth !== null) design.set('wdth', wdth)
+    for (const [tag, value] of design) variations.push(new Variation(tag, value))
     if (variations.length > 0) font.setVariations(variations)
-    bySize.set(key, font)
+    shaping = variations.length > 0 && unrounded ? withVariedAdvances(font, face, parsed.sizePx, design) : { font, varied: null }
+    bySize.set(key, shaping)
   }
-  return font
+  // The sub font is alive (this cache holds it), so its pointer is its own: its entry is put back
+  // should the pointer's earlier owner have been finalized after the sub font took it.
+  if (shaping.varied !== null && variedFonts.get(shaping.font.ptr) !== shaping.varied) variedFonts.set(shaping.font.ptr, shaping.varied)
+  return shaping.font
 }
 
-// The face each family in the list resolves to, in order; unregistered names drop out.
+// The faces each family in the list resolves to, in order (a family split by unicode-range
+// resolves to all its files of the matched weight and style); unregistered names drop out.
 function resolveFaces(parsed: ParsedFont): FontFace[] {
   const style = parsed.style === 'normal' ? 'normal' : 'italic'
   const faces: FontFace[] = []
   for (let i = 0; i < parsed.families.length; i++) {
-    const face = findFace(parsed.families[i]!, parsed.weight, style)
-    if (face !== undefined && !faces.includes(face)) faces.push(face)
+    const matched = findFaces(parsed.families[i]!, parsed.weight, style)
+    for (let j = 0; j < matched.length; j++) if (!faces.includes(matched[j]!)) faces.push(matched[j]!)
   }
   return faces
 }
@@ -162,6 +252,7 @@ type Shaping = {
   parsed: ParsedFont
   notdef: boolean // Measure what no face covers as .notdef instead of throwing
   rounding: 'none' | 'whole-px'
+  platform: Platform
   faces: FontFace[]
   features: Feature[]
   spacing: number
@@ -171,19 +262,24 @@ type Shaping = {
 // Where each glyph was put, for the ink bounds, which only Pretext's Han kerning asks for.
 type Placed = { fonts: Font[]; glyphs: number[]; xs: number[] }
 
-function advancePx(xAdvance: number, rounding: Shaping['rounding']): number {
-  const px = Math.fround(xAdvance / 65536)
-  return rounding === 'whole-px' ? Math.round(px) : px
+// A glyph advance in 1/65536 px, the unit Blink keeps glyph advances in (TextRunLayoutUnit).
+function advanceUnits(xAdvance: number, rounding: Shaping['rounding']): number {
+  return rounding === 'whole-px' ? Math.round(Math.fround(xAdvance / 65536)) * 65536 : xAdvance
 }
 
-// Shapes one word in runs of one face each and returns the width so far, accumulated as
-// Blink does, in float32. Spacing is added after each grapheme the word ends.
+// Shapes one word in runs of one face each and returns the width so far, accumulated as Blink
+// does: a run's glyph advances and spacing are summed in 1/65536 px (TextRunLayoutUnit) and the
+// run's width is added to the total in float32. Summing glyph by glyph in float32 instead loses
+// the low bits of fractional advances (a variable font's, measured with Inter Variable at wght
+// 500, 1000px: "abonnieren" is fround(sum) in Chrome, one float32 step above the float sum).
+// Spacing is added after each grapheme the word ends.
 function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number, end: number, shaping: Shaping, width: number, placed: Placed): number {
   let runStart = start
   let runFace: FontFace | null = null
+  const spacingUnits = Math.round(shaping.spacing * 65536)
   const flush = (runEnd: number): void => {
     if (runFace === null || runEnd === runStart) return
-    const font = fontFor(runFace, shaping.parsed)
+    const font = fontFor(runFace, shaping.parsed, shaping.platform)
     // The whole word is the run's context, as Blink gives HarfBuzz.
     const context = codePoints.slice(start, end)
     for (let i = 0; i < context.length; i++) {
@@ -197,18 +293,20 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
     shape(font, buffer, shaping.features)
     const infos = buffer.getGlyphInfos()
     const positions = buffer.getGlyphPositions()
+    let run = 0
     for (let i = 0; i < infos.length; i++) {
       const cluster = start + infos[i]!.cluster
       placed.fonts.push(font)
       placed.glyphs.push(infos[i]!.codepoint)
-      placed.xs.push(width + positions[i]!.xOffset / 65536)
-      width = Math.fround(width + advancePx(positions[i]!.xAdvance, shaping.rounding))
+      placed.xs.push(width + (run + positions[i]!.xOffset) / 65536)
+      run += advanceUnits(positions[i]!.xAdvance, shaping.rounding)
       // Spacing goes after the last glyph of a grapheme's cluster.
       const next = i + 1 < infos.length ? start + infos[i + 1]!.cluster : runEnd
-      if (shaping.spacing !== 0 && next !== cluster) {
-        for (let c = cluster; c < next; c++) if (graphemeEnds[c] === 1) width = Math.fround(width + shaping.spacing)
+      if (spacingUnits !== 0 && next !== cluster) {
+        for (let c = cluster; c < next; c++) if (graphemeEnds[c] === 1) run += spacingUnits
       }
     }
+    width = Math.fround(width + Math.fround(run / 65536))
     runStart = runEnd
   }
   for (let i = start; i < end; i++) {
@@ -322,9 +420,9 @@ function genericProbeWidth(text: string, parsed: ParsedFont, spacing: number): n
   const style = parsed.style === 'normal' ? 'normal' : 'italic'
   for (let i = 0; i < parsed.families.length; i++) {
     const family = parsed.families[i]!
-    const face = findFace(family, parsed.weight, style)
-    if (face !== undefined) {
-      if (covers(face, codePoint)) return null
+    const matched = findFaces(family, parsed.weight, style)
+    if (matched.length > 0) {
+      if (matched.some(face => covers(face, codePoint))) return null
       continue
     }
     const em = GENERIC_STAND_IN_EM.get(family.toLowerCase())
@@ -472,6 +570,7 @@ function createContext(): HeadlessContext {
         parsed,
         notdef: options.onMissingGlyph === 'notdef' || content === HYPHEN,
         rounding: options.rounding,
+        platform: options.platform ?? 'macos',
         faces,
         features,
         spacing,
@@ -532,11 +631,15 @@ function setUserAgent(): void {
 export function install(installOptions: InstallOptions = {}): void {
   const onMissingGlyph = installOptions.onMissingGlyph ?? 'throw'
   const rounding = installOptions.rounding ?? 'none'
+  const platform = installOptions.platform ?? 'macos'
   if (onMissingGlyph !== 'throw' && onMissingGlyph !== 'notdef') {
     throw new RangeError(`install: onMissingGlyph must be 'throw' or 'notdef', not ${JSON.stringify(onMissingGlyph)}`)
   }
   if (rounding !== 'none' && rounding !== 'whole-px') {
     throw new RangeError(`install: rounding must be 'none' or 'whole-px', not ${JSON.stringify(rounding)}`)
+  }
+  if (platform !== 'macos' && platform !== 'windows' && platform !== 'linux') {
+    throw new RangeError(`install: platform must be 'macos', 'windows' or 'linux', not ${JSON.stringify(platform)}`)
   }
   const existing: unknown = Reflect.get(globalThis, 'OffscreenCanvas')
   if (existing !== undefined && !isHeadless(existing)) {
@@ -548,6 +651,7 @@ export function install(installOptions: InstallOptions = {}): void {
   const { options } = sharedState()
   options.onMissingGlyph = onMissingGlyph
   options.rounding = rounding
+  options.platform = platform
   setUserAgent()
   if (existing === undefined) defineGlobal('OffscreenCanvas', HeadlessOffscreenCanvas)
 }

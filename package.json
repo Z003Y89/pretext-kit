@@ -1,6 +1,6 @@
 {
   "name": "pretext-kit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Exact text-sizing helpers built on Pretext",
   "license": "MIT",
   "repository": {
@@ -40,6 +40,7 @@
     "prepack": "npm run build",
     "verify": "node verify/run.ts",
     "verify:headless": "node verify/headless.ts",
+    "verify:hvar": "node verify/hvar-fonttools.ts",
     "examples": "node examples/build.ts",
     "examples:serve": "node examples/build.ts && node examples/serve.ts",
     "examples:data": "node examples/build-accuracy-data.ts && node examples/build-headless-parity.ts",
@@ -63,6 +64,7 @@
   },
   "devDependencies": {
     "@chenglou/pretext": "file:../pretext",
+    "@fontsource-variable/inter": "5.3.0",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.4",
     "esbuild": "^0.28.2",
