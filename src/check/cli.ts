@@ -8,9 +8,9 @@ export type Io = { stdout: (s: string) => void; stderr: (s: string) => void; cwd
 
 type FileLabels = { files: string; locale?: (path: string) => string }
 type Config = Omit<CheckInput, 'labels'> & { labels: LabelSource | FileLabels }
-type Options = { config: string | undefined; json: boolean; strict: boolean; platforms: Platform[] | undefined }
+type Options = { config: string | undefined; json: boolean; strict: boolean; platforms: Platform[] | undefined; nearMiss: number | undefined }
 
-const USAGE = `usage: pretext-kit check-labels [--config <path>] [--json] [--strict] [--platform macos,windows,linux] [--help]\n`
+const USAGE = `usage: pretext-kit check-labels [--config <path>] [--json] [--strict] [--platform macos,windows,linux] [--near-miss <px>] [--help]\n`
 const PLATFORMS: Platform[] = ['macos', 'windows', 'linux']
 
 function platformList(value: string): Platform[] {
@@ -21,21 +21,27 @@ function platformList(value: string): Platform[] {
   return names as Platform[]
 }
 
+function margin(value: string): number {
+  const px = /^\s*$/.test(value) ? Number.NaN : Number(value)
+  if (!(px > 0) || !Number.isFinite(px)) throw new RangeError(`--near-miss must be a finite number of px above 0, not "${value}"`)
+  return px
+}
+
 function parse(args: string[]): Options {
-  const options: Options = { config: undefined, json: false, strict: false, platforms: undefined }
+  const options: Options = { config: undefined, json: false, strict: false, platforms: undefined, nearMiss: undefined }
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!
     if (arg === '--json') options.json = true
     else if (arg === '--strict') options.strict = true
-    else if (/^--(?:config|platform)(?:=|$)/.test(arg)) {
+    else if (/^--(?:config|platform|near-miss)(?:=|$)/.test(arg)) {
       const eq = arg.indexOf('=')
       const flag = eq < 0 ? arg : arg.slice(0, eq)
       let value = eq < 0 ? args[++i] : arg.slice(eq + 1)
       if (value === undefined || (eq < 0 && value.startsWith('--'))) value = ''
-      if (value === '' && flag === '--config') throw new RangeError('--config needs a value')
+      if (value === '') throw new RangeError(`${flag} needs a value`)
       if (flag === '--config') options.config = value
-      else if (value === '') throw new RangeError('--platform needs a value')
-      else options.platforms = platformList(value)
+      else if (flag === '--platform') options.platforms = platformList(value)
+      else options.nearMiss = margin(value)
     } else throw new RangeError(`unknown option "${arg}"`)
   }
   return options
@@ -152,7 +158,8 @@ function missing(issue: Issue): string {
   if (issue.kind === 'truncated') parts.push(`cut at ${measured.box}px`)
   if (issue.kind === 'row-overflow') parts.push(`${measured.width}px in ${measured.box}px`)
   if (issue.kind === 'row-collapsed') parts.push(`stage ${measured.stage ?? 0}`)
-  if (gap?.px !== undefined && issue.kind !== 'row-overflow') parts.push(issue.kind === 'below-min-size' ? `needs ${gap.px}px more` : `${gap.px}px too wide`)
+  if (issue.kind === 'near-miss' && gap?.px !== undefined) parts.push(`${gap.px}px to spare`)
+  else if (gap?.px !== undefined && issue.kind !== 'row-overflow') parts.push(issue.kind === 'below-min-size' ? `needs ${gap.px}px more` : `${gap.px}px too wide`)
   if (issue.detail !== undefined) parts.push(issue.detail)
   return parts.length === 0 ? issue.kind : `${issue.kind}: ${parts.join('; ')}`
 }
@@ -203,6 +210,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
   try {
     const input = await loadConfig(resolve(io.cwd, options.config ?? 'labels.config.mjs'))
     if (options.platforms !== undefined) input.platforms = options.platforms
+    if (options.nearMiss !== undefined) input.nearMiss = options.nearMiss
     const report = await checkLabels(input)
     const platforms = input.platforms ?? PLATFORMS
     io.stdout(options.json ? `${JSON.stringify(report, null, 2)}\n` : formatReport(report, platforms))

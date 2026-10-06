@@ -235,3 +235,51 @@ test('a config slot with overflowWrap normal reaches the checker as plain data, 
   assert.match(failure!.detail ?? '', /"Benachrichtigungen" does not break/)
   assert.equal(report.warnings.length, 0)
 })
+
+test('formatReport says how much a near-miss has to spare', () => {
+  assert.equal(lineOf(issue('near-miss', { missing: { px: 0.09375 } })), '  de a.b  "Text"  near-miss: 0.09375px to spare')
+  assert.equal(lineOf(issue('near-miss', { missing: { px: 0 } })), '  de a.b  "Text"  near-miss: 0px to spare')
+  assert.equal(formatReport(report([], [issue('near-miss', { missing: { px: 1 } })]), ALL).split('\n').at(-2), '7 checked, 0 failures, 1 warnings')
+})
+
+const NEAR = 'tab · default\n  de tab.bookings  "Buchungen"  near-miss: 0.09375px to spare\n\n6 checked, 0 failures, 1 warnings\n'
+
+test('nearMiss in the config reaches the checker: a near-miss is a warning, exit 0, and 1 with --strict', async () => {
+  const lenient = await run('check-labels', '--config', 'near-miss.config.mjs')
+  assert.equal(lenient.stdout, NEAR)
+  assert.equal(lenient.stderr, '')
+  assert.equal(lenient.code, 0)
+  const strict = await run('check-labels', '--config', 'near-miss.config.mjs', '--strict')
+  assert.equal(strict.stdout, NEAR)
+  assert.equal(strict.code, 1)
+  const json: Report = JSON.parse((await run('check-labels', '--config', 'near-miss.config.mjs', '--json')).stdout)
+  assert.deepEqual(json.warnings.map((i) => [i.kind, i.key, i.missing, i.platforms]), [['near-miss', 'tab.bookings', { px: 0.09375 }, ['macos', 'windows', 'linux']]])
+  assert.equal(json.failures.length, 0)
+})
+
+test('--near-miss sets or overrides the margin, in both forms', async () => {
+  for (const flag of [['--near-miss', '0.09375'], ['--near-miss=0.05']]) {
+    const r = await run('check-labels', '--config', 'near-miss.config.mjs', '--strict', ...flag)
+    assert.equal(r.code, 0, flag.join(' '))
+    assert.equal(r.stdout, '6 checked, 0 failures, 0 warnings\n')
+  }
+  const added = await run('check-labels', '--config', 'labels.config.mjs', '--near-miss', '1000', '--json')
+  assert.equal(added.code, 1)
+  const report: Report = JSON.parse(added.stdout)
+  assert.ok(report.warnings.some((i) => i.kind === 'near-miss'))
+  assert.equal(report.failures.length, 2)
+  assert.equal(report.checked, 30)
+})
+
+test('--near-miss and a config nearMiss must be a finite number above 0, else exit 2', async () => {
+  for (const argv of [['--near-miss', '0'], ['--near-miss=-1'], ['--near-miss', 'abc'], ['--near-miss', '2px'], ['--near-miss=Infinity'], ['--near-miss'], ['--near-miss', '--json'], ['--near-miss=']]) {
+    const r = await run('check-labels', '--config', 'near-miss.config.mjs', ...argv)
+    assert.equal(r.code, 2, argv.join(' '))
+    assert.equal(r.stdout, '')
+    assert.match(r.stderr, /--near-miss/, argv.join(' '))
+  }
+  const bad = await run('check-labels', '--config', 'bad/bad-near-miss.config.mjs')
+  assert.equal(bad.code, 2)
+  assert.match(bad.stderr, /nearMiss must be a finite number of px above 0, not "2px"/)
+  assert.equal(bad.stdout, '')
+})
