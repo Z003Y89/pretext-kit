@@ -47,3 +47,12 @@ test('a face registered by an older copy without a features field still measures
   delete (face as { features?: unknown }).features
   assert.equal(width('Inter Old', '1111'), width('Inter', '1111'))
 })
+
+test('single-quoted tags are valid CSS', () => {
+  assert.deepEqual(parseFeatureSettings("'tnum' 1, \"ss01\", 'liga' off"), [
+    { tag: 'tnum', value: 1 },
+    { tag: 'ss01', value: 1 },
+    { tag: 'liga', value: 0 },
+  ])
+  assert.throws(() => parseFeatureSettings(`'tnum" 1`), RangeError)
+})

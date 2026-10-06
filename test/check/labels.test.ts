@@ -116,3 +116,9 @@ test('locale tags that are not BCP 47 never throw', () => {
   }
   assert.equal(transformText('save all', 'capitalize', 'en_US'), 'Save All')
 })
+
+test('{{name}} is one placeholder, replaced whole', () => {
+  assert.deepEqual(fillSamples({ key: 'k', text: '{{count}} files', slot: 's' }, { k: [{ count: 5 }] }), [{ text: '5 files', issues: [] }])
+  assert.deepEqual(fillSamples({ key: 'k', text: '{{ count }} of {total}', slot: 's' }, { k: [{ count: 1, total: 2 }] }), [{ text: '1 of 2', issues: [] }])
+  assert.deepEqual(fillSamples({ key: 'k', text: '{{count}} files', slot: 's' }, undefined), [{ text: '{{count}} files', issues: ['missing-sample'] }])
+})

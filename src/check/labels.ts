@@ -62,17 +62,19 @@ export function localeTexts(source: Exclude<LabelSource, () => unknown>): Map<st
 
 // Any brace group with a comma is an ICU argument ({n, plural, …}, {n, number}, {d, date, short}).
 const ICU = /\{[^{}]*,/
-const PLACEHOLDER = /\{\s*([^{},\s]+)\s*\}/g
+// {name} and the i18next style {{name}}.
+const PLACEHOLDER = /\{\{\s*([^{},\s]+)\s*\}\}|\{\s*([^{},\s]+)\s*\}/g
 
 export function fillSamples(label: Label, samples: CheckInput['samples']): Texts {
   if (ICU.test(label.text)) return [{ text: '', issues: ['unsupported-message'] }]
-  const names = [...label.text.matchAll(PLACEHOLDER)].map((m) => m[1])
+  const names = [...label.text.matchAll(PLACEHOLDER)].map((m) => m[1] ?? m[2])
   if (names.length === 0) return [{ text: label.text, issues: [] }]
   const tries = samples !== undefined && Object.hasOwn(samples, label.key) ? samples[label.key] : undefined
   const sets = tries === undefined || tries.length === 0 ? [{}] : tries
   return sets.map((values: Record<string, string | number>) => {
     let missing = false
-    const text = label.text.replace(PLACEHOLDER, (whole, name: string) => {
+    const text = label.text.replace(PLACEHOLDER, (whole, double: string | undefined, single: string | undefined) => {
+      const name = double ?? single!
       if (!Object.hasOwn(values, name)) {
         missing = true
         return whole

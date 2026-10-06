@@ -334,3 +334,13 @@ test('condition names must be unique', async () => {
     (error: Error) => error instanceof RangeError && /condition "x".*(twice|more than once|unique)/.test(error.message),
   )
 })
+
+test('a font with featureSettings normal or single-quoted tags still gets tabular digits', async () => {
+  const slots: CheckInput['slots'] = { n: tight({ width: 1, numeric: 'tabular', uses: ['*'] }) }
+  const labels = { und: { ones: '1111', zeros: '0000' } }
+  for (const featureSettings of ['normal', "'liga' 1", '"liga" 1']) {
+    const report = await checkLabels({ fonts: [{ ...inter, featureSettings }], labels, slots, platforms: ['linux'] })
+    assert.equal(report.failures.length, 2, featureSettings)
+    assert.equal(report.failures[0]?.measured.width, report.failures[1]?.measured.width, featureSettings)
+  }
+})

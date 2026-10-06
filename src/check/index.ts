@@ -42,7 +42,8 @@ async function check(input: CheckInput): Promise<Report> {
     if (data === undefined) throw new RangeError(`font "${source.family}": give data or path`)
     await register(source.family, source, data, source.featureSettings)
     if (tabular.has(source.family.toLowerCase())) {
-      const features = source.featureSettings === undefined ? TNUM : `${source.featureSettings}, ${TNUM}`
+      const own = source.featureSettings?.trim()
+      const features = own === undefined || own.toLowerCase() === 'normal' ? TNUM : `${own}, ${TNUM}`
       await register(`${source.family} __tnum`, source, data, features)
     }
   }

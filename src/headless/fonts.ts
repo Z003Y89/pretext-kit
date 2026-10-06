@@ -158,7 +158,7 @@ export function parseUnicodeRange(value: string): [number, number][] {
   return ranges.sort((a, b) => a[0] - b[0])
 }
 
-const featureRe = /^"([\x20-\x7E]{4})"(?:\s+(on|off|\d+))?$/
+const featureRe = /^(?:"([\x20-\x7E]{4})"|'([\x20-\x7E]{4})')(?:\s+(on|off|\d+))?$/
 
 // Parses a CSS font-feature-settings value into tag/value pairs; 'normal' is none. Invalid syntax
 // throws a RangeError, as an unrecognised unicodeRange does.
@@ -171,8 +171,8 @@ export function parseFeatureSettings(value: string): FontFeature[] {
     if (match === null) {
       throw new RangeError(`registerFont: featureSettings ${JSON.stringify(value)} has an invalid feature ${JSON.stringify(token)}`)
     }
-    const setting = match[2]
-    features.push({ tag: match[1]!, value: setting === undefined || setting === 'on' ? 1 : setting === 'off' ? 0 : parseInt(setting, 10) })
+    const setting = match[3]
+    features.push({ tag: (match[1] ?? match[2])!, value: setting === undefined || setting === 'on' ? 1 : setting === 'off' ? 0 : parseInt(setting, 10) })
   }
   return features
 }
