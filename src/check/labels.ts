@@ -62,7 +62,7 @@ export function fillSamples(label: Label, samples: CheckInput['samples']): Texts
   })
 }
 
-function localeTag(locale: string): string | undefined {
+export function localeTag(locale: string): string | undefined {
   if (locale === 'und') return undefined
   try {
     return Intl.getCanonicalLocales(locale.replaceAll('_', '-'))[0]

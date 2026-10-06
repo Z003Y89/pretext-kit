@@ -1,0 +1,182 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { test } from 'node:test'
+import { measureLineStats, measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
+import { conditionGrid, resolveSlot } from '../../src/check/conditions.ts'
+import { evaluateLabel, naturalWidth } from '../../src/check/evaluate.ts'
+import type { Condition, Slot } from '../../src/check/types.ts'
+import { install, registerFont } from '../../src/headless/index.ts'
+import { fitFontSize, prepareLabel, prepareSizes, shrinkwrap, truncateMiddle } from '../../src/index.ts'
+
+await registerFont('Inter', new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.ttf', import.meta.url))))
+install()
+
+const FONT = '16px Inter'
+const natural = (text: string, font = FONT) => measureNaturalWidth(prepareWithSegments(text, font))
+const slotOf = (width: Slot['width'], policy: Slot['policy'], more: Partial<Slot> = {}, condition: Condition = { name: 'default' }) =>
+  resolveSlot('s', { width, font: FONT, policy, ...more }, condition)
+const near = (actual: number | undefined, expected: number, eps = 1 / 64) =>
+  assert.ok(actual !== undefined && Math.abs(actual - expected) <= eps, `${actual} is not within ${eps} of ${expected}`)
+
+const TEXT = 'Speichern unter'
+
+test('as-is passes at the natural width and overflows by 1px below it', () => {
+  const n = natural(TEXT)
+  const pass = evaluateLabel(TEXT, slotOf(n, 'as-is'), 'de')
+  assert.equal(pass.kind, 'pass')
+  assert.equal(pass.measured.lines, 1)
+  const over = evaluateLabel(TEXT, slotOf(n - 1, 'as-is'), 'de')
+  assert.equal(over.kind, 'overflow')
+  near(over.missing?.px, 1)
+})
+
+test('shrinkTo passes by shrinking and is below-min-size when even shrinkTo overflows', () => {
+  const n16 = natural(TEXT)
+  const n10 = natural(TEXT, '10px Inter')
+  const shrunk = evaluateLabel(TEXT, slotOf(n16 * 0.8, { shrinkTo: 10 }), 'de')
+  assert.equal(shrunk.kind, 'pass')
+  assert.ok(shrunk.measured.fontPx < 16 && shrunk.measured.fontPx >= 10)
+  assert.equal(evaluateLabel(TEXT, slotOf(n10, { shrinkTo: 10 }), 'de').measured.fontPx, 10)
+  const below = evaluateLabel(TEXT, slotOf(n10 - 1, { shrinkTo: 10 }), 'de')
+  assert.equal(below.kind, 'below-min-size')
+  near(below.missing?.px, 1)
+  assert.ok(below.missing?.fitsAtPx !== undefined && below.missing.fitsAtPx < 10 && below.missing.fitsAtPx >= 1)
+})
+
+test('lines: n passes at the narrowest width and is too-many-lines 1px below it', () => {
+  const text = 'Alpha beta gamma delta epsilon zeta'
+  const prepared = prepareWithSegments(text, FONT)
+  let w = 1
+  while (measureLineStats(prepared, w).lineCount > 2) w++
+  assert.equal(evaluateLabel(text, slotOf(w, { lines: 2 }), 'en').kind, 'pass')
+  const many = evaluateLabel(text, slotOf(w - 1, { lines: 2 }), 'en')
+  assert.equal(many.kind, 'too-many-lines')
+  assert.equal(many.measured.lines, 3)
+  assert.ok(many.missing?.px !== undefined && many.missing.px > 0 && many.missing.px <= 1 + 1 / 64)
+})
+
+test('truncate end is a truncated warning, middle with lines 2 is a RangeError', () => {
+  const n = natural(TEXT)
+  assert.equal(evaluateLabel(TEXT, slotOf(n, { truncate: 'end' }), 'de').kind, 'pass')
+  assert.equal(evaluateLabel(TEXT, slotOf(n - 1, { truncate: 'end' }), 'de').kind, 'truncated')
+  assert.equal(evaluateLabel(TEXT, slotOf(n - 1, { truncate: 'middle' }), 'de').kind, 'truncated')
+  assert.throws(() => slotOf(n, { truncate: 'middle', lines: 2 }), RangeError)
+})
+
+test('reserve subtracts from the box', () => {
+  const n = natural(TEXT)
+  assert.equal(evaluateLabel(TEXT, slotOf(n + 24, 'as-is', { reserve: 24 }), 'de').kind, 'pass')
+  assert.equal(evaluateLabel(TEXT, slotOf(n + 23, 'as-is', { reserve: 24 }), 'de').kind, 'overflow')
+})
+
+test('textScale grows the text but not the box, zoom grows both', () => {
+  const n = natural(TEXT)
+  const width = n + 1
+  assert.equal(evaluateLabel(TEXT, slotOf(width, 'as-is'), 'de').kind, 'pass')
+  const big = slotOf(width, 'as-is', {}, { name: 't130', textScale: 1.3 })
+  assert.equal(big.box, width)
+  assert.equal(evaluateLabel(TEXT, big, 'de').kind, 'overflow')
+  const zoomed = slotOf(width, 'as-is', {}, { name: 'z130', zoom: 1.3 })
+  assert.equal(evaluateLabel(TEXT, zoomed, 'de').kind, 'pass')
+})
+
+test('a viewport function gives its width at the condition viewport', () => {
+  const s = slotOf((vw) => vw / 10, 'as-is', {}, { name: 'v', viewport: 1024 })
+  near(s.box, 102.4, 1e-9)
+})
+
+test('slot overrides and shrinkTo scaling', () => {
+  const s = resolveSlot('s', { width: 100, font: FONT, policy: { shrinkTo: 10 } }, { name: 'c', textScale: 1.5, zoom: 2, slots: { s: { width: 200 } } })
+  assert.equal(s.box, 400)
+  assert.deepEqual(s.policy, { shrinkTo: 30 })
+  assert.equal(s.sizePx, 48)
+  assert.equal(s.fontAt(12), '12px Inter')
+  assert.throws(() => resolveSlot('s', { width: 100, font: 'Inter', policy: 'as-is' }, { name: 'c' }), RangeError)
+  assert.throws(() => slotOf(100, 'as-is', {}, { name: 'bad', zoom: 0 }), /slot "s".*bad/)
+})
+
+test('an uncovered character is an issue, not a throw', () => {
+  const v = evaluateLabel('Fertig ✅', slotOf(400, 'as-is'), 'de')
+  assert.equal(v.kind, 'uncovered')
+  assert.match(v.detail ?? '', /U\+2705/)
+})
+
+test('an empty label passes every policy with width 0', () => {
+  for (const policy of ['as-is', { shrinkTo: 10 }, { lines: 2 }, { truncate: 'end' }, { truncate: 'middle' }] as Slot['policy'][]) {
+    for (const text of ['', '  ']) {
+      const v = evaluateLabel(text, slotOf(50, policy), 'de')
+      assert.equal(v.kind, 'pass')
+      assert.equal(v.measured.width, 0)
+    }
+  }
+})
+
+test('a box of 0 or less throws a RangeError naming slot and condition', () => {
+  assert.throws(() => slotOf(20, 'as-is', { reserve: 24 }, { name: 'tiny' }), /slot "s".*condition "tiny"/)
+})
+
+test('conditionGrid is the product with distinct names', () => {
+  const grid = conditionGrid({ textScale: [1, 1.3], viewport: [1024, 1440] })
+  assert.equal(grid.length, 4)
+  assert.equal(new Set(grid.map((c) => c.name)).size, 4)
+  assert.equal(grid[1]!.name, 'text 100% · 1440px')
+  assert.deepEqual(grid[2], { name: 'text 130% · 1024px', textScale: 1.3, viewport: 1024 })
+  assert.deepEqual(conditionGrid({}), [{ name: 'default' }])
+})
+
+test('naturalWidth applies the slot text size and transform', () => {
+  near(naturalWidth(TEXT, slotOf(100, 'as-is'), 'de'), natural(TEXT))
+  near(naturalWidth('abc', slotOf(100, 'as-is', { textTransform: 'uppercase' }), 'de'), natural('ABC'))
+})
+
+// The one fit test: a verdict never differs from what the kit's helpers decide.
+const direct = (text: string, font: (px: number) => string, min: number, max: number, width: number, maxLines = 1) =>
+  fitFontSize(prepareSizes(text, font, { min, max }), { width, maxLines }, () => 0)
+
+test('a width within 1/128 px of the natural width agrees with fitFontSize and shrinkwrap', () => {
+  for (const text of [TEXT, 'Speicherort', 'Alpha beta gamma delta']) {
+    const n = natural(text)
+    for (const delta of [0.02, 1 / 128, 0.004, 0.001, 0, -0.001, -1 / 128]) {
+      const width = n - delta
+      const pass = evaluateLabel(text, slotOf(width, 'as-is'), 'de').kind === 'pass'
+      assert.equal(pass, direct(text, (px) => `${px}px Inter`, 16, 16, width) !== null, `${text} at -${delta}`)
+      const wrap = shrinkwrap(prepareWithSegments(text, FONT), width)
+      assert.equal(pass, wrap.lineCount === 1 && measureLineStats(prepareWithSegments(text, FONT), width).maxLineWidth <= width + 1 / 64, `${text} at -${delta}`)
+    }
+  }
+})
+
+test('shrinkTo at exactly the shrinkTo size and exactly the slot size agrees with fitFontSize', () => {
+  const at = (px: number) => `${px}px Inter`
+  for (const px of [10, 16]) {
+    const n = natural(TEXT, at(px))
+    for (const delta of [0, 1 / 128, -1 / 128, 0.001, -0.001]) {
+      const width = n - delta
+      const v = evaluateLabel(TEXT, slotOf(width, { shrinkTo: 10 }), 'de')
+      const d = direct(TEXT, at, 10, 16, width)
+      assert.equal(v.kind, d === null ? 'below-min-size' : 'pass', `${px}px at -${delta}`)
+      if (d !== null) assert.equal(v.measured.fontPx, d.px)
+    }
+  }
+})
+
+test('middle truncation collapses white space as prepareLabel does', () => {
+  const raw = 'a   b\n c'
+  const label = prepareLabel(raw, FONT)
+  assert.equal(label.text, 'a b c')
+  const n = natural(label.text)
+  assert.equal(evaluateLabel(raw, slotOf(n + 10, { truncate: 'middle' }), 'en').kind, 'pass')
+  for (const width of [n, n - 1, n - 3]) {
+    const cut = truncateMiddle(label, width)
+    assert.equal(evaluateLabel(raw, slotOf(width, { truncate: 'middle' }), 'en').kind, cut === label.text ? 'pass' : 'truncated')
+  }
+})
+
+test('truncate end with lines 2 clamps at two lines', () => {
+  const text = 'Alpha beta gamma delta epsilon zeta'
+  const prepared = prepareWithSegments(text, FONT)
+  let w = 1
+  while (measureLineStats(prepared, w).lineCount > 2) w++
+  assert.equal(evaluateLabel(text, slotOf(w, { truncate: 'end', lines: 2 }), 'en').kind, 'pass')
+  assert.equal(evaluateLabel(text, slotOf(w - 1, { truncate: 'end', lines: 2 }), 'en').kind, 'truncated')
+})
