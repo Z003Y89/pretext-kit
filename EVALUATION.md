@@ -1,7 +1,8 @@
 # pretext-kit: evaluation
 
 What is claimed, how it was tested, what the tests found, how sensitive they are, what it costs, and what could make
-the results wrong. Every number names the file it comes from and the command that regenerates that file. Dated
+the results wrong. The standard these checks follow, and the gate a release must pass, is in
+[PROTOCOL.md](PROTOCOL.md). Every number names the file it comes from and the command that regenerates that file. Dated
 2026-10-05; kit at the commit that adds this file, Pretext at
 [f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3dfc5877fbca5e4570ee04111e7001).
 
