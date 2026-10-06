@@ -437,8 +437,9 @@ The claim is scoped exactly so:
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
 - **Variable fonts and split families.** A variable font is shaped at the requested weight on its `wght` axis
   (and `opsz`, `wdth`), with its advances unrounded, as Chrome on macOS keeps them. That is verified against Chromium
-  for Inter Variable's `wght` axis only; instances on several axes, or on `opsz` or `wdth`, are checked against
-  fontTools (exact) but not against Chromium. A family your CSS splits into several
+  for Inter Variable's `wght` axis only. For other instances the unrounded advance is checked against fontTools 4.62.1,
+  exact: Inter Variable's `wght`, `opsz`+`wght` and standard (`opsz`+`wght`) latin files, 58 instances (`npm run
+  verify:hvar`, results in verify/HEADLESS_RESULTS.md). Nothing committed covers `wdth`. A family your CSS splits into several
   files by `unicode-range` (Fontsource does) is registered file by file, each with the same range:
   `registerFont('Inter Variable', data, { unicodeRange: 'U+0000-00FF,U+0131,…' })`.
 - **Variable fonts the stand-in does not unround.** A variable font with avar version 2, or without an HVAR table

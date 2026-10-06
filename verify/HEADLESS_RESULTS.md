@@ -490,3 +490,30 @@ so only the width sweep sees it, through Roboto, which kerns with the space glyp
 
 - drop kerning, e.g. Inter 400 / latin "Latin update" @ 136px: Node 9, Chromium-Pretext 8
 - ignore weight, e.g. Shantell Sans 700 / latin "Latin update" @ 128px: Node 10, Chromium-Pretext 11
+
+## Variable-font advances against fontTools
+
+`npm run verify:hvar` (verify/hvar-fonttools.py and verify/hvar-fonttools.ts), run 2026-10-06 with fontTools 4.62.1
+(pinned; `pip install fonttools==4.62.1 brotli`) and the same Node and machine as above. Not a Chromium
+measurement: fontTools evaluates hmtx + HVAR (VarStoreInstancer, unrounded) at fontTools' own normalized
+coordinates, and `variedAdvance` in src/headless/hvar.ts is run on the same coordinates for every glyph.
+Axis locations per font: each axis at min, default, max and three off-grid values with the others at default, plus 40
+seeded random combinations.
+
+| font (@fontsource-variable/inter 5.3.0, latin) | axes | instances | glyph x instance | max advance diff |
+|---|---|---:|---:|---:|
+| inter-latin-wght-normal.woff2 | wght | 6 | 3108 | 0 |
+| inter-latin-opsz-normal.woff2 | opsz, wght | 26 | 13468 | 0 |
+| inter-latin-standard-normal.woff2 | opsz, wght | 26 | 13468 | 0 |
+| **total** | | **58** | **30044** | **0 font units** |
+
+`normalizedCoords` against fontTools' normalization: at most 1/16384 apart (OpenType 1.9.1's 16.16 precision rules
+against fontTools' single rounding; the stand-in follows the former, as CoreText does), checked at the same
+locations. The check fails above 1e-6 font units or 1 coordinate step.
+
+Not covered by the committed set: `wdth` (Inter has no such axis) and axes beyond `opsz` and `wght`.
+
+**Local-only, not reproducible from the repository:** `npm run verify:hvar -- /System/Library/Fonts/SFNS.ttf`
+(macOS 14.6.1's San Francisco variable font; Apple's font is not in this repository and its result is not part of
+any claim the package makes): axes wdth, opsz, GRAD, wght (avar 1), 2935 glyphs, 59 instances, 173165 glyph x
+instance, max advance diff 0 font units, max coordinate diff 1/16384.
