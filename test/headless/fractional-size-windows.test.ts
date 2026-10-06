@@ -1,9 +1,11 @@
-// Fractional font sizes on the 'windows' profile, against Chromium 149.0.7827.55 on Windows: `npm run verify:fractional`
-// on a GitHub Actions windows-latest runner (OffscreenCanvas measureText, Inter Regular from test/fonts by @font-face,
-// each size in a fresh browser context, so each value is the first use of its size in a document). The fixture is a
-// sample of 57 of that run's 488 sizes: integer sizes, the label checker sweep's text-scale sizes, the sizes where the
-// stand-in had been off most (10.15, 10.265625, 10.53125px) and least, and every 25th size. Its linux and macos columns
-// are the stand-in's own outputs in that run, pinned so the Windows model leaves those profiles alone.
+// Fractional font sizes on the 'windows' profile, against Chromium 149.0.7827.55 (headed) on Windows: `npm run
+// verify:fractional` in the CI run of PR #7 (Z003Y89/pretext-kit) on windows-latest at commit a383360, whose stand-in
+// produced the fixture's linux and macos columns (and the old windows values). OffscreenCanvas measureText, Inter
+// Regular from test/fonts by @font-face, each size in a fresh browser context, so each value is the first use of its
+// size in a document. The fixture is a sample of 57 of that run's 488 sizes: integer sizes, the label checker sweep's
+// text-scale sizes, the sizes where the stand-in had been off most (10.15, 10.265625, 10.53125px) and least, and every
+// 25th size. Its linux and macos columns are pinned so the Windows model leaves those profiles alone. Unmeasured on
+// Windows: variable fonts at fractional sizes, and Chromium's in-page metric sharing between nearby sizes.
 // WINDOWS_FRACTIONAL_JSONL=<path to the run's fractional.jsonl> also checks every recorded size.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'

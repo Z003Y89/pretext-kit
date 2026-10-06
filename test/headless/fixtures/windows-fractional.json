@@ -1,5 +1,5 @@
 {
-"source": "npm run verify:fractional (verify/fractional-probe.ts) on a GitHub Actions windows-latest runner: chromium is Chromium 149.0.7827.55 (process.platform win32, OffscreenCanvas measureText, each size in a fresh browser context, so first use of the size); linux and macos are the stand-in profiles in the same run",
+"source": "npm run verify:fractional (verify/fractional-probe.ts) in the CI run of PR #7 (Z003Y89/pretext-kit) on windows-latest at commit a383360: chromium is Chromium 149.0.7827.55 headed (process.platform win32, OffscreenCanvas measureText, each size in a fresh browser context, so first use of the size); linux and macos are the stand-in profiles of a383360 in the same run. Unmeasured: variable fonts at fractional sizes on Windows, in-page metric sharing between nearby sizes",
 "font": "test/fonts/Inter-Regular.ttf",
 "strings": ["APERÇU", "Settings", "Nebenrollen-Takes"],
 "sizes": [
