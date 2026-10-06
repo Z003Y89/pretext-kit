@@ -324,6 +324,18 @@ test('a soft hyphen is a break opportunity: its halves are the pieces', () => {
   assert.match(v.detail ?? '', /"richtigungen"/)
 })
 
+test('a piece that fits but not with the hyphen its soft hyphen paints overflows by the hyphen', () => {
+  const text = 'Bit\u00ADte'
+  const box = natural('Bit')
+  const v = evaluateLabel(text, slotOf(box, { lines: 2 }, normal), 'de')
+  assert.equal(v.kind, 'overflow')
+  near(v.measured.width, natural('Bit\u2010'))
+  near(v.missing?.px, natural('Bit\u2010') - box)
+  assert.match(v.detail ?? '', /"Bit-" does not break/)
+  assert.equal(evaluateLabel(text, slotOf(natural('Bit\u2010'), { lines: 2 }, normal), 'de').kind, 'pass')
+  assert.equal(evaluateLabel(text, slotOf(box, { lines: 2 }), 'de').kind, 'pass')
+})
+
 test('a hyphen-minus compound breaks after its hyphen', () => {
   const text = 'Nebenrollen-Takes'
   const first = natural('Nebenrollen-')

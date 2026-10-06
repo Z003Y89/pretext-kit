@@ -1,5 +1,6 @@
-import { measureLineStats, measureNaturalWidth, prepareWithSegments, setLocale } from '@chenglou/pretext'
+import { layoutNextLineRange, measureLineStats, measureNaturalWidth, prepareWithSegments, setLocale } from '@chenglou/pretext'
 import type { PrepareOptions, PreparedTextWithSegments } from '@chenglou/pretext'
+import { FIT_TOLERANCE } from '../fit.ts'
 import { clamp, fitFontSize, prepareLabel, prepareSizes } from '../index.ts'
 import type { ResolvedSlot } from './conditions.ts'
 import { localeTag, transformText } from './labels.ts'
@@ -108,27 +109,40 @@ function shrink(text: string, slot: ResolvedSlot, shrinkTo: number): Verdict {
   }
 }
 
+type Piece = { piece: string; px: number; width: number }
+
 // Under overflow-wrap: normal a browser breaks a line only at a break opportunity, so a piece between two is
 // never split. Pretext's segments run between break opportunities; zero-width glue and controls hold none, so
-// they join the text around them. A piece fails when it does not fit the box on one line by the as-is test, and
-// the widest such piece is the one reported, by its natural width less the box. Under break-word, null.
-function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): { piece: string; px: number; width: number } | null {
+// they join the text around them. A piece fails when it does not fit the box on one line by the as-is test, or,
+// before a soft hyphen, when the line Pretext lays out from it at the box ends at that hyphen wider than the box:
+// the browser breaks there and paints the hyphen past the box, where break-word would split the piece. The widest
+// failing piece is reported, by its width less the box. Under break-word, null.
+function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Piece | null {
   if (slot.overflowWrap === 'break-word') return null
-  let worst: { piece: string; px: number; width: number } | null = null
+  let worst: Piece | null = null
+  const fail = (piece: string, width: number): void => {
+    if (worst === null || width > worst.width) worst = { piece, px: round64(width - slot.box), width }
+  }
   let piece = ''
-  const close = (): void => {
-    if (piece !== '' && !fitsAt(piece, slot, slot.sizePx, slot.box, 1)) {
-      const width = measureNaturalWidth(prepareAt(piece, slot, slot.sizePx))
-      if (worst === null || width > worst.width) worst = { piece, px: round64(width - slot.box), width }
+  let start = 0
+  const close = (end: number): void => {
+    if (piece === '') return
+    if (!fitsAt(piece, slot, slot.sizePx, slot.box, 1)) fail(piece, measureNaturalWidth(prepareAt(piece, slot, slot.sizePx)))
+    else if (prepared.kinds[end] === 'soft-hyphen') {
+      const line = layoutNextLineRange(prepared, { segmentIndex: start, graphemeIndex: 0 }, slot.box)
+      const atHyphen = line !== null && line.end.segmentIndex === end + 1 && line.end.graphemeIndex === 0
+      if (atHyphen && line.width > slot.box + FIT_TOLERANCE) fail(`${piece}-`, line.width)
     }
     piece = ''
   }
   prepared.kinds.forEach((kind, i) => {
-    if (kind === 'text' && prepared.kinds[i - 1] === 'text') close()
-    if (kind === 'text' || kind === 'zero-width-glue' || kind === 'control') piece += prepared.segments[i]
-    else close()
+    if (kind === 'text' && prepared.kinds[i - 1] === 'text') close(i)
+    if (kind === 'text' || kind === 'zero-width-glue' || kind === 'control') {
+      if (piece === '') start = i
+      piece += prepared.segments[i]
+    } else close(i)
   })
-  close()
+  close(prepared.kinds.length)
   return worst
 }
 
