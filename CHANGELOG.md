@@ -7,7 +7,7 @@ Headless variable fonts and split families; the browser-side helpers are unchang
 Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; reproducible as described under 0.1.1 and in verify/RELEASING.md):
 
 - `chenglou-pretext-0.0.10-main.f10d888.tgz`: `9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`
-- `pretext-kit-0.1.2.tgz`: `2721613d752a5b0a8af75e0be1fa0cba470288a4534a4776ca126cbcc39cff78`
+- `pretext-kit-0.1.2.tgz`: `b230c01c63c512572c8d88df7b0917e1533fc8fcfca94a8d29290bb1e9e5e076`
 - `pretext-kit-0.1.2.sbom.cdx.json`: no fixed sum, because the SBOM records a timestamp and a random serial number.
 
 - **Headless: variable fonts away from the default instance.** HarfBuzz rounds a variable font's HVAR advance
