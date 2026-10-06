@@ -28,7 +28,9 @@ export type PolicyName = 'as-is' | 'shrinkTo' | 'lines' | 'truncate end' | 'trun
 export type Measured = { natural: number, naturalMin: number, twoLines: number, widestPiece: number }
 
 // scale: the text scale whose conditions (zoom 100% and 130%) the slot is run in, and whose boundary it sits at.
-export type SlotCase = { key: string, text: number, policy: PolicyName, scale: number, factor: number, width: number }
+// factor: the multiple of the policy's boundary box; or edge, for the "(normal)" policies, a box at the widest word's own
+// boundary (WORD_EDGES), with factor null.
+export type SlotCase = { key: string, text: number, policy: PolicyName, scale: number, factor: number | null, edge: string | null, width: number }
 
 export type ConditionKind = 'none' | 'text scale' | 'zoom' | 'text scale + zoom'
 export type SweepCondition = { name: string, kind: ConditionKind, textScale: number, zoom: number }
@@ -42,6 +44,13 @@ export const FONT_FILE = 'Inter-Regular.ttf'
 
 export const MAX_CHARS = 40
 export const FACTORS = [0.9, 1, 1.1]
+// Boxes at the widest unbreakable word's natural width w for the "(normal)" policies, where the checker decides: w itself
+// (fits), w less 1/64 px and a hair, rounded down to the 1/64 px grid (past FIT_TOLERANCE, fails), and w less 0.25px.
+export const WORD_EDGES: { name: string, width: (w: number) => number }[] = [
+  { name: 'word', width: w => grid64(w) },
+  { name: 'word-tol', width: w => Math.floor((w - 1 / 64 - 1e-6) * 64) / 64 },
+  { name: 'word-0.25', width: w => grid64(w - 0.25) },
+]
 export const TEXT_SCALES = [1, 1.15, 1.3]
 export const ZOOMS = [1, 1.3]
 export const SHRINK_BY = 4
@@ -172,7 +181,12 @@ export function slotCases(texts: SweepText[], measured: Measured[][]): SlotCase[
       for (const policy of POLICIES) {
         for (const factor of FACTORS) {
           const width = grid64(basis(policy, measured[s]![i]!) * factor + t.style.reserve * scale)
-          out.push({ key: `${t.id}.${policyKey(policy)}.${scale}.${factor}`, text: i, policy, scale, factor, width })
+          out.push({ key: `${t.id}.${policyKey(policy)}.${scale}.${factor}`, text: i, policy, scale, factor, edge: null, width })
+        }
+        if (!NORMAL_WRAP.includes(policy)) continue
+        for (const edge of WORD_EDGES) {
+          const width = edge.width(measured[s]![i]!.widestPiece + t.style.reserve * scale)
+          out.push({ key: `${t.id}.${policyKey(policy)}.${scale}.${edge.name}`, text: i, policy, scale, factor: null, edge: edge.name, width })
         }
       }
     })

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import {
-  FACTORS, HAND_LABELS, MUTANTS, POLICIES, ROW_FAMILY, STYLES, TEXT_SCALES, applyEdit, applyMutant, conditions, grid64, policyKey, rowTotal,
+  FACTORS, HAND_LABELS, MUTANTS, NORMAL_WRAP, POLICIES, WORD_EDGES, ROW_FAMILY, STYLES, TEXT_SCALES, applyEdit, applyMutant, conditions, grid64, policyKey, rowTotal,
   rowWidths, shortLines, slotCases, stageWidths, sweepTexts, unbreakablePieces, vacuousCells,
 } from '../../verify/check-labels-cases.ts'
 import { CORPORA } from '../../verify/corpora.ts'
@@ -32,8 +32,15 @@ test('slot widths: each policy at 0.9/1/1.1 of its own boundary at each text sca
   const at1 = { natural: 100.3, naturalMin: 75.2, twoLines: 50.1, widestPiece: 60.7 }
   const at13 = { natural: 130.39, naturalMin: 97.76, twoLines: 65.13, widestPiece: 40.2 }
   const cases = slotCases(texts, [[at1], [at1], [at13]])
-  assert.equal(cases.length, POLICIES.length * FACTORS.length * TEXT_SCALES.length)
+  assert.equal(cases.length, (POLICIES.length * FACTORS.length + NORMAL_WRAP.length * WORD_EDGES.length) * TEXT_SCALES.length)
   const at = (policy: string, factor: number, scale: number) => cases.find(c => c.policy === policy && c.factor === factor && c.scale === scale)!.width
+  const edge = (policy: string, name: string, scale: number) => cases.find(c => c.policy === policy && c.edge === name && c.scale === scale)!.width
+  assert.equal(edge('lines (normal)', 'word', 1), grid64(60.7 + 20))
+  assert.equal(edge('truncate end (normal)', 'word-tol', 1), Math.floor((60.7 + 20 - 1 / 64 - 1e-6) * 64) / 64)
+  assert.ok(60.7 + 20 - edge('lines (normal)', 'word-tol', 1) > 1 / 64)
+  assert.equal(edge('lines (normal)', 'word-0.25', 1.3), grid64(40.2 + 26 - 0.25))
+  assert.equal(edge('lines (normal)', 'word', 1.3), grid64(40.2 + 26))
+  assert.equal(cases.filter(c => c.edge !== null && !NORMAL_WRAP.includes(c.policy)).length, 0)
   assert.equal(at('as-is', 1, 1), grid64(100.3 + 20))
   assert.equal(at('truncate middle', 0.9, 1), grid64(100.3 * 0.9 + 20))
   assert.equal(at('shrinkTo', 1.1, 1), grid64(75.2 * 1.1 + 20))

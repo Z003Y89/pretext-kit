@@ -91,11 +91,13 @@ function hyphenLine(prepared: PreparedTextWithSegments, piece: Piece, width: num
   return line !== null && line.end.segmentIndex === piece.end + 1 && line.end.graphemeIndex === 0 ? line.width : null
 }
 
-// overflow-wrap: normal: whether a piece no break opportunity splits fails the kit's one-line fit test, or, before
-// a soft hyphen, its line at the box ends there wider than the box (plus FIT_TOLERANCE).
+// overflow-wrap: normal: whether a piece no break opportunity splits is wider than the box (plus FIT_TOLERANCE) at its
+// natural width, which is what an unbroken word paints, or, before a soft hyphen, its line at the box ends there wider
+// than the box (plus FIT_TOLERANCE).
 function pieceTooWide(prepared: PreparedTextWithSegments, style: Style, px: number, spacing: number, width: number): boolean {
   return unbreakablePieces(prepared.segments, prepared.kinds).some(piece => {
-    if (!fits(piece.text, style, px, spacing, width, 1)) return true
+    const natural = measureNaturalWidth(prepareWithSegments(piece.text, fontAt(style, px), { letterSpacing: spacing }))
+    if (natural > width + FIT_TOLERANCE) return true
     const hyphen = hyphenLine(prepared, piece, width)
     return hyphen !== null && hyphen > width + FIT_TOLERANCE
   })
