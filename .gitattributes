@@ -1,1 +1,2 @@
-test/check/fixtures/* text eol=lf
+test/check/fixtures/** text eol=lf
+bin/* text eol=lf
