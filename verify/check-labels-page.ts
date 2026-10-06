@@ -93,14 +93,18 @@ function hyphenLine(prepared: PreparedTextWithSegments, piece: Piece, width: num
 
 // overflow-wrap: normal: whether a piece no break opportunity splits is wider than the box (plus FIT_TOLERANCE) at its
 // natural width, which is what an unbroken word paints, or, before a soft hyphen, its line at the box ends there wider
-// than the box (plus FIT_TOLERANCE).
-function pieceTooWide(prepared: PreparedTextWithSegments, style: Style, px: number, spacing: number, width: number): boolean {
-  return unbreakablePieces(prepared.segments, prepared.kinds).some(piece => {
+// than the box (plus FIT_TOLERANCE). at: the width lines are laid out at, the box plus FIT_TOLERANCE when a word that
+// passes is wider than the box, since the browser shows it whole.
+function normalWrap(prepared: PreparedTextWithSegments, style: Style, px: number, spacing: number, width: number): { tooWide: boolean, at: number } {
+  let tooWide = false
+  let widest = 0
+  for (const piece of unbreakablePieces(prepared.segments, prepared.kinds)) {
     const natural = measureNaturalWidth(prepareWithSegments(piece.text, fontAt(style, px), { letterSpacing: spacing }))
-    if (natural > width + FIT_TOLERANCE) return true
+    widest = Math.max(widest, natural)
     const hyphen = hyphenLine(prepared, piece, width)
-    return hyphen !== null && hyphen > width + FIT_TOLERANCE
-  })
+    if (natural > width + FIT_TOLERANCE || (hyphen !== null && hyphen > width + FIT_TOLERANCE)) tooWide = true
+  }
+  return { tooWide, at: widest > width ? width + FIT_TOLERANCE : width }
 }
 
 function reference(c: PageCase, cond: SweepCondition): Ref {
@@ -116,11 +120,15 @@ function reference(c: PageCase, cond: SweepCondition): Ref {
       return plain(fits(text, c.style, g.px, g.spacing, g.box, LINES) ? 'pass' : 'too-many-lines')
     case 'truncate end':
       return plain(clamp(prepared, g.box, LINES).truncated ? 'truncated' : 'pass')
-    case 'lines (normal)':
-      if (pieceTooWide(prepared, c.style, g.px, g.spacing, g.box)) return plain('overflow')
-      return plain(fits(text, c.style, g.px, g.spacing, g.box, LINES) ? 'pass' : 'too-many-lines')
-    case 'truncate end (normal)':
-      return plain(clamp(prepared, g.box, LINES).truncated || pieceTooWide(prepared, c.style, g.px, g.spacing, g.box) ? 'truncated' : 'pass')
+    case 'lines (normal)': {
+      const n = normalWrap(prepared, c.style, g.px, g.spacing, g.box)
+      if (n.tooWide) return plain('overflow')
+      return plain(fits(text, c.style, g.px, g.spacing, n.at, LINES) ? 'pass' : 'too-many-lines')
+    }
+    case 'truncate end (normal)': {
+      const n = normalWrap(prepared, c.style, g.px, g.spacing, g.box)
+      return plain(n.tooWide || clamp(prepared, n.at, LINES).truncated ? 'truncated' : 'pass')
+    }
     case 'truncate middle': {
       const collapsed = prepareLabel(text, fontAt(c.style, g.px)).text
       return plain(fits(collapsed, c.style, g.px, g.spacing, g.box, 1) ? 'pass' : 'truncated')
