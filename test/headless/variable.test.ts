@@ -6,10 +6,47 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { Blob, Buffer, Face, Font, Variation, shape } from 'harfbuzzjs'
+import { decompress } from 'wawoff2'
 import { install, registerFont } from '../../src/headless/index.ts'
 
 const file = new URL('../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2', import.meta.url)
 await registerFont('Inter Variable', new Uint8Array(readFileSync(file)))
+
+// Copies of the font with HVAR broken in one way each, in memory.
+const sfnt = new Uint8Array(await decompress(readFileSync(file)))
+function hvarAt(font: Uint8Array): number {
+  const view = new DataView(font.buffer, font.byteOffset, font.byteLength)
+  for (let i = 0; i < view.getUint16(4, false); i++) {
+    const record = 12 + 16 * i
+    if (String.fromCharCode(...font.subarray(record, record + 4)) === 'HVAR') return view.getUint32(record + 8, false)
+  }
+  throw new Error('no HVAR')
+}
+const malformed: [string, (view: DataView, hvar: number) => void][] = [
+  ['an ItemVariationStore offset past the table', (view, hvar) => view.setUint32(hvar + 4, 0xffffff00, false)],
+  ['an ItemVariationStore of format 2', (view, hvar) => view.setUint16(hvar + view.getUint32(hvar + 4, false), 2, false)],
+  ['a region list with the wrong axis count', (view, hvar) => {
+    const store = hvar + view.getUint32(hvar + 4, false)
+    view.setUint16(store + view.getUint32(store + 2, false), 3, false)
+  }],
+  ['a VarData with more word deltas than regions', (view, hvar) => {
+    const store = hvar + view.getUint32(hvar + 4, false)
+    view.setUint16(store + view.getUint32(store + 8, false) + 2, 0x7fff, false)
+  }],
+  ['a VarData with more rows than the table holds', (view, hvar) => {
+    const store = hvar + view.getUint32(hvar + 4, false)
+    view.setUint16(store + view.getUint32(store + 8, false), 0xffff, false)
+  }],
+  ['an advance map past the table', (view, hvar) => view.setUint32(hvar + 8, 0xffffff00, false)],
+]
+const broken: [string, Uint8Array][] = []
+for (const [what, breakIt] of malformed) {
+  const copy = sfnt.slice()
+  breakIt(new DataView(copy.buffer), hvarAt(copy))
+  broken.push([what, copy])
+  await registerFont(`Broken ${broken.length}`, copy)
+}
 install()
 const ctx = new OffscreenCanvas(1, 1).getContext('2d')!
 
@@ -47,4 +84,31 @@ test('the default instance (wght 400) and the axis ends keep whole-unit advances
   assert.equal(width('400 1000px "Inter Variable"', ' '), 281.25)
   assert.equal(width('100 1000px "Inter Variable"', 'AV'), 1210.9375)
   assert.equal(width('900 1000px "Inter Variable"', 'abonnieren'), 5726.5625)
+})
+
+// HarfBuzz's own width of a word: its advances, summed in 1/65536 px.
+function harfBuzzWidth(font: Uint8Array, weight: number, sizePx: number, text: string): number {
+  const hb = new Font(new Face(new Blob(font), 0))
+  const scale = Math.round(sizePx * 65536)
+  hb.setScale(scale, scale)
+  hb.setVariations([new Variation('wght', weight)])
+  const buffer = new Buffer()
+  buffer.addText(text)
+  buffer.guessSegmentProperties()
+  shape(hb, buffer)
+  let sum = 0
+  for (const position of buffer.getGlyphPositions()) sum += position.xAdvance
+  return Math.fround(sum / 65536)
+}
+
+test('a malformed HVAR measures with HarfBuzz\'s own advances rather than throw', () => {
+  for (let i = 0; i < broken.length; i++) {
+    const [what, font] = broken[i]!
+    for (const weight of [400, 700]) {
+      const measured = width(`${weight} 16px "Broken ${i + 1}"`, 'abonnieren')
+      assert.equal(measured, harfBuzzWidth(font, weight, 16, 'abonnieren'), `${what} at wght ${weight}`)
+    }
+  }
+  // At 700 that is HarfBuzz's whole-unit rounding, not the unrounded width of the intact font.
+  assert.notEqual(width('700 16px "Broken 1"', 'abonnieren'), width('700 16px "Inter Variable"', 'abonnieren'))
 })

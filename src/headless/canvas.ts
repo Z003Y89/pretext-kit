@@ -1,6 +1,6 @@
 import { Buffer, Feature, Font, FontFuncs, Variation, shape } from 'harfbuzzjs'
 import { findFaces, hbFace, inUnicodeRange, type FontFace } from './fonts.ts'
-import { normalizedCoords, readAdvanceVariations, variedAdvance, type AdvanceVariations } from './hvar.ts'
+import { normalizedCoords, readAdvanceVariations, readAxisNormalization, variedAdvance, type AdvanceVariations, type AxisNormalization } from './hvar.ts'
 import { HEADLESS, sharedState } from './shared.ts'
 import { parseFont, type ParsedFont } from './shorthand.ts'
 
@@ -61,7 +61,7 @@ const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 // What each registered face covers (its cmap, within its unicode-range), read once per face.
 const coverage = new WeakMap<FontFace, Set<number>>()
 // HarfBuzz fonts per face, by size and variation instance.
-const fonts = new WeakMap<FontFace, Map<string, Font>>()
+const fonts = new WeakMap<FontFace, Map<string, ShapingFont>>()
 
 function covers(face: FontFace, codePoint: number): boolean {
   let set = coverage.get(face)
@@ -88,14 +88,17 @@ export function instanceWeight(face: FontFace, weight: number): number | null {
   return axisValue(face, 'wght', Math.min(face.weightMax, Math.max(face.weightMin, weight)))
 }
 
-// Each face's hmtx + HVAR, read once, or null where it has none (or avar version 2).
-const advanceVariations = new WeakMap<FontFace, AdvanceVariations | null>()
+// Each face's variation tables, read once: its axes and avar (null without fvar, with avar
+// version 2, or malformed), and, the first time an instance away from the default is shaped, its
+// hmtx + HVAR (null without HVAR or malformed). A null keeps HarfBuzz's own advances.
+type FaceVariations = { axes: AxisNormalization | null; advances?: AdvanceVariations | null }
+const faceVariations = new WeakMap<FontFace, FaceVariations>()
 
-function advanceVariationsOf(face: FontFace): AdvanceVariations | null {
-  let variations = advanceVariations.get(face)
+function variationsOf(face: FontFace): FaceVariations {
+  let variations = faceVariations.get(face)
   if (variations === undefined) {
-    variations = face.axes.length === 0 ? null : readAdvanceVariations(face.data, face.index)
-    advanceVariations.set(face, variations)
+    variations = { axes: face.axes.length === 0 ? null : readAxisNormalization(face.data, face.index) }
+    faceVariations.set(face, variations)
   }
   return variations
 }
@@ -103,15 +106,23 @@ function advanceVariationsOf(face: FontFace): AdvanceVariations | null {
 // The advances of a varied instance, by the HarfBuzz font that shapes it.
 type VariedAdvances = { variations: AdvanceVariations; coords: Int16Array; pxPerUnit: number; byGlyph: Map<number, number> }
 const variedFonts = new Map<number, VariedAdvances>()
-const forgetVaried = new FinalizationRegistry<number>(ptr => variedFonts.delete(ptr))
+// A sub font's entry goes when the sub font does. Its pointer can be reused by a new sub font
+// before this runs, so only the entry registered with it is removed, never its successor's.
+const forgetVaried = new FinalizationRegistry<{ ptr: number; entry: VariedAdvances }>(({ ptr, entry }) => {
+  if (variedFonts.get(ptr) === entry) variedFonts.delete(ptr)
+})
 let variedFuncs: FontFuncs | undefined
 
 // A glyph's advance in Chrome on macOS, in 1/65536 px: CoreText's unrounded advance in font units
 // (hvar.ts), scaled to px in float32 (Skia's SkScalar) and truncated to HarfBuzz's 16.16 position
-// (Blink's SkiaScalarToHarfBuzzPosition). Fitted to Chrome 149: 6549 of 6555 single-glyph widths
-// of Inter Variable (95 glyphs, 23 weights, 16, 13.5 and 1000px) bit-exact, the rest 1/65536 px off.
+// (Blink's SkiaScalarToHarfBuzzPosition). Measured against Chrome 149: 6549 of 6555 single-glyph
+// widths of Inter Variable (95 glyphs, 23 weights, 16, 13.5 and 1000px) bit-exact, the rest
+// 1/65536 px off.
 function variedAdvanceFunc(font: Font, glyph: number): number {
-  const varied = variedFonts.get(font.ptr)!
+  const varied = variedFonts.get(font.ptr)
+  // fontFor registers a sub font's entry before every use, so it is always there while shaping;
+  // were it not, the glyph would get no advance rather than throw out of HarfBuzz's callback.
+  if (varied === undefined) return 0
   let advance = varied.byGlyph.get(glyph)
   if (advance === undefined) {
     const units = variedAdvance(varied.variations, varied.coords, glyph)
@@ -124,12 +135,15 @@ function variedAdvanceFunc(font: Font, glyph: number): number {
 // HarfBuzz rounds a variable font's HVAR delta to whole font units (hvar.ts); a varied instance
 // is therefore shaped with a sub font whose horizontal advances are Chrome's, everything else
 // (glyphs, GPOS with its variation deltas, extents) coming from HarfBuzz's own font. The default
-// instance, where every delta is 0, and static faces keep HarfBuzz's font as it is.
-function withVariedAdvances(font: Font, face: FontFace, sizePx: number, design: Map<string, number>): Font {
-  const variations = advanceVariationsOf(face)
-  if (variations === null) return font
-  const coords = normalizedCoords(variations, design)
-  if (coords.every(coord => coord === 0)) return font
+// instance, where every delta is 0, static faces, and faces whose tables the stand-in cannot read
+// keep HarfBuzz's font as it is.
+function withVariedAdvances(font: Font, face: FontFace, sizePx: number, design: Map<string, number>): ShapingFont {
+  const variations = variationsOf(face)
+  if (variations.axes === null) return { font, varied: null }
+  const coords = normalizedCoords(variations.axes, design)
+  if (coords.every(coord => coord === 0)) return { font, varied: null }
+  if (variations.advances === undefined) variations.advances = readAdvanceVariations(face.data, face.index, variations.axes.axisTags.length)
+  if (variations.advances === null) return { font, varied: null }
   variedFuncs ??= (() => {
     const funcs = new FontFuncs()
     funcs.setGlyphHAdvanceFunc(variedAdvanceFunc)
@@ -137,10 +151,13 @@ function withVariedAdvances(font: Font, face: FontFace, sizePx: number, design: 
   })()
   const sub = font.subFont()
   sub.setFuncs(variedFuncs)
-  variedFonts.set(sub.ptr, { variations, coords, pxPerUnit: Math.fround(sizePx / face.upem), byGlyph: new Map() })
-  forgetVaried.register(sub, sub.ptr)
-  return sub
+  const entry: VariedAdvances = { variations: variations.advances, coords, pxPerUnit: Math.fround(sizePx / face.upem), byGlyph: new Map() }
+  variedFonts.set(sub.ptr, entry)
+  forgetVaried.register(sub, { ptr: sub.ptr, entry })
+  return { font: sub, varied: entry }
 }
+
+type ShapingFont = { font: Font; varied: VariedAdvances | null }
 
 // A registered weight picks the face; on a variable face the weight, optical size (Chrome
 // applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes.
@@ -154,9 +171,9 @@ function fontFor(face: FontFace, parsed: ParsedFont): Font {
     bySize = new Map()
     fonts.set(face, bySize)
   }
-  let font = bySize.get(key)
-  if (font === undefined) {
-    font = new Font(hbFace(face))
+  let shaping = bySize.get(key)
+  if (shaping === undefined) {
+    const font = new Font(hbFace(face))
     const scale = Math.round(parsed.sizePx * 65536)
     font.setScale(scale, scale)
     const variations: Variation[] = []
@@ -165,13 +182,14 @@ function fontFor(face: FontFace, parsed: ParsedFont): Font {
     if (opsz !== null) design.set('opsz', opsz)
     if (wdth !== null) design.set('wdth', wdth)
     for (const [tag, value] of design) variations.push(new Variation(tag, value))
-    if (variations.length > 0) {
-      font.setVariations(variations)
-      font = withVariedAdvances(font, face, parsed.sizePx, design)
-    }
-    bySize.set(key, font)
+    if (variations.length > 0) font.setVariations(variations)
+    shaping = variations.length > 0 ? withVariedAdvances(font, face, parsed.sizePx, design) : { font, varied: null }
+    bySize.set(key, shaping)
   }
-  return font
+  // The sub font is alive (this cache holds it), so its pointer is its own: its entry is put back
+  // should the pointer's earlier owner have been finalized after the sub font took it.
+  if (shaping.varied !== null && variedFonts.get(shaping.font.ptr) !== shaping.varied) variedFonts.set(shaping.font.ptr, shaping.varied)
+  return shaping.font
 }
 
 // The faces each family in the list resolves to, in order (a family split by unicode-range
