@@ -284,14 +284,29 @@ test('overflowWrap defaults to break-word, is overridable per condition and vali
   assert.throws(() => slotOf(100, { lines: 2 }, { overflowWrap: 'anywhere' as never }), /slot "s".*overflowWrap/)
 })
 
-test('lines with overflowWrap normal: a word exactly the box width or 1/64 over passes, 1px over overflows by 1px', () => {
+test('lines with overflowWrap normal: a word fits by its natural width plus 1/64 px, else overflows by its excess', () => {
   const w = natural(WORD)
+  assert.equal(w * 64, Math.round(w * 64))
   for (const box of [w, w - 1 / 64]) assert.equal(evaluateLabel(WORD, slotOf(box, { lines: 2 }, normal), 'de').kind, 'pass', String(box))
+  const hair = evaluateLabel(WORD, slotOf(w - 1 / 64 - 0.002, { lines: 2 }, normal), 'de')
+  assert.equal(hair.kind, 'overflow')
+  near(hair.missing?.px, 1 / 64)
   const over = evaluateLabel(WORD, slotOf(w - 1, { lines: 2 }, normal), 'de')
   assert.equal(over.kind, 'overflow')
   near(over.missing?.px, 1)
   near(over.measured.width, w)
+  // Pretext's break-word line count at the box, not what overflow-wrap: normal paints (README, Policies).
+  assert.equal(over.measured.lines, 2)
   assert.match(over.detail ?? '', /"Benachrichtigungen" does not break \(overflow-wrap: normal\)/)
+})
+
+test('a word that cannot break is judged by its natural width, not by where Pretext keeps it on one line', () => {
+  const word = 'Mitarbeiterportal'
+  const w = natural(word)
+  const v = evaluateLabel(word, slotOf(w - 0.25, { lines: 2 }, normal), 'de')
+  assert.equal(v.kind, 'overflow')
+  near(v.missing?.px, 0.25)
+  assert.equal(evaluateLabel(word, slotOf(w - 0.25, { truncate: 'end', lines: 2 }, normal), 'de').kind, 'truncated')
 })
 
 test('break-word, the default, still passes a long word in lines 2 by breaking it, as before', () => {

@@ -113,7 +113,7 @@ type Piece = { piece: string; px: number; width: number }
 
 // Under overflow-wrap: normal a browser breaks a line only at a break opportunity, so a piece between two is
 // never split. Pretext's segments run between break opportunities; zero-width glue and controls hold none, so
-// they join the text around them. A piece fails when it does not fit the box on one line by the as-is test, or,
+// they join the text around them. A piece fails when its natural width is past the box by more than FIT_TOLERANCE, or,
 // before a soft hyphen, when the line Pretext lays out from it at the box ends at that hyphen wider than the box:
 // the browser breaks there and paints the hyphen past the box, where break-word would split the piece. The widest
 // failing piece is reported, by its width less the box. Under break-word, null.
@@ -127,7 +127,9 @@ function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Pi
   let start = 0
   const close = (end: number): void => {
     if (piece === '') return
-    if (!fitsAt(piece, slot, slot.sizePx, slot.box, 1)) fail(piece, measureNaturalWidth(prepareAt(piece, slot, slot.sizePx)))
+    // A word that cannot break paints at its natural width, whatever width Pretext's layout keeps it on one line at.
+    const width = measureNaturalWidth(prepareAt(piece, slot, slot.sizePx))
+    if (!(width <= slot.box + FIT_TOLERANCE)) fail(piece, width)
     else if (prepared.kinds[end] === 'soft-hyphen') {
       const line = layoutNextLineRange(prepared, { segmentIndex: start, graphemeIndex: 0 }, slot.box)
       const atHyphen = line !== null && line.end.segmentIndex === end + 1 && line.end.graphemeIndex === 0
