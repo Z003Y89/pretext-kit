@@ -105,17 +105,18 @@ test('a pass only within the tolerance is a near-miss with 0px to spare', async 
   assert.deepEqual([...report.failures, ...report.warnings].map((i) => [i.kind, i.missing]), [['near-miss', { px: 0 }]])
 })
 
-test('a missing sample and a near-miss are both reported, and the label is checked once', async () => {
+// A text with an unfilled placeholder is not the label the app shows, so its slack says nothing: only missing-sample.
+test('a label with a missing sample gets no near-miss, and is checked once', async () => {
   const n = await natural('Hallo {name}')
   const report = await checkLabels({
     fonts: [inter],
-    labels: [{ key: 'k', text: 'Hallo {name}', slot: 's', locale: 'de' }],
+    labels: [{ key: 'k', text: 'Hallo {name}', slot: 's', locale: 'de' }, { key: 'j', text: 'Hallo', slot: 's', locale: 'de' }],
     slots: { s: { width: n + 0.5, font: '16px Inter', policy: 'as-is' } },
     platforms: ['linux'],
-    nearMiss: 1,
+    nearMiss: 100,
   })
-  assert.deepEqual(report.warnings.map((i) => i.kind), ['missing-sample', 'near-miss'])
-  assert.equal(report.checked, 1)
+  assert.deepEqual(report.warnings.map((i) => [i.kind, i.key]), [['near-miss', 'j'], ['missing-sample', 'k']])
+  assert.equal(report.checked, 2)
 })
 
 test('a static font gives one near-miss with every platform listed', async () => {

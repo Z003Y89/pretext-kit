@@ -249,7 +249,8 @@ async function run(input: CheckInput, env: CheckEnv): Promise<Report> {
           checked++
           if (variant.issues.includes('missing-sample')) add({ ...base, kind: 'missing-sample', text: variant.text, measured: verdict.measured }, platform)
           if (verdict.kind === 'pass') {
-            if (tight(verdict.slack)) add({ ...base, kind: 'near-miss', text: variant.text, measured: verdict.measured, missing: { px: verdict.slack } }, platform)
+            // A text with a placeholder left in is not what the app shows, so its slack is not reported.
+            if (!variant.issues.includes('missing-sample') && tight(verdict.slack)) add({ ...base, kind: 'near-miss', text: variant.text, measured: verdict.measured, missing: { px: verdict.slack } }, platform)
             continue
           }
           add(
