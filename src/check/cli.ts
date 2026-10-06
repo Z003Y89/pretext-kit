@@ -21,8 +21,9 @@ function platformList(value: string): Platform[] {
   return names as Platform[]
 }
 
+// Plain decimals only: Number() would also take 0x10, 1e1 and +3.
 function margin(value: string): number {
-  const px = /^\s*$/.test(value) ? Number.NaN : Number(value)
+  const px = /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : Number.NaN
   if (!(px > 0) || !Number.isFinite(px)) throw new RangeError(`--near-miss must be a finite number of px above 0, not "${value}"`)
   return px
 }

@@ -258,7 +258,7 @@ test('nearMiss in the config reaches the checker: a near-miss is a warning, exit
 })
 
 test('--near-miss sets or overrides the margin, in both forms', async () => {
-  for (const flag of [['--near-miss', '0.09375'], ['--near-miss=0.05']]) {
+  for (const flag of [['--near-miss', '0.09375'], ['--near-miss=0.05'], ['--near-miss', '0.01']]) {
     const r = await run('check-labels', '--config', 'near-miss.config.mjs', '--strict', ...flag)
     assert.equal(r.code, 0, flag.join(' '))
     assert.equal(r.stdout, '6 checked, 0 failures, 0 warnings\n')
@@ -272,7 +272,7 @@ test('--near-miss sets or overrides the margin, in both forms', async () => {
 })
 
 test('--near-miss and a config nearMiss must be a finite number above 0, else exit 2', async () => {
-  for (const argv of [['--near-miss', '0'], ['--near-miss=-1'], ['--near-miss', 'abc'], ['--near-miss', '2px'], ['--near-miss=Infinity'], ['--near-miss'], ['--near-miss', '--json'], ['--near-miss=']]) {
+  for (const argv of [['--near-miss', '0'], ['--near-miss=-1'], ['--near-miss', 'abc'], ['--near-miss', '2px'], ['--near-miss=Infinity'], ['--near-miss', '0x10'], ['--near-miss', '1e1'], ['--near-miss', '+3'], ['--near-miss', ' 2'], ['--near-miss', '.5'], ['--near-miss', '2.'], ['--near-miss'], ['--near-miss', '--json'], ['--near-miss=']]) {
     const r = await run('check-labels', '--config', 'near-miss.config.mjs', ...argv)
     assert.equal(r.code, 2, argv.join(' '))
     assert.equal(r.stdout, '')
