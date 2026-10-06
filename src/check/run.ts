@@ -119,10 +119,12 @@ function close(a: Issue, b: Issue): boolean {
   )
 }
 
+// A near-miss's missing.px is the slack it has, so less is worse.
 function worse(a: Issue, b: Issue): boolean {
   const px = a.missing?.px
   const other = b.missing?.px
-  return px !== undefined && other !== undefined && px !== other ? px > other : a.measured.width > b.measured.width
+  if (px !== undefined && other !== undefined && px !== other) return a.kind === 'near-miss' ? px < other : px > other
+  return a.measured.width > b.measured.width
 }
 
 // Platforms measure the same label up to 1/64 px apart; those issues become one line with the worst platform's numbers.
@@ -145,6 +147,12 @@ export function mergeClose(issues: Issue[]): Issue[] {
 }
 
 async function run(input: CheckInput, env: CheckEnv): Promise<Report> {
+  const nearMiss = input.nearMiss
+  if (nearMiss !== undefined && !(typeof nearMiss === 'number' && nearMiss > 0 && Number.isFinite(nearMiss))) {
+    throw new RangeError(`nearMiss must be a finite number of px above 0, not ${typeof nearMiss === 'string' ? JSON.stringify(nearMiss) : String(nearMiss)}`)
+  }
+  // A pass with less slack than nearMiss (rounded as the report rounds it) is the warning near-miss.
+  const tight = (slack: number | undefined): boolean => nearMiss !== undefined && slack !== undefined && round64(slack) < nearMiss
   const slots = typeof input.slots === 'function' ? await input.slots() : input.slots
   const source = typeof input.labels === 'function' ? await input.labels() : input.labels
   const conditions = input.conditions ?? [DEFAULT_CONDITION]
@@ -240,7 +248,10 @@ async function run(input: CheckInput, env: CheckEnv): Promise<Report> {
           const verdict = evaluateLabel(variant.text, slot, locale)
           checked++
           if (variant.issues.includes('missing-sample')) add({ ...base, kind: 'missing-sample', text: variant.text, measured: verdict.measured }, platform)
-          if (verdict.kind === 'pass') continue
+          if (verdict.kind === 'pass') {
+            if (tight(verdict.slack)) add({ ...base, kind: 'near-miss', text: variant.text, measured: verdict.measured, missing: { px: verdict.slack } }, platform)
+            continue
+          }
           add(
             {
               ...base,
@@ -268,13 +279,15 @@ async function run(input: CheckInput, env: CheckEnv): Promise<Report> {
         const result = evaluateRow(row, plan.name, plan.texts, prep.effective, prep.bare, plan.locale)
         for (const key of result.skipped) unchecked.add(`${plan.locale}:${key}`)
         checked++
-        if (result.kind === 'pass') continue
         const first = prep.resolved.get(row.items[0]!.slot)
+        const measured = { width: result.width, box: result.box, lines: 1, fontPx: round64(first?.sizePx ?? 0), stage: result.stage }
+        if (tight(result.slack)) add({ ...base, kind: 'near-miss', measured, missing: { px: result.slack } }, platform)
+        if (result.kind === 'pass') continue
         add(
           {
             ...base,
             kind: result.kind,
-            measured: { width: result.width, box: result.box, lines: 1, fontPx: round64(first?.sizePx ?? 0), stage: result.stage },
+            measured,
             ...(result.kind === 'row-overflow' ? { missing: { px: result.width - result.box } } : {}),
             ...(result.detail === undefined ? {} : { detail: result.detail }),
           },

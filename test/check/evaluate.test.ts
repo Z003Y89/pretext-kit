@@ -406,3 +406,57 @@ test('lines 2 with overflowWrap normal: with one word in the window, a line of s
   assert.equal(evaluateLabel(line, slotOf(box, { lines: 1 }, normal), 'en').kind, 'too-many-lines')
   assert.equal(evaluateLabel(`${word} ${line}`, slotOf(box, { lines: 2 }), 'en').kind, 'too-many-lines')
 })
+
+test('slack: as-is, truncate middle and shrinkTo at the slot size are the box less the natural width', () => {
+  const n = natural(TEXT)
+  for (const policy of ['as-is', { truncate: 'middle' }, { shrinkTo: 10 }] as Slot['policy'][]) {
+    near(evaluateLabel(TEXT, slotOf(n + 3, policy), 'de').slack, 3, 1e-9)
+    const zoomed = slotOf(n + 23, policy, { reserve: 20 }, { name: 'z', zoom: 1.3 })
+    near(evaluateLabel(TEXT, zoomed, 'de').slack, zoomed.box - naturalWidth(TEXT, zoomed, 'de'), 1e-9)
+  }
+  for (const policy of ['as-is', { truncate: 'middle' }] as Slot['policy'][]) assert.equal(evaluateLabel(TEXT, slotOf(n - 3, policy), 'de').slack, undefined)
+})
+
+test('slack: a pass within the tolerance has 0 to spare', () => {
+  const n = natural(TEXT)
+  for (const policy of ['as-is', { truncate: 'middle' }, { shrinkTo: 10 }, { lines: 1 }, { truncate: 'end' }] as Slot['policy'][]) {
+    const v = evaluateLabel(TEXT, slotOf(n - 0.004, policy), 'de')
+    assert.equal(v.kind, 'pass', JSON.stringify(policy))
+    assert.equal(v.slack, 0, JSON.stringify(policy))
+  }
+})
+
+test('slack: shrinkTo that passes by shrinking is the box less the width at the fitted size', () => {
+  const box = natural(TEXT) * 0.8
+  const v = evaluateLabel(TEXT, slotOf(box, { shrinkTo: 10 }), 'de')
+  assert.equal(v.kind, 'pass')
+  assert.ok(v.measured.fontPx < 16)
+  near(v.slack, box - natural(TEXT, `${v.measured.fontPx}px Inter`), 1e-9)
+})
+
+test('slack: lines and truncate end are the box less the widest line', () => {
+  const text = 'Alpha beta gamma delta epsilon zeta'
+  const box = natural(text) * 0.6
+  const widest = measureLineStats(prepareWithSegments(text, FONT), box).maxLineWidth
+  for (const policy of [{ lines: 2 }, { truncate: 'end', lines: 2 }] as Slot['policy'][]) {
+    const v = evaluateLabel(text, slotOf(box, policy), 'en')
+    assert.equal(v.kind, 'pass')
+    near(v.slack, box - widest, 1e-9)
+  }
+  assert.equal(evaluateLabel(text, slotOf(box, { lines: 1 }), 'en').slack, undefined)
+  assert.equal(evaluateLabel(text, slotOf(box, { truncate: 'end', lines: 1 }), 'en').slack, undefined)
+})
+
+test('slack: under overflowWrap normal a word in the window leaves 0 to spare', () => {
+  const word = 'improvements'
+  const box = natural(word) - 1 / 128
+  for (const policy of [{ lines: 2 }, { truncate: 'end', lines: 2 }] as Slot['policy'][]) {
+    const v = evaluateLabel(`${word} add mom now`, slotOf(box, policy, normal), 'en')
+    assert.equal(v.kind, 'pass')
+    assert.equal(v.slack, 0)
+  }
+})
+
+test('an empty label has no slack', () => {
+  assert.equal(evaluateLabel(' ', slotOf(50, 'as-is'), 'en').slack, undefined)
+})

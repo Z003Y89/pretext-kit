@@ -176,3 +176,14 @@ test('a bad gap or a non-finite box throws a RangeError naming the row and condi
   assert.throws(() => run(rowOf(() => Infinity)), named)
   assert.equal(run({ ...rowOf(9999), gap: 0 }).kind, 'pass')
 })
+
+test('slack is the row box less the content width at the stage it passes, and only on a pass or collapse', () => {
+  near(run(rowOf(full + 1.5)).slack!, 1.5, 1e-9)
+  assert.equal(run(rowOf(full - 1 / 128)).slack, 0)
+  const edit = width('edit') - (natural('Edit') + 10)
+  const collapsed = run(rowOf(full - edit + 0.5))
+  assert.equal(collapsed.kind, 'row-collapsed')
+  near(collapsed.slack!, 0.5, 1e-9)
+  near(run(rowOf(full + 1.5), { name: 'z', zoom: 2 }).slack!, 3, 1e-6)
+  assert.equal(run(rowOf(50)).slack, undefined)
+})

@@ -437,3 +437,18 @@ test('linux, 20.8px: a word within the tolerance past the box passes lines 1 und
   assert.deepEqual(report.failures, [])
   assert.equal(report.checked, 1)
 })
+
+test('near-miss issues 1/64 px apart merge with the smallest slack, further apart they stay separate', () => {
+  const slack = (platform: Issue['platforms'][number], px: number): Issue => ({
+    kind: 'near-miss', locale: 'en', key: 'k', slot: 's', condition: 'c', platforms: [platform], text: 't',
+    measured: { width: 40 - px, box: 40, lines: 1, fontPx: 16 }, missing: { px },
+  })
+  for (const input of [[slack('macos', 0.5), slack('linux', 0.5 - U)], [slack('linux', 0.5 - U), slack('macos', 0.5)]]) {
+    const merged = mergeClose(input)
+    assert.equal(merged.length, 1)
+    assert.equal(merged[0]!.missing?.px, 0.5 - U)
+    assert.equal(merged[0]!.measured.width, 40 - 0.5 + U)
+    assert.deepEqual(merged[0]!.platforms, ['macos', 'linux'])
+  }
+  assert.equal(mergeClose([slack('macos', 0.5), slack('linux', 0.5 - 2 * U)]).length, 2)
+})

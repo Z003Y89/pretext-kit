@@ -10,6 +10,7 @@ export type RowResult = {
   box: number
   skipped: string[]
   detail?: string
+  slack?: number
 }
 
 type Step = { item: number; width: number }
@@ -70,10 +71,11 @@ export function evaluateRow(
 
   const total = (): number => kept.reduce((sum, i) => sum + widths[i]!, 0) + Math.max(0, kept.length - 1) * gap
   const result = (kind: RowResult['kind'], stage: number): RowResult => ({ kind, stage, width: round64(total()), box: round64(box), skipped })
-  if (total() <= box + FIT_TOLERANCE) return result('pass', 0)
+  const fits = (kind: RowResult['kind'], stage: number): RowResult => ({ ...result(kind, stage), slack: Math.max(0, box - total()) })
+  if (total() <= box + FIT_TOLERANCE) return fits('pass', 0)
   for (let k = 0; k < steps.length; k++) {
     widths[steps[k]!.item] = steps[k]!.width
-    if (total() <= box + FIT_TOLERANCE) return result('row-collapsed', k + 1)
+    if (total() <= box + FIT_TOLERANCE) return fits('row-collapsed', k + 1)
   }
   return result('row-overflow', steps.length)
 }

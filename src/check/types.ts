@@ -65,6 +65,7 @@ export type CheckInput = {
   conditions?: Condition[]
   platforms?: Platform[]
   samples?: Record<string, Record<string, string | number>[]>
+  nearMiss?: number
 }
 
 export type Issue = {
@@ -79,6 +80,7 @@ export type Issue = {
     | 'missing-sample'
     | 'unsupported-message'
     | 'unverifiable'
+    | 'near-miss'
   locale: string
   key: string
   slot: string

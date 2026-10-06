@@ -6,15 +6,18 @@ import type { ResolvedSlot } from './conditions.ts'
 import { localeTag, transformText } from './labels.ts'
 import type { Issue } from './types.ts'
 
+// slack: on a pass, the box less the widest thing the verdict fitted in it, at least 0 (a pass within the tolerance has none).
 export type Verdict = {
   kind: Issue['kind'] | 'pass'
   measured: Issue['measured']
   missing?: Issue['missing']
   detail?: string
+  slack?: number
 }
 
 export const round64 = (x: number): number => Math.round(x * 64) / 64
 const noHeight = (): number => 0
+const spare = (slot: ResolvedSlot, width: number): number => Math.max(0, slot.box - width)
 
 function options(slot: ResolvedSlot): PrepareOptions {
   return { whiteSpace: slot.whiteSpace, letterSpacing: slot.letterSpacing }
@@ -77,7 +80,7 @@ export function naturalWidth(text: string, slot: ResolvedSlot, locale: string): 
 function asIs(text: string, slot: ResolvedSlot): Verdict {
   const prepared = prepareAt(text, slot, slot.sizePx)
   const width = measureNaturalWidth(prepared)
-  if (fitsAt(text, slot, slot.sizePx, slot.box, 1)) return { kind: 'pass', measured: measured(slot, width, 1, slot.sizePx) }
+  if (fitsAt(text, slot, slot.sizePx, slot.box, 1)) return { kind: 'pass', measured: measured(slot, width, 1, slot.sizePx), slack: spare(slot, width) }
   const lines = measureLineStats(prepared, slot.box).lineCount
   const over = round64(width - slot.box)
   return { kind: 'overflow', measured: measured(slot, width, lines, slot.sizePx), ...(over > 0 ? { missing: { px: over } } : {}) }
@@ -92,7 +95,8 @@ function shrink(text: string, slot: ResolvedSlot, shrinkTo: number): Verdict {
   else hit = largestFit(text, slot, Math.max(1, Math.ceil(min)), Math.floor(size))
   if (hit === null && !Number.isInteger(min) && fitsAt(text, slot, min, slot.box, 1)) hit = min
   if (hit !== null) {
-    return { kind: 'pass', measured: measured(slot, measureNaturalWidth(prepareAt(text, slot, hit)), 1, hit) }
+    const width = measureNaturalWidth(prepareAt(text, slot, hit))
+    return { kind: 'pass', measured: measured(slot, width, 1, hit), slack: spare(slot, width) }
   }
   const width = measureNaturalWidth(prepareAt(text, slot, min))
   const below = Math.ceil(min) - 1
@@ -119,9 +123,10 @@ type Piece = { piece: string; px: number; width: number }
 // failing piece is reported, by its width less the box. Under break-word, null.
 // width: what lines are laid out at. A word that passes within FIT_TOLERANCE past the box stays whole in the browser,
 // so when one does, lines are counted and clamped at the box plus FIT_TOLERANCE, where Pretext does not split it.
-type Unbreakable = { worst: Piece | null; width: number }
+// widest: the widest piece's natural width (0 under break-word).
+type Unbreakable = { worst: Piece | null; width: number; widest: number }
 function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Unbreakable {
-  if (slot.overflowWrap === 'break-word') return { worst: null, width: slot.box }
+  if (slot.overflowWrap === 'break-word') return { worst: null, width: slot.box, widest: 0 }
   let worst: Piece | null = null
   let widest = 0
   const fail = (piece: string, width: number): void => {
@@ -150,14 +155,14 @@ function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Un
     } else close(i)
   })
   close(prepared.kinds.length)
-  return { worst, width: widest > slot.box ? slot.box + FIT_TOLERANCE : slot.box }
+  return { worst, width: widest > slot.box ? slot.box + FIT_TOLERANCE : slot.box, widest }
 }
 
 const unbroken = (piece: string): string => `${JSON.stringify(piece)} does not break (overflow-wrap: normal)`
 
 function lines(text: string, slot: ResolvedSlot, max: number): Verdict {
   const prepared = prepareAt(text, slot, slot.sizePx)
-  const { worst: wide, width: at } = unbreakable(prepared, slot)
+  const { worst: wide, width: at, widest } = unbreakable(prepared, slot)
   if (wide !== null) {
     const lineCount = measureLineStats(prepared, slot.box).lineCount
     const missing = wide.px > 0 ? { missing: { px: wide.px } } : {}
@@ -166,7 +171,9 @@ function lines(text: string, slot: ResolvedSlot, max: number): Verdict {
   const sizes = prepareSizes(text, () => slot.fontAt(slot.sizePx), { min: 1, max: 1 }, options(slot))
   const fits = (width: number): boolean => fitFontSize(sizes, { width, maxLines: max }, noHeight) !== null
   const stats = measureLineStats(prepared, at)
-  if (fits(at)) return { kind: 'pass', measured: measured(slot, stats.maxLineWidth, stats.lineCount, slot.sizePx) }
+  if (fits(at)) {
+    return { kind: 'pass', measured: measured(slot, stats.maxLineWidth, stats.lineCount, slot.sizePx), slack: spare(slot, Math.max(stats.maxLineWidth, widest)) }
+  }
   const out: Verdict = { kind: 'too-many-lines', measured: measured(slot, stats.maxLineWidth, stats.lineCount, slot.sizePx) }
   // The narrowest width that holds the text in max lines lies between the box and the natural width;
   // search it on a 1/64 px grid from the box.
@@ -188,13 +195,12 @@ function truncateEnd(text: string, slot: ResolvedSlot, max: number): Verdict {
   const prepared = prepareAt(text, slot, slot.sizePx)
   // A piece too wide to break is cut at the box with the ellipsis on its own line, as Chromium's text-overflow
   // does on any line of a clamp, so the label is truncated however few lines it takes.
-  const { worst: wide, width: at } = unbreakable(prepared, slot)
+  const { worst: wide, width: at, widest } = unbreakable(prepared, slot)
   const cut = clamp(prepared, at, max)
-  return {
-    kind: cut.truncated || wide !== null ? 'truncated' : 'pass',
-    measured: measured(slot, measureNaturalWidth(prepared), cut.lineCount, slot.sizePx),
-    ...(wide === null ? {} : { detail: unbroken(wide.piece) }),
-  }
+  const shown = measured(slot, measureNaturalWidth(prepared), cut.lineCount, slot.sizePx)
+  if (wide !== null) return { kind: 'truncated', measured: shown, detail: unbroken(wide.piece) }
+  if (cut.truncated) return { kind: 'truncated', measured: shown }
+  return { kind: 'pass', measured: shown, slack: spare(slot, Math.max(widest, ...cut.lines.map((line) => line.width))) }
 }
 
 // prepareLabel collapses white space as truncateMiddle does but takes no prepare options, so the
@@ -203,8 +209,8 @@ function truncateEnd(text: string, slot: ResolvedSlot, max: number): Verdict {
 function truncateCenter(text: string, slot: ResolvedSlot): Verdict {
   const collapsed = prepareLabel(text, slot.fontAt(slot.sizePx)).text
   const width = measureNaturalWidth(prepareAt(collapsed, slot, slot.sizePx))
-  const fits = fitsAt(collapsed, slot, slot.sizePx, slot.box, 1)
-  return { kind: fits ? 'pass' : 'truncated', measured: measured(slot, width, 1, slot.sizePx) }
+  if (!fitsAt(collapsed, slot, slot.sizePx, slot.box, 1)) return { kind: 'truncated', measured: measured(slot, width, 1, slot.sizePx) }
+  return { kind: 'pass', measured: measured(slot, width, 1, slot.sizePx), slack: spare(slot, width) }
 }
 
 function judge(text: string, slot: ResolvedSlot): Verdict {
