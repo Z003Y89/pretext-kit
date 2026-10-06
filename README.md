@@ -435,6 +435,10 @@ The claim is scoped exactly so:
   set on the context: Canvas widths change with small capitals, and the stand-in does not model them.
 - **Weights.** A weight with no matching registered face (600 or 700 with only a Regular file) silently measures the
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
+- **Variable fonts and split families.** A variable font is shaped at the requested weight on its `wght` axis
+  (and `opsz`, `wdth`), with advances unrounded as Chrome on macOS has them. A family your CSS splits into several
+  files by `unicode-range` (Fontsource does) is registered file by file, each with the same range:
+  `registerFont('Inter Variable', data, { unicodeRange: 'U+0000-00FF,U+0131,…' })`.
 - **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
   so Pretext uses its Blink rules. WebKit and Gecko profiles are not supported.
 - **Platforms.** Parity is claimed for macOS Chrome only. Since 0.1.1, CI measures it on Linux (FreeType; whole-px

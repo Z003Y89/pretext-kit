@@ -290,8 +290,8 @@ const MUTANTS: Mutant[] = [
   {
     name: 'ignore weight',
     file: 'canvas.ts',
-    from: 'findFace(parsed.families[i]!, parsed.weight, style)',
-    to: 'findFace(parsed.families[i]!, 400, style)',
+    from: 'findFaces(parsed.families[i]!, parsed.weight, style)',
+    to: 'findFaces(parsed.families[i]!, 400, style)',
     lines: true,
   },
   {

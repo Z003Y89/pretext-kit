@@ -19,6 +19,15 @@ Packaging and platform coverage; no change to the helpers' behaviour.
   headless parity sweep on Linux (headed, under xvfb) and Windows, with HEADLESS_RESULTS.md uploaded as
   `headless-results-<os>` and a headless-mismatch recorded rather than failing the run; the consumer smoke test
   against freshly packed tarballs on Linux × Node 22 and 24.
+- **Headless: variable fonts away from the default instance.** HarfBuzz rounds a variable font's HVAR advance
+  delta to whole font units; Chrome on macOS keeps the fraction. The stand-in now computes the unrounded advance
+  (fvar, avar, hmtx, HVAR; the normalized coordinate as CoreText computes it) and hands it to HarfBuzz, and sums a
+  run's advances in 1/65536 px as Blink does. Inter Variable at wght 300-800 measured up to 0.055px off before, with
+  11 line-count mismatches in the parity sweep; now max 0.000092px and none. Default instances and static fonts
+  measure as before.
+- **Headless: a family split across files by unicode-range** (`registerFont(family, data, { unicodeRange })`, the
+  `@font-face` descriptor's syntax), as Fontsource ships its families: files may share a family, weight and style when
+  each has a range (overlaps resolve to the last registered, as in CSS) or their cmaps are disjoint.
 - **`verify:headless`** runs off macOS (the results file names the OS it ran on) and takes `--headless` for
   machines with no display (Playwright's headless Chromium, named as such in the results file).
 

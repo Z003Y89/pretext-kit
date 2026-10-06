@@ -9,6 +9,12 @@ export type FaceOptions = {
   style?: FontStyle
   // Which font of a .ttc/.otc collection to register; ignored for single-font files.
   index?: number
+  // The @font-face unicode-range descriptor of this file, as CSS writes it ('U+0000-00FF, U+0131,
+  // U+02??'): the face draws only the code points both in its cmap and in the range. Several files
+  // can share a family, weight and style (as Fontsource splits a family into subsets by range)
+  // when each has a unicodeRange, or when their cmaps are disjoint. Where ranges overlap, the file
+  // registered last draws the code point, as CSS checks the last-defined @font-face rule first.
+  unicodeRange?: string
 }
 
 export type FaceAxis = { tag: string; min: number; default: number; max: number }
@@ -20,6 +26,8 @@ export type FontFace = {
   style: FontStyle
   upem: number
   axes: FaceAxis[]
+  // The unicode-range as sorted, inclusive [first, last] pairs; null is all of Unicode.
+  unicodeRange: [number, number][] | null
   // The HarfBuzz face of the copy of this module that registered it; read others through hbFace().
   face: Face
   // The sfnt bytes and collection index, so another copy of this module (with its own HarfBuzz
@@ -119,6 +127,34 @@ async function toSfnt(data: Uint8Array): Promise<Uint8Array> {
   throw new Error('registerFont: data is not a recognised font (expected TTF, OTF, TTC, WOFF or WOFF2)')
 }
 
+const rangeTokenRe = /^U\+([0-9A-F?]{1,6})(?:-([0-9A-F]{1,6}))?$/i
+
+// Parses a CSS unicode-range value (CSS Fonts 4, unicode-range descriptor) into sorted pairs.
+export function parseUnicodeRange(value: string): [number, number][] {
+  const ranges: [number, number][] = []
+  for (const raw of value.split(',')) {
+    const token = raw.trim()
+    const match = rangeTokenRe.exec(token)
+    if (match === null || (match[1]!.includes('?') && match[2] !== undefined) || /\?[^?]/.test(match[1]!)) {
+      throw new RangeError(`registerFont: unicodeRange ${JSON.stringify(value)} has an invalid range ${JSON.stringify(token)}`)
+    }
+    const first = parseInt(match[1]!.replace(/\?/g, '0'), 16)
+    const last = match[2] !== undefined ? parseInt(match[2], 16) : parseInt(match[1]!.replace(/\?/g, 'F'), 16)
+    if (first > last || last > 0x10ffff) {
+      throw new RangeError(`registerFont: unicodeRange ${JSON.stringify(value)} has an invalid range ${JSON.stringify(token)}`)
+    }
+    ranges.push([first, last])
+  }
+  return ranges.sort((a, b) => a[0] - b[0])
+}
+
+export function inUnicodeRange(face: FontFace, codePoint: number): boolean {
+  const ranges = face.unicodeRange
+  if (ranges === null || ranges === undefined) return true
+  for (let i = 0; i < ranges.length; i++) if (codePoint >= ranges[i]![0] && codePoint <= ranges[i]![1]) return true
+  return false
+}
+
 function familyKey(family: string): string {
   return family.toLowerCase()
 }
@@ -165,13 +201,27 @@ export async function registerFont(family: string, data: Uint8Array, face?: Face
     style = os2 !== undefined && os2.length >= 64 && (os2[63]! & 1) === 1 ? 'italic' : 'normal'
   }
 
+  const unicodeRange = face?.unicodeRange === undefined ? null : parseUnicodeRange(face.unicodeRange)
+  const entry: FontFace = { family, weightMin, weightMax, style, upem: hb.upem, axes, unicodeRange, face: hb, data: sfnt, index }
+  // Several files share a family, weight and style only as CSS lets them: each with its
+  // unicode-range, or drawing disjoint code points, so a second copy of one file is still an error.
   const faces = sharedState().faces
+  let cmap: Set<number> | undefined
   for (let i = 0; i < faces.length; i++) {
-    if (sameSlot(faces[i]!, family, weightMin, weightMax, style)) {
-      throw new Error(`registerFont: "${family}" ${weightMin}-${weightMax} ${style} is already registered`)
+    const other = faces[i]!
+    if (!sameSlot(other, family, weightMin, weightMax, style)) continue
+    if (unicodeRange !== null && other.unicodeRange !== null && other.unicodeRange !== undefined) continue
+    cmap ??= new Set(hb.collectUnicodes())
+    const otherCmap = hbFace(other).collectUnicodes()
+    for (let j = 0; j < otherCmap.length; j++) {
+      if (!cmap.has(otherCmap[j]!)) continue
+      const hex = otherCmap[j]!.toString(16).toUpperCase().padStart(4, '0')
+      throw new Error(
+        `registerFont: "${family}" ${weightMin}-${weightMax} ${style} is already registered, and both files have U+${hex}; ` +
+          'to split a family across files, give each its @font-face unicode-range ({ unicodeRange })',
+      )
     }
   }
-  const entry: FontFace = { family, weightMin, weightMax, style, upem: hb.upem, axes, face: hb, data: sfnt, index }
   hbFaces.set(entry, hb)
   faces.push(entry)
 }
@@ -192,9 +242,12 @@ function rank(face: FontFace, weight: number): number {
   return (heavier ? 0 : 2000) + 1 + gap
 }
 
-export function findFace(family: string, weight: number, style: FontStyle): FontFace | undefined {
+// The faces CSS font matching picks for a family, weight and style: those of the best slot (one
+// face, or the files of a family split by unicode-range), the last registered first, the order
+// CSS checks @font-face rules with the same descriptors in.
+export function findFaces(family: string, weight: number, style: FontStyle): FontFace[] {
   const key = familyKey(family)
-  let best: FontFace | undefined
+  let best: FontFace[] = []
   let bestScore = Infinity
   const faces = sharedState().faces
   for (let i = 0; i < faces.length; i++) {
@@ -203,11 +256,17 @@ export function findFace(family: string, weight: number, style: FontStyle): Font
     // Style outranks weight: CSS picks the style first, then the weight within it.
     const score = (candidate.style === style ? 0 : 100000) + rank(candidate, weight)
     if (score < bestScore) {
-      best = candidate
+      best = [candidate]
       bestScore = score
+    } else if (score === bestScore && sameSlot(candidate, best[0]!.family, best[0]!.weightMin, best[0]!.weightMax, best[0]!.style)) {
+      best.unshift(candidate)
     }
   }
   return best
+}
+
+export function findFace(family: string, weight: number, style: FontStyle): FontFace | undefined {
+  return findFaces(family, weight, style)[0]
 }
 
 export function clearFonts(): void {

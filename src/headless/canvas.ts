@@ -1,5 +1,5 @@
 import { Buffer, Feature, Font, FontFuncs, Variation, shape } from 'harfbuzzjs'
-import { findFace, hbFace, type FontFace } from './fonts.ts'
+import { findFaces, hbFace, inUnicodeRange, type FontFace } from './fonts.ts'
 import { normalizedCoords, readAdvanceVariations, variedAdvance, type AdvanceVariations } from './hvar.ts'
 import { HEADLESS, sharedState } from './shared.ts'
 import { parseFont, type ParsedFont } from './shorthand.ts'
@@ -58,7 +58,7 @@ const markRe = /\p{M}/u
 const lengthRe = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(px|pt|em|rem)\s*$/i
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-// What each registered face covers, read once per face.
+// What each registered face covers (its cmap, within its unicode-range), read once per face.
 const coverage = new WeakMap<FontFace, Set<number>>()
 // HarfBuzz fonts per face, by size and variation instance.
 const fonts = new WeakMap<FontFace, Map<string, Font>>()
@@ -66,7 +66,9 @@ const fonts = new WeakMap<FontFace, Map<string, Font>>()
 function covers(face: FontFace, codePoint: number): boolean {
   let set = coverage.get(face)
   if (set === undefined) {
-    set = new Set(hbFace(face).collectUnicodes())
+    set = new Set()
+    const cmap = hbFace(face).collectUnicodes()
+    for (let i = 0; i < cmap.length; i++) if (inUnicodeRange(face, cmap[i]!)) set.add(cmap[i]!)
     coverage.set(face, set)
   }
   return set.has(codePoint)
@@ -172,13 +174,14 @@ function fontFor(face: FontFace, parsed: ParsedFont): Font {
   return font
 }
 
-// The face each family in the list resolves to, in order; unregistered names drop out.
+// The faces each family in the list resolves to, in order (a family split by unicode-range
+// resolves to all its files of the matched weight and style); unregistered names drop out.
 function resolveFaces(parsed: ParsedFont): FontFace[] {
   const style = parsed.style === 'normal' ? 'normal' : 'italic'
   const faces: FontFace[] = []
   for (let i = 0; i < parsed.families.length; i++) {
-    const face = findFace(parsed.families[i]!, parsed.weight, style)
-    if (face !== undefined && !faces.includes(face)) faces.push(face)
+    const matched = findFaces(parsed.families[i]!, parsed.weight, style)
+    for (let j = 0; j < matched.length; j++) if (!faces.includes(matched[j]!)) faces.push(matched[j]!)
   }
   return faces
 }
@@ -389,9 +392,9 @@ function genericProbeWidth(text: string, parsed: ParsedFont, spacing: number): n
   const style = parsed.style === 'normal' ? 'normal' : 'italic'
   for (let i = 0; i < parsed.families.length; i++) {
     const family = parsed.families[i]!
-    const face = findFace(family, parsed.weight, style)
-    if (face !== undefined) {
-      if (covers(face, codePoint)) return null
+    const matched = findFaces(family, parsed.weight, style)
+    if (matched.length > 0) {
+      if (matched.some(face => covers(face, codePoint))) return null
       continue
     }
     const em = GENERIC_STAND_IN_EM.get(family.toLowerCase())

@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 import { afterEach, describe, test } from 'node:test'
 import { Font } from 'harfbuzzjs'
-import { clearFonts, findFace, registerFont } from '../../src/headless/fonts.ts'
+import { clearFonts, findFace, findFaces, parseUnicodeRange, registerFont } from '../../src/headless/fonts.ts'
 
 const ttf = new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.ttf', import.meta.url)))
 const woff2 = new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.woff2', import.meta.url)))
+const roboto = new Uint8Array(readFileSync(new URL('../fonts/Roboto-Regular.ttf', import.meta.url)))
 
 // No WOFF1 fixture is committed, so one is built from the TTF's own tables (every table deflated).
 function ttfToWoff(sfnt: Uint8Array): Uint8Array {
@@ -116,6 +117,28 @@ describe('font registry', () => {
   test('registering the same family, weight and style twice throws', async () => {
     await registerFont('Inter', ttf)
     await assert.rejects(registerFont('inter', ttf), /already registered/)
+  })
+
+  test('two files of one family, weight and style register when each has a unicodeRange', async () => {
+    await registerFont('Split', ttf, { unicodeRange: 'U+0000-00FF' })
+    await registerFont('Split', roboto, { unicodeRange: 'U+0100-024F, U+0041' })
+    const faces = findFaces('Split', 400, 'normal')
+    // The last registered first, as CSS checks the last-defined @font-face rule first.
+    assert.deepEqual(faces.map(face => face.unicodeRange), [[[0x41, 0x41], [0x100, 0x24f]], [[0, 0xff]]])
+    assert.equal(findFace('Split', 400, 'normal'), faces[0])
+  })
+
+  test('two files whose cmaps overlap need a unicodeRange each', async () => {
+    await registerFont('Split', ttf, { unicodeRange: 'U+0000-00FF' })
+    await assert.rejects(registerFont('Split', roboto), /already registered, and both files have U\+0000.*unicode-range/)
+    await assert.rejects(registerFont('Split', roboto, { weight: 400, style: 'normal' }), /already registered/)
+  })
+
+  test('parseUnicodeRange reads single code points, ranges and wildcards, and rejects the rest', () => {
+    assert.deepEqual(parseUnicodeRange('U+0131, u+0000-00ff,U+4??'), [[0, 0xff], [0x131, 0x131], [0x400, 0x4ff]])
+    for (const bad of ['U+00FF-0000', 'U+11FFFF', '0041', 'U+0?1', 'U+4??-4FF', '']) {
+      assert.throws(() => parseUnicodeRange(bad), RangeError, bad)
+    }
   })
 
   test('rejects data that is not a font', async () => {
