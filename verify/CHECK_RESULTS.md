@@ -1,12 +1,12 @@
 # Label checker oracle sweep results
 
-Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit 79a4b05.
+Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit 390ab3b.
 
 - Chromium 141.0.7390.37 (Playwright 1.61.0, headed on X display :99, executable /opt/pw-browsers/chromium from PW_CHROMIUM), `<html lang="en">`, each slot `lang` its label's locale
 - Pretext 0.0.9 (../pretext f10d888); harfbuzzjs 1.6.2
 - Node v22.22.0, Linux 6.18.44-fc-v70, x64
 - checker: `checkLabels` in Node, `platforms: ['linux']` (this OS's), font Inter-Regular.ttf from test/fonts registered as "CK Inter"
-- Chromium 94s; checker runs (control and 6 mutants, 4 at a time) 80s
+- Chromium 131s; checker runs (control and 7 mutants, 4 at a time) 102s
 
 ## Method
 
@@ -21,20 +21,25 @@ none). **Reference:** the spec's rule recomputed in the page with the kit's help
 the CSS the element gets: text scale multiplies font size, letter spacing, line height and the icon width,
 zoom then everything; the box is the slot width less the icon. as-is and truncate middle: one line at the box
 (`fitFontSize` at the one size, so with FIT_TOLERANCE; middle after `prepareLabel`'s white-space collapse); lines:
-the same with 2 lines; truncate end: `clamp(…, 2).truncated`; shrinkTo: the largest of the slot size, every whole px
+the same with 2 lines; truncate end: `clamp(…, 2).truncated`; the "(normal)" policies, a slot with `overflowWrap: 'normal'`:
+first, each piece between two of Pretext's break opportunities (its segments; zero-width glue and controls join the
+text around them) by the one-line test, a piece that fails making lines (normal) `overflow` and truncate end (normal)
+`truncated`, then the rule without the suffix; shrinkTo: the largest of the slot size, every whole px
 below it and the minimum that fits one line; rows: each stage's natural widths, icon reserves, icons and gaps, the
 first stage within the row (plus FIT_TOLERANCE). **DOM:** a flex box of the slot width holding the icon and the text
 element: as-is, shrinkTo and truncate middle `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`;
-lines `overflow-wrap: break-word; hyphens: manual`, line count from the tops of
+lines `overflow-wrap: break-word; hyphens: manual` (lines (normal) `overflow-wrap: normal`), line count from the tops of
 `getClientRects()` of a range over the text (checked against height ÷ line height; a disagreement is `unreliable`);
-truncate end `display: -webkit-box; -webkit-line-clamp: 2`, clamped when `scrollHeight > clientHeight`; shrinkTo
+truncate end `display: -webkit-box; -webkit-line-clamp: 2`, clamped when `scrollHeight > clientHeight` (truncate end (normal)
+`overflow-wrap: normal`, cut when clamped or when a line is wider than the box, which `text-overflow: ellipsis` cuts on
+any line of the clamp in Chromium); shrinkTo
 rendered at the reference's size, which must fit, and at the next candidate size up, which must not (none at the
 slot size); rows a flex line (`gap`, items `flex: none`) at the reference's stage, which must fit (overflow for
 row-overflow), and at the stage before, which must not. Text scale is a font-size change in the fixed-width box, zoom
 CSS `zoom` on the container. Overflow (nowrap policies, a line wider than the box, rows) is judged on fractional
 widths: the bounding width of a range over the content past the element's box by more than 1/64 px (zoomed px).
 `scrollWidth > clientWidth`, which Chromium snaps to whole pixels, is a cross-check: it disagrees in
-3426 of 208740 cases (1632 of them pretext-gaps).
+3602 of 292152 cases (1646 of them pretext-gaps).
 
 Outcome, in this order (EVALUATION §2): `excluded` when the checker cannot judge the text (`uncovered`); `check-mismatch`
 when the checker's verdict (kind, shrinkTo size to 1/64 px, row stage) differs from the reference; `excluded` as
@@ -61,15 +66,16 @@ run of whole words of at most 40 characters (soft hyphens not counted; German an
 hyphens), in locale en, de and fr; every other one has a 20px icon reserve (`corpus + icon`). The hand-written
 labels: German compounds (button + icon: 16px, reserve 20), French (button + icon: 16px, reserve 20), uppercase tabs (uppercase tab: 13px, letter spacing 0.5px, uppercase), digits (tabular digits: 16px, tabular-nums).
 
-Slots: each text in 5 policies (as-is; shrinkTo the size less 4px; lines 2; truncate end 2 lines;
-truncate middle), and each text scale (1/1.15/1.3) its own slots, at 0.9/1/1.1 × the box where the policy changes its
+Slots: each text in 7 policies (as-is; shrinkTo the size less 4px; lines 2; truncate end 2 lines;
+truncate middle; lines and truncate end again with overflow-wrap: normal), and each text scale (1/1.15/1.3) its own slots, at 0.9/1/1.1 × the box where the policy changes its
 verdict at that text scale (one line at the scaled size and letter spacing; one line at the scaled shrinkTo size; the
-narrowest width in 2 lines), plus the reserve grown with the text, rounded up to 1/64 px; measured by the kit on Pretext
+narrowest width in 2 lines; for the "(normal)" policies that or the widest unbreakable piece's natural width,
+whichever is wider), plus the reserve grown with the text, rounded up to 1/64 px; measured by the kit on Pretext
 in the page. A slot runs in its text scale's conditions, zoom 1 and 1.3 (zoom grows the box too, so the boundary
-stays): 104262 slots run (3 not run, below). Line height 1.5 × the size. Conditions: text 100% · zoom 100%, text 115% · zoom 100%, text 130% · zoom 100%, text 100% · zoom 130%, text 115% · zoom 130%, text 130% · zoom 130%.
+stays): 145968 slots run (3 not run, below). Line height 1.5 × the size. Conditions: text 100% · zoom 100%, text 115% · zoom 100%, text 130% · zoom 100%, text 100% · zoom 130%, text 115% · zoom 130%, text 130% · zoom 130%.
 Rows: a five-item toolbar per locale (en, de, fr) and text scale, gap 8px, icon reserve 20px, collapsed icon
 24px, 5 collapse stages, at each stage's total at that text scale, halfway to the next and 0.9 of the last:
-108 rows. **208740 cases** (208524 slot, 216 row).
+108 rows. **292152 cases** (291936 slot, 216 row).
 
 The checker's verdicts (control run) per policy and condition kind; the run fails if a cell has one verdict only:
 
@@ -95,6 +101,14 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 | truncate middle · text scale | 9268 | 4634 | truncated 4634 |
 | truncate middle · zoom | 4634 | 2317 | truncated 2317 |
 | truncate middle · text scale + zoom | 9243 | 4659 | truncated 4659 |
+| lines (normal) · none | 4634 | 2317 | overflow 758, too-many-lines 1559 |
+| lines (normal) · text scale | 9268 | 4634 | overflow 1516, too-many-lines 3118 |
+| lines (normal) · zoom | 4634 | 2317 | overflow 758, too-many-lines 1559 |
+| lines (normal) · text scale + zoom | 9243 | 4659 | overflow 1541, too-many-lines 3118 |
+| truncate end (normal) · none | 4634 | 2317 | truncated 2317 |
+| truncate end (normal) · text scale | 9268 | 4634 | truncated 4634 |
+| truncate end (normal) · zoom | 4634 | 2317 | truncated 2317 |
+| truncate end (normal) · text scale + zoom | 9243 | 4659 | truncated 4659 |
 | row · none | 3 | 33 | row-collapsed 30, row-overflow 3 |
 | row · text scale | 6 | 66 | row-collapsed 60, row-overflow 6 |
 | row · zoom | 3 | 33 | row-collapsed 30, row-overflow 3 |
@@ -102,7 +116,7 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 
 ## Agreement
 
-**208740 cases: 0 check-mismatch, 5260 pretext-gap, 0 excluded, 203480 pass.**
+**292152 cases: 0 check-mismatch, 6382 pretext-gap, 0 excluded, 285770 pass.**
 
 | policy · condition kind | cases | pass | check-mismatch | pretext-gap | excluded |
 |---|---:|---:|---:|---:|---:|
@@ -126,6 +140,14 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 | truncate middle · text scale | 13902 | 13640 | 0 | 262 | 0 |
 | truncate middle · zoom | 6951 | 6820 | 0 | 131 | 0 |
 | truncate middle · text scale + zoom | 13902 | 13645 | 0 | 257 | 0 |
+| lines (normal) · none | 6951 | 6868 | 0 | 83 | 0 |
+| lines (normal) · text scale | 13902 | 13693 | 0 | 209 | 0 |
+| lines (normal) · zoom | 6951 | 6855 | 0 | 96 | 0 |
+| lines (normal) · text scale + zoom | 13902 | 13729 | 0 | 173 | 0 |
+| truncate end (normal) · none | 6951 | 6868 | 0 | 83 | 0 |
+| truncate end (normal) · text scale | 13902 | 13693 | 0 | 209 | 0 |
+| truncate end (normal) · zoom | 6951 | 6855 | 0 | 96 | 0 |
+| truncate end (normal) · text scale + zoom | 13902 | 13729 | 0 | 173 | 0 |
 | row · none | 36 | 33 | 0 | 3 | 0 |
 | row · text scale | 72 | 63 | 0 | 9 | 0 |
 | row · zoom | 36 | 36 | 0 | 0 | 0 |
@@ -133,7 +155,7 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 
 Statistics (PROTOCOL §4), one unit per label text (a text's slots, widths and conditions are one unit; each locale's
 row is one): 2320 units, 0 with a check-mismatch, 95% upper bound on the rate Wilson 0.165%, Clopper-Pearson 0.159%
-(quoted). Per case, naive: 208740 judged cases, 0 check-mismatch, Wilson 0.0018%, Clopper-Pearson 0.0018%.
+(quoted). Per case, naive: 292152 judged cases, 0 check-mismatch, Wilson 0.0013%, Clopper-Pearson 0.0013%.
 
 ### check-mismatch cases
 
@@ -231,6 +253,34 @@ up to 10 per cause.
 - text 115% · zoom 130%: t41.shrinkTo.1.15.1 "and it's so" (en, corpus + icon) @ 89.9375px (DOM text 87.0313 in 87.0156, zoomed px; scrollWidth 67, clientWidth 67)
 - … and 597 more in verify/dist/check-cases.md
 
+**lines (normal): DOM 3 lines, Pretext 2** (551):
+
+- text 100% · zoom 100%: t1530.lines-normal.1.1 "Pro­jekt­ord­ner." (de, corpus) @ 58.375px (DOM text 57.9531 in 58.375, zoomed px; scrollWidth 58, clientWidth 58)
+- text 100% · zoom 100%: t1568.lines-normal.1.1 "ein­mal mit der Re­gie­as­sis­ten­tin" (de, corpus) @ 123.03125px (DOM text 110.3594 in 123.0313, zoomed px; scrollWidth 123, clientWidth 123)
+- text 100% · zoom 100%: t1571.lines-normal.1.1 "mit der Re­gie­as­sis­ten­tin" (de, corpus + icon) @ 123.640625px (DOM text 90.9688 in 103.6406, zoomed px; scrollWidth 104, clientWidth 104)
+- text 100% · zoom 100%: t1572.lines-normal.1.1 "mit der Re­gie­as­sis­ten­tin durch­hö­ren." (de, corpus) @ 143.609375px (DOM text 136.0938 in 143.6094, zoomed px; scrollWidth 144, clientWidth 144)
+- text 100% · zoom 100%: t1575.lines-normal.1.1 "Re­gie­as­sis­ten­tin" (de, corpus + icon) @ 85.578125px (DOM text 48.1406 in 65.5781, zoomed px; scrollWidth 66, clientWidth 66)
+- text 100% · zoom 100%: t1583.lines-normal.1.1 "Da­ten­schutz­grund­ver­ord­nung ver­langt eine" (de, corpus + icon) @ 188.78125px (DOM text 153.2344 in 168.7813, zoomed px; scrollWidth 169, clientWidth 169)
+- text 100% · zoom 100%: t1585.lines-normal.1.1 "ver­langt eine" (de, corpus + icon) @ 81.390625px (DOM text 37.3594 in 61.3906, zoomed px; scrollWidth 61, clientWidth 61)
+- text 100% · zoom 100%: t1592.lines-normal.1.1 "Ein­wil­li­gungs­ver­wal­tung für" (de, corpus) @ 109.859375px (DOM text 104.2656 in 109.8594, zoomed px; scrollWidth 110, clientWidth 110)
+- text 100% · zoom 100%: t1596.lines-normal.1.1 "für alle Be­nut­zer­kon­ten." (de, corpus) @ 104.046875px (DOM text 82 in 104.0469, zoomed px; scrollWidth 104, clientWidth 104)
+- text 100% · zoom 100%: t1623.lines-normal.1.1 "Haft­pflicht­ver­si­che­rungs­be­din­gun­gen" (de, corpus + icon) @ 168.8125px (DOM text 147.8438 in 148.8125, zoomed px; scrollWidth 149, clientWidth 149)
+- … and 541 more in verify/dist/check-cases.md
+
+**truncate end (normal): DOM clamps where Pretext does not** (551):
+
+- text 100% · zoom 100%: t1530.truncate-end-normal.1.1 "Pro­jekt­ord­ner." (de, corpus) @ 58.375px (DOM text 57.9531 in 58.375, zoomed px; scrollWidth 58, clientWidth 58)
+- text 100% · zoom 100%: t1568.truncate-end-normal.1.1 "ein­mal mit der Re­gie­as­sis­ten­tin" (de, corpus) @ 123.03125px (DOM text 110.3594 in 123.0313, zoomed px; scrollWidth 123, clientWidth 123)
+- text 100% · zoom 100%: t1571.truncate-end-normal.1.1 "mit der Re­gie­as­sis­ten­tin" (de, corpus + icon) @ 123.640625px (DOM text 90.9688 in 103.6406, zoomed px; scrollWidth 104, clientWidth 104)
+- text 100% · zoom 100%: t1572.truncate-end-normal.1.1 "mit der Re­gie­as­sis­ten­tin durch­hö­ren." (de, corpus) @ 143.609375px (DOM text 136.0938 in 143.6094, zoomed px; scrollWidth 144, clientWidth 144)
+- text 100% · zoom 100%: t1575.truncate-end-normal.1.1 "Re­gie­as­sis­ten­tin" (de, corpus + icon) @ 85.578125px (DOM text 48.1406 in 65.5781, zoomed px; scrollWidth 66, clientWidth 66)
+- text 100% · zoom 100%: t1583.truncate-end-normal.1.1 "Da­ten­schutz­grund­ver­ord­nung ver­langt eine" (de, corpus + icon) @ 188.78125px (DOM text 153.2344 in 168.7813, zoomed px; scrollWidth 169, clientWidth 169)
+- text 100% · zoom 100%: t1585.truncate-end-normal.1.1 "ver­langt eine" (de, corpus + icon) @ 81.390625px (DOM text 37.3594 in 61.3906, zoomed px; scrollWidth 61, clientWidth 61)
+- text 100% · zoom 100%: t1592.truncate-end-normal.1.1 "Ein­wil­li­gungs­ver­wal­tung für" (de, corpus) @ 109.859375px (DOM text 104.2656 in 109.8594, zoomed px; scrollWidth 110, clientWidth 110)
+- text 100% · zoom 100%: t1596.truncate-end-normal.1.1 "für alle Be­nut­zer­kon­ten." (de, corpus) @ 104.046875px (DOM text 82 in 104.0469, zoomed px; scrollWidth 104, clientWidth 104)
+- text 100% · zoom 100%: t1623.truncate-end-normal.1.1 "Haft­pflicht­ver­si­che­rungs­be­din­gun­gen" (de, corpus + icon) @ 168.8125px (DOM text 147.8438 in 148.8125, zoomed px; scrollWidth 149, clientWidth 149)
+- … and 541 more in verify/dist/check-cases.md
+
 **shrinkTo: DOM also fits at the next size** (10):
 
 - text 115% · zoom 130%: t1533.shrinkTo.1.15.1 "Bit­te die Ne­ben­rol­len-Ta­kes" (de, corpus + icon) @ 203.6875px (DOM text 233.5781 in 234.8906, next size 234.3906, zoomed px; scrollWidth 181, clientWidth 181)
@@ -244,6 +294,16 @@ up to 10 per cause.
 - text 115% · zoom 130%: t2162.shrinkTo.1.15.1 "en­voyé." (fr, corpus + icon) @ 74.1875px (DOM text 66.2969 in 66.5469, next size 66.5156, zoomed px; scrollWidth 51, clientWidth 51)
 - text 115% · zoom 130%: t2268.shrinkTo.1.15.1 "Nebenrollen-Takes" (de, button + icon) @ 146.78125px (DOM text 159.6094 in 160.9219, next size 160.1563, zoomed px; scrollWidth 124, clientWidth 124)
 
+**lines (normal): DOM 2 lines, one wider than the box, Pretext 2** (7):
+
+- text 100% · zoom 130%: t1531.lines-normal.1.1 "Bit­te" (de, corpus + icon) @ 45.3125px (DOM text 32.9219 in 32.8906, zoomed px; scrollWidth 25, clientWidth 25)
+- text 100% · zoom 130%: t1668.lines-normal.1.1 "wer­den." (de, corpus) @ 33.890625px (DOM text 44.0781 in 44.0469, zoomed px; scrollWidth 34, clientWidth 34)
+- text 100% · zoom 130%: t1677.lines-normal.1.1 "gel­ten" (de, corpus + icon) @ 48.75px (DOM text 37.3906 in 37.3594, zoomed px; scrollWidth 29, clientWidth 29)
+- text 100% · zoom 130%: t1743.lines-normal.1.1 "Frei­tag" (de, corpus + icon) @ 53.671875px (DOM text 43.7969 in 43.7656, zoomed px; scrollWidth 34, clientWidth 34)
+- text 100% · zoom 130%: t1927.lines-normal.1.1 "d’ac­cès" (fr, corpus) @ 36.921875px (DOM text 48.0156 in 47.9844, zoomed px; scrollWidth 37, clientWidth 37)
+- text 100% · zoom 130%: t2054.lines-normal.1.1 "Condi­tions" (fr, corpus + icon) @ 70.140625px (DOM text 65.2031 in 65.1719, zoomed px; scrollWidth 50, clientWidth 50)
+- text 100% · zoom 130%: t2173.lines-normal.1.1 "ma­tin," (fr, corpus) @ 28.734375px (DOM text 37.375 in 37.3438, zoomed px; scrollWidth 29, clientWidth 29)
+
 **row: DOM overflows at stage 0** (7):
 
 - text 100% · zoom 100%: row.en.1.0 @ 614.953125px (DOM content 614.9844 in 614.9531, zoomed px)
@@ -253,6 +313,16 @@ up to 10 per cause.
 - text 115% · zoom 100%: row.fr.1.15.0 @ 825.4375px (DOM content 825.4688 in 825.4375, zoomed px)
 - text 130% · zoom 100%: row.en.1.3.0 @ 789.75px (DOM content 789.7813 in 789.75, zoomed px)
 - text 130% · zoom 100%: row.de.1.3.0 @ 1039.046875px (DOM content 1039.0781 in 1039.0469, zoomed px)
+
+**truncate end (normal): DOM cuts a line at the box where Pretext does not** (7):
+
+- text 100% · zoom 130%: t1531.truncate-end-normal.1.1 "Bit­te" (de, corpus + icon) @ 45.3125px (DOM text 32.9219 in 32.8906, zoomed px; scrollWidth 25, clientWidth 25)
+- text 100% · zoom 130%: t1668.truncate-end-normal.1.1 "wer­den." (de, corpus) @ 33.890625px (DOM text 44.0781 in 44.0469, zoomed px; scrollWidth 34, clientWidth 34)
+- text 100% · zoom 130%: t1677.truncate-end-normal.1.1 "gel­ten" (de, corpus + icon) @ 48.75px (DOM text 37.3906 in 37.3594, zoomed px; scrollWidth 29, clientWidth 29)
+- text 100% · zoom 130%: t1743.truncate-end-normal.1.1 "Frei­tag" (de, corpus + icon) @ 53.671875px (DOM text 43.7969 in 43.7656, zoomed px; scrollWidth 34, clientWidth 34)
+- text 100% · zoom 130%: t1927.truncate-end-normal.1.1 "d’ac­cès" (fr, corpus) @ 36.921875px (DOM text 48.0156 in 47.9844, zoomed px; scrollWidth 37, clientWidth 37)
+- text 100% · zoom 130%: t2054.truncate-end-normal.1.1 "Condi­tions" (fr, corpus + icon) @ 70.140625px (DOM text 65.2031 in 65.1719, zoomed px; scrollWidth 50, clientWidth 50)
+- text 100% · zoom 130%: t2173.truncate-end-normal.1.1 "ma­tin," (fr, corpus) @ 28.734375px (DOM text 37.375 in 37.3438, zoomed px; scrollWidth 29, clientWidth 29)
 
 **lines: DOM 4 lines, Pretext 2** (6):
 
@@ -283,11 +353,23 @@ up to 10 per cause.
 - text 115% · zoom 130%: t2290.as-is.1.15.1 "Größe" (de, uppercase tab) @ 63.78125px (DOM text 82.9219 in 82.9063, zoomed px; scrollWidth 64, clientWidth 64)
 - text 115% · zoom 130%: t2296.as-is.1.15.1 "Équipe" (fr, uppercase tab) @ 57.5px (DOM text 74.7656 in 74.75, zoomed px; scrollWidth 58, clientWidth 58)
 
+**lines (normal): DOM 1 lines, Pretext 2 (and a line past the box, or more than 2)** (3):
+
+- text 115% · zoom 130%: t2288.lines-normal.1.15.1 "Straße" (de, uppercase tab) @ 71.25px (DOM text 92.6406 in 92.625, zoomed px; scrollWidth 71, clientWidth 71)
+- text 115% · zoom 130%: t2290.lines-normal.1.15.1 "Größe" (de, uppercase tab) @ 63.78125px (DOM text 82.9219 in 82.9063, zoomed px; scrollWidth 64, clientWidth 64)
+- text 115% · zoom 130%: t2296.lines-normal.1.15.1 "Équipe" (fr, uppercase tab) @ 57.5px (DOM text 74.7656 in 74.75, zoomed px; scrollWidth 58, clientWidth 58)
+
 **row: DOM overflows at stage 1** (3):
 
 - text 115% · zoom 100%: row.en.1.15.2 @ 635.859375px (DOM content 635.8906 in 635.8594, zoomed px)
 - text 115% · zoom 100%: row.de.1.15.2 @ 811.015625px (DOM content 811.0469 in 811.0156, zoomed px)
 - text 115% · zoom 100%: row.fr.1.15.2 @ 730.8125px (DOM content 730.8438 in 730.8125, zoomed px)
+
+**truncate end (normal): DOM does not cut where Pretext cuts** (3):
+
+- text 115% · zoom 130%: t2288.truncate-end-normal.1.15.1 "Straße" (de, uppercase tab) @ 71.25px (DOM text 92.6406 in 92.625, zoomed px; scrollWidth 71, clientWidth 71)
+- text 115% · zoom 130%: t2290.truncate-end-normal.1.15.1 "Größe" (de, uppercase tab) @ 63.78125px (DOM text 82.9219 in 82.9063, zoomed px; scrollWidth 64, clientWidth 64)
+- text 115% · zoom 130%: t2296.truncate-end-normal.1.15.1 "Équipe" (fr, uppercase tab) @ 57.5px (DOM text 74.7656 in 74.75, zoomed px; scrollWidth 58, clientWidth 58)
 
 **truncate middle: DOM fits where Pretext overflows** (3):
 
@@ -319,16 +401,18 @@ check-mismatch of its own (a case the control does not already mismatch; the cou
 
 | mutant | edits | check-mismatch | by policy | caught |
 |---|---|---:|---|---|
-| ignore reserve | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width * zoom`; check/conditions.ts: `reserve: (merged.reserve ?? 0) * scale,` → `reserve: 0,` | 43024 | as-is 4578, shrinkTo 19962, lines 6944, truncate end 6842, truncate middle 4578, row 120 | yes |
-| treat zoom as textScale | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width - (merged.reserve ?? 0) * scale`; check/rows.ts: `const box = rowWidth * zoom` → `const box = rowWidth`; check/rows.ts: `const gap = row.gap * zoom` → `const gap = row.gap` | 68122 | as-is 13877, shrinkTo 12737, lines 13877, truncate end 13658, truncate middle 13877, row 96 | yes |
-| ignore textTransform | check/evaluate.ts: `const transformed = transformText(text, slot.textTransform, locale)` → `const transformed = text` | 704 | as-is 109, shrinkTo 264, lines 111, truncate end 111, truncate middle 109 | yes |
-| lines off by one (< for <=) | check/evaluate.ts: `fitFontSize(sizes, { width, maxLines: max }, noHeight)` → `fitFontSize(sizes, { width, maxLines: max - 1 }, noHeight)` | 27719 | lines 27719 | yes |
+| ignore reserve | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width * zoom`; check/conditions.ts: `reserve: (merged.reserve ?? 0) * scale,` → `reserve: 0,` | 56896 | as-is 4578, shrinkTo 19962, lines 6944, truncate end 6842, truncate middle 4578, lines (normal) 6936, truncate end (normal) 6936, row 120 | yes |
+| treat zoom as textScale | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width - (merged.reserve ?? 0) * scale`; check/rows.ts: `const box = rowWidth * zoom` → `const box = rowWidth`; check/rows.ts: `const gap = row.gap * zoom` → `const gap = row.gap` | 96866 | as-is 13877, shrinkTo 12737, lines 13877, truncate end 13658, truncate middle 13877, lines (normal) 14867, truncate end (normal) 13877, row 96 | yes |
+| ignore textTransform | check/evaluate.ts: `const transformed = transformText(text, slot.textTransform, locale)` → `const transformed = text` | 922 | as-is 109, shrinkTo 264, lines 111, truncate end 111, truncate middle 109, lines (normal) 109, truncate end (normal) 109 | yes |
+| lines off by one (< for <=) | check/evaluate.ts: `fitFontSize(sizes, { width, maxLines: max }, noHeight)` → `fitFontSize(sizes, { width, maxLines: max - 1 }, noHeight)` | 52007 | lines 27719, lines (normal) 24288 | yes |
 | skip the last collapse stage | check/rows.ts: `for (let k = 0; k < steps.length; k++) {` → `for (let k = 0; k < steps.length - 1; k++) {` | 36 | row 36 | yes |
-| tabular ignored (alias not used) | check/run.ts: `else merged.font = font` → `` | 134 | as-is 24, shrinkTo 26, lines 30, truncate end 30, truncate middle 24 | yes |
+| tabular ignored (alias not used) | check/run.ts: `else merged.font = font` → `` | 224 | as-is 24, shrinkTo 26, lines 30, truncate end 30, truncate middle 24, lines (normal) 48, truncate end (normal) 42 | yes |
+| ignore overflowWrap | check/conditions.ts: `overflowWrap: merged.overflowWrap ?? 'break-word',` → `overflowWrap: 'break-word',` | 6986 | lines (normal) 4573, truncate end (normal) 2413 | yes |
 
 - ignore reserve, e.g. text 100% · zoom 100%: t1.as-is.1.0.9 "Just tried" (en, corpus + icon) @ 84.078125px: checker pass, reference overflow
 - treat zoom as textScale, e.g. text 100% · zoom 130%: t0.as-is.1.1 "Just" (en, corpus) @ 32.28125px: checker overflow, reference pass
 - ignore textTransform, e.g. text 100% · zoom 100%: t2287.as-is.1.0.9 "Übersicht" (de, uppercase tab) @ 70.421875px: checker pass, reference overflow
 - lines off by one (< for <=), e.g. text 100% · zoom 100%: t0.lines.1.1 "Just" (en, corpus) @ 18.59375px: checker too-many-lines, reference pass
 - skip the last collapse stage, e.g. text 100% · zoom 100%: row.en.1.9 @ 313.796875px: checker row-overflow stage 5, reference row-collapsed stage 5
-- tabular ignored (alias not used), e.g. text 100% · zoom 100%: t2305.as-is.1.0.9 "2026-10-06" (en, tabular digits) @ 93.375px: checker pass, reference overflow
+- tabular ignored (alias not used), e.g. text 100% · zoom 100%: t2302.lines-normal.1.0.9 "1.234.567,89 €" (de, tabular digits) @ 95.640625px: checker pass, reference overflow
+- ignore overflowWrap, e.g. text 100% · zoom 100%: t0.lines-normal.1.0.9 "Just" (en, corpus) @ 29.046875px: checker pass, reference overflow
