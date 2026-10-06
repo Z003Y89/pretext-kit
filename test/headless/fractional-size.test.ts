@@ -2,7 +2,8 @@
 // OffscreenCanvas measureText, Inter Regular from test/fonts by @font-face, each size measured first in a fresh page).
 // The model (canvas.ts sizedFor) is exact for the first use of a size in a document. Later in the same document
 // Chromium can reuse the glyph metrics of a nearby fractional size measured before, which the stand-in does not
-// model; nothing here measures Chromium in that order. 'macos' and 'windows' measure at the size asked for.
+// model; nothing here measures Chromium in that order. 'macos' measures at the size asked for; 'windows' is pinned in
+// fractional-size-windows.test.ts.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
@@ -128,11 +129,9 @@ test('ctx.font still reads back the size asked for', () => {
   assert.equal(ctx.font, '16.9px Inter')
 })
 
-test('macos and windows profiles measure at the size asked for', () => {
-  for (const platform of ['macos', 'windows'] as const) {
-    install({ platform })
-    assert.equal(width(16.900000000000002, 'A'), 11.660003662109375, platform)
-    assert.equal(width(16.900000000000002, 'APERÇU'), 68.40867614746094, platform)
-    assert.notEqual(width(16.9, 'A'), width(16.890625, 'A'), platform)
-  }
+test('the macos profile measures at the size asked for', () => {
+  install({ platform: 'macos' })
+  assert.equal(width(16.900000000000002, 'A'), 11.660003662109375)
+  assert.equal(width(16.900000000000002, 'APERÇU'), 68.40867614746094)
+  assert.notEqual(width(16.9, 'A'), width(16.890625, 'A'))
 })

@@ -114,6 +114,16 @@ jobs:
         if: runner.os == 'Windows'
         continue-on-error: true
         run: npm run verify:check 2>&1 | tee verify/check-run.log
+      # What this Chromium measures at fractional font sizes against the stand-in's profiles (a diagnostic; the job log
+      # holds its summary).
+      - name: verify:fractional (Linux, headed under xvfb)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: xvfb-run -a npm run verify:fractional 2>&1 | tee verify/fractional-run.log
+      - name: verify:fractional (Windows, headed)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: npm run verify:fractional 2>&1 | tee verify/fractional-run.log
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -122,6 +132,8 @@ jobs:
             pretext-kit/verify/CHECK_RESULTS.md
             pretext-kit/verify/check-run.log
             pretext-kit/verify/dist/check-cases.md
+            pretext-kit/verify/fractional-run.log
+            pretext-kit/verify/dist/fractional.jsonl
           if-no-files-found: warn
 
   # The release tarballs, packed as verify/pack-release.sh packs them for a release, installed into a fresh project.

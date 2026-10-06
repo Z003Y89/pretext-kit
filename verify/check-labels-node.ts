@@ -8,15 +8,20 @@ import type { CheckInput, Condition, Issue, Label, Platform, RowMap, Slot } from
 
 // One checkLabels call: the slots of one text scale, in that text scale's conditions. shrink: the shrinkTo labels,
 // whose fitted size (no issue when it passes) is read from the checker's own evaluation. nearMiss: the margin the group
-// runs with (the near-miss family); without it the report must hold no near-miss.
-export type NodeGroup = { labels: Label[], slots: Record<string, Slot>, rows: RowMap, conditions: Condition[], shrink: string[], nearMiss?: number }
+// runs with (the near-miss family); without it the report must hold no near-miss. explain: also record the checker's own
+// evaluation of every label in the group (the sweep's diagnostic of check-mismatches; small groups only).
+export type NodeGroup = { labels: Label[], slots: Record<string, Slot>, rows: RowMap, conditions: Condition[], shrink: string[], nearMiss?: number, explain?: boolean }
 export type NodeInput = { fontPath: string, family: string, platform: Platform, groups: NodeGroup[] }
 // verdicts[condition name][label key or row name]: the issue the report holds for it, absent when it passes; a near-miss
 // goes to nearMiss[condition name][key] instead, its missing.px (the slack).
-export type Verdict = { kind: Issue['kind'], fontPx: number, lines: number, stage?: number, detail?: string }
+export type Verdict = {
+  kind: Issue['kind'], fontPx: number, lines: number, width: number, box: number, stage?: number, detail?: string, missing?: Issue['missing'],
+}
+// explained[condition name][label key]: evaluateLabel's verdict, for a group with explain.
+export type Explained = { kind: string, measured: Issue['measured'], missing?: Issue['missing'], slack?: number }
 export type NodeOutput = {
   checked: number, verdicts: Record<string, Record<string, Verdict>>, fitted: Record<string, Record<string, number>>,
-  nearMiss: Record<string, Record<string, number>>,
+  nearMiss: Record<string, Record<string, number>>, explained?: Record<string, Record<string, Explained>>,
 }
 
 const [srcDir, inputPath, outputPath] = process.argv.slice(2)
@@ -60,9 +65,10 @@ for (const group of input.groups) {
     const at = output.verdicts[issue.condition]!
     if (at[issue.key] !== undefined) throw new Error(`two issues for ${issue.key} in ${issue.condition}: ${at[issue.key]!.kind}, ${issue.kind}`)
     at[issue.key] = {
-      kind: issue.kind, fontPx: issue.measured.fontPx, lines: issue.measured.lines,
+      kind: issue.kind, fontPx: issue.measured.fontPx, lines: issue.measured.lines, width: issue.measured.width, box: issue.measured.box,
       ...(issue.measured.stage === undefined ? {} : { stage: issue.measured.stage }),
       ...(issue.detail === undefined ? {} : { detail: issue.detail }),
+      ...(issue.missing === undefined ? {} : { missing: issue.missing }),
     }
   }
 
@@ -80,6 +86,18 @@ for (const group of input.groups) {
       out[key] = evaluateLabel(label.text, resolveSlot(label.slot, slot, condition), label.locale ?? 'und').measured.fontPx
     }
     output.fitted[condition.name] = { ...output.fitted[condition.name], ...out }
+    if (group.explain !== true) continue
+    const explained: Record<string, Explained> = {}
+    for (const label of group.labels) {
+      const slot = { ...group.slots[label.slot]! }
+      if (slot.numeric === 'tabular') slot.font = tabularFont(slot.font, f => `${f} __tnum`)!
+      const v = evaluateLabel(label.text, resolveSlot(label.slot, slot, condition), label.locale ?? 'und')
+      explained[label.key] = {
+        kind: v.kind, measured: v.measured,
+        ...(v.missing === undefined ? {} : { missing: v.missing }), ...(v.slack === undefined ? {} : { slack: v.slack }),
+      }
+    }
+    output.explained = { ...output.explained, [condition.name]: { ...output.explained?.[condition.name], ...explained } }
   }
 }
 writeFileSync(outputPath, JSON.stringify(output))

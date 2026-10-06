@@ -54,6 +54,7 @@
     "verify": "node verify/run.ts",
     "verify:headless": "node verify/headless.ts",
     "verify:check": "node verify/check-labels.ts",
+    "verify:fractional": "node verify/fractional-probe.ts",
     "verify:hvar": "node verify/hvar-fonttools.ts",
     "examples": "node examples/build.ts",
     "examples:serve": "node examples/build.ts && node examples/serve.ts",

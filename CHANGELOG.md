@@ -2,7 +2,7 @@
 
 ## 0.2.0 — unreleased
 
-The label checker, and a fractional-size model for the headless Linux profile. `package.json` stays at 0.1.2 until the release.
+The label checker, and fractional-size models for the headless Linux and Windows profiles. `package.json` stays at 0.1.2 until the release.
 
 - **`pretext-kit/check` and `pretext-kit/check/browser`.** `checkLabels` checks every UI label against the slot it is
   shown in, per language, text scale, zoom and platform, with each slot's own policy (as-is, `shrinkTo`, `lines`,
@@ -11,7 +11,9 @@ The label checker, and a fractional-size model for the headless Linux profile. `
   on `pretext-kit/headless` (macOS, Windows and Linux profiles); the browser entry uses the page's own fonts and
   cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 473,736 cases (375,564
   verdict cases and 98,172 near-miss cases), 0 check-mismatch, 10,255 pretext-gap (7,292 and 2,963), 8 of 8 planted bugs
-  caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
+  caught (verify/CHECK_RESULTS.md); the same tallies on Linux in CI with Chromium 149 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37493529824); on Windows in CI (Chromium
+  149.0.7827.55, run https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670) 0 check-mismatch, 12,424
+  pretext-gap, 8 of 8 caught. Not yet run on macOS.
   `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and
   `pretext-kit/check/browser` do not. Placeholders are `{name}` and `{{name}}`. README "Label checker" lists the limits,
   among them one call at a time (a call wipes fonts registered through `pretext-kit/headless`) and the gap at a box
@@ -36,7 +38,24 @@ The label checker, and a fractional-size model for the headless Linux profile. `
 - **Headless: the `'linux'` profile models Chromium on Linux's fractional font sizes** (the size in float32 hundredths,
   advances at it truncated to 1/64 px; `src/headless/canvas.ts`, `test/headless/fractional-size.test.ts`). Derived and
   measured on Chromium 141, exact for the first use of a size in a page; Chromium's reuse of glyph metrics between
-  nearby fractional sizes later in a page is not modelled. `'macos'` and `'windows'` are unchanged.
+  nearby fractional sizes later in a page is not modelled. Confirmed with Chromium 149 in CI (run https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670, `ubuntu-latest`: 1,464 of 1,464 widths exact).
+- **Headless: the `'windows'` profile models Chromium on Windows's fractional font sizes** (the size in float32
+  hundredths, as on Linux, by which HarfBuzz scales kerning; each glyph advance its font units times float32(size /
+  upem), multiplied in float32 and truncated to 1/65536 px; `src/headless/canvas.ts`,
+  `test/headless/fractional-size-windows.test.ts` with a fixture of recorded Windows widths). Fitted to `verify:fractional`
+  on `windows-latest`, Chromium 149.0.7827.55: 1,464 of 1,464 widths exact (488 sizes × 3 strings; 411 before), static
+  Inter (upem 2048), first use of a size in a page. The kerning part rests on one string; the advance formula is pinned
+  only for power-of-two upem; whole sizes keep HarfBuzz's rounding, byte-identical to 0.1.2; variable fonts at
+  fractional sizes and in-page metric reuse on Windows are unmeasured. It took the first Windows `verify:check` run's 472
+  check-mismatches (fractional text-scale sizes, widths within a few thousandths of a px of the box) to 0.
+  `'macos'` is unchanged and still measures at the size asked for (no macOS data).
+- **`verify:fractional`** (verify/fractional-probe.ts): canvas `measureText` of three strings in Inter Regular at 488
+  sizes (fractional and whole), each size in a fresh browser context, against the stand-in's three profiles, as JSON
+  lines and per-profile exact-match counts; a diagnostic that exits 0. CI runs it in the `parity` job on Linux and
+  Windows and uploads its log and `fractional.jsonl`.
+- **`verify:check` prints diagnostics to its log:** on check-mismatches, counts by policy, condition kind and platform
+  and up to 60 examples spread across groups (checker, reference and DOM measurements); the pretext-gap groups as a
+  table. CHECK_RESULTS.md is unchanged by it.
 - **`verify:check`** (verify/check-labels.ts) in CI on Linux and Windows, uploading CHECK_RESULTS.md as
   `check-results-<os>` without failing the build on a check-mismatch, as for the parity sweep.
 

@@ -93,7 +93,7 @@ A release is tagged only when all of these hold on the exact commit being tagged
 | 3 | Every headless mutant caught on every platform | HEADLESS_RESULTS.md mutant table |
 | 4 | If helpers changed: the browser sweep, 0 kit-mismatch, and every helper mutant caught | verify/RESULTS.md, verify/results/mutants.txt |
 | 5 | If `src/headless/hvar.ts` changed: `npm run verify:hvar`, max difference 0 | HEADLESS_RESULTS.md |
-| 6 | If `src/check/` changed: `npm run verify:check`, 0 check-mismatch, and every check mutant caught | verify/CHECK_RESULTS.md, CI artifacts `check-results-<os>` |
+| 6 | If `src/check/` changed: `npm run verify:check`, 0 check-mismatch, and every check mutant caught, on Linux and Windows (CI, each under its own `platform`) and macOS (run locally by the maintainer) | verify/CHECK_RESULTS.md, CI artifacts `check-results-<os>` |
 | 7 | If a parser changed: malformed-input tests and a fuzz run with no throw | the review's report |
 | 8 | README, CHANGELOG and EVALUATION carry the same numbers and limits as the results files | whole-branch review |
 | 9 | Tarballs packed, sums recorded, consumer smoke on Node 22 and 24, SBOM and notices current | verify/RELEASING.md steps 2–4 |

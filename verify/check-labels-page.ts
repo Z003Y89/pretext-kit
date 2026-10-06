@@ -17,7 +17,9 @@ export type RefKind = 'pass' | 'overflow' | 'below-min-size' | 'too-many-lines' 
 // fontPx: the shrinkTo size chosen (or its minimum when none fits); next: the next larger size the search would
 // have taken, null at the slot size.
 // slack: on a pass of a case that asks for it, the box less the widest line, word or one-line width, at least 0 (zoomed px).
-export type Ref = { kind: RefKind, fontPx: number, lines: number, next: number | null, slack?: number }
+// width, maxLine, box: the one-line width and the widest line at the box, at the condition's size, and the box (zoomed px),
+// for the sweep's diagnostic of check-mismatches.
+export type Ref = { kind: RefKind, fontPx: number, lines: number, next: number | null, slack?: number, width: number, maxLine: number, box: number }
 // overflow: the text element's content wider than its box (overflow(), below), at the slot size, or for shrinkTo at
 // ref.fontPx; overflowNext at ref.next; scrollOverflow*: the same by scrollWidth > clientWidth, a cross-check. lines:
 // the text's line boxes (rects of a range over it, by top), and heightLines its height over the line height (-1 when
@@ -145,8 +147,10 @@ function verdict(c: PageCase, cond: SweepCondition): Ref {
   const g = geometry(c.style, c.width, cond)
   const text = transform(c.text, c.style, c.locale)
   const prepared = prepareWithSegments(text, fontAt(c.style, g.px), { letterSpacing: g.spacing })
-  const lines = measureLineStats(prepared, g.box).lineCount
-  const plain = (kind: RefKind): Ref => ({ kind, fontPx: g.px, lines, next: null })
+  const stats = measureLineStats(prepared, g.box)
+  const lines = stats.lineCount
+  const measures = { width: measureNaturalWidth(prepared), maxLine: stats.maxLineWidth, box: g.box }
+  const plain = (kind: RefKind): Ref => ({ kind, fontPx: g.px, lines, next: null, ...measures })
   switch (c.policy) {
     case 'as-is':
       return plain(fits(text, c.style, g.px, g.spacing, g.box, 1) ? 'pass' : 'overflow')
@@ -175,8 +179,8 @@ function verdict(c: PageCase, cond: SweepCondition): Ref {
       for (let s = Math.floor(g.px); s >= Math.ceil(min); s--) if (s !== g.px) sizes.push(s)
       if (sizes.at(-1) !== min) sizes.push(min)
       const hit = sizes.findIndex(s => fits(text, c.style, s, g.spacing, g.box, 1))
-      if (hit < 0) return { kind: 'below-min-size', fontPx: min, lines, next: null }
-      return { kind: 'pass', fontPx: sizes[hit]!, lines, next: hit === 0 ? null : sizes[hit - 1]! }
+      if (hit < 0) return { kind: 'below-min-size', fontPx: min, lines, next: null, ...measures }
+      return { kind: 'pass', fontPx: sizes[hit]!, lines, next: hit === 0 ? null : sizes[hit - 1]!, ...measures }
     }
   }
 }

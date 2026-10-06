@@ -168,19 +168,23 @@ type ShapingFont = { font: Font; varied: VariedAdvances | null }
 
 // Chromium on Linux takes glyph advances from FreeType at a size of its own (sizedFor) while HarfBuzz scales
 // everything else (GPOS) by the size it was given; a sub font gives the advances at that size, rounded to
-// HarfBuzz's 16.16 position.
+// HarfBuzz's 16.16 position. Chromium on Windows scales them in float32 and truncates to 16.16, as
+// variedAdvanceFunc does for macOS.
 const advanceFuncs = new FontFuncs()
 const advancesAt = new Map<number, (glyph: number) => number>()
 const forgetAdvances = new FinalizationRegistry<{ ptr: number; at: (glyph: number) => number }>(({ ptr, at }) => {
   if (advancesAt.get(ptr) === at) advancesAt.delete(ptr)
 })
 advanceFuncs.setGlyphHAdvanceFunc((font, glyph) => advancesAt.get(font.ptr)?.(glyph) ?? 0)
-function withAdvancesAt(font: Font, face: FontFace, px: number, variations: Variation[]): ShapingFont {
+function withAdvancesAt(font: Font, face: FontFace, px: number, rounding: ParsedFont['advanceRounding'], variations: Variation[]): ShapingFont {
   const units = new Font(hbFace(face))
   if (variations.length > 0) units.setVariations(variations)
   const sub = font.subFont()
   sub.setFuncs(advanceFuncs)
-  const at = (glyph: number): number => Math.round((units.glyphHAdvance(glyph) * px * 65536) / face.upem)
+  const pxPerUnit = Math.fround(px / face.upem)
+  const at = rounding === 'float32-trunc'
+    ? (glyph: number): number => Math.trunc(Math.fround(Math.fround(units.glyphHAdvance(glyph)) * pxPerUnit) * 65536)
+    : (glyph: number): number => Math.round((units.glyphHAdvance(glyph) * px * 65536) / face.upem)
   advancesAt.set(sub.ptr, at)
   forgetAdvances.register(sub, { ptr: sub.ptr, at })
   return { font: sub, varied: null }
@@ -188,14 +192,16 @@ function withAdvancesAt(font: Font, face: FontFace, px: number, variations: Vari
 
 // A registered weight picks the face; on a variable face the weight, optical size (Chrome
 // applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes. Only Chrome
-// on macOS keeps HVAR's fractions; on Windows and Linux a varied instance keeps HarfBuzz's font.
+// on macOS keeps HVAR's fractions; on Windows and Linux a varied instance keeps HarfBuzz's HVAR
+// rounding, and at a fractional size gets the advance sub font of sizedFor's rule on top of it.
 function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
   const unrounded = platform === 'macos'
   const wght = instanceWeight(face, parsed.weight)
   const opsz = axisValue(face, 'opsz', parsed.sizePx)
   const wdth = axisValue(face, 'wdth', parsed.stretch)
   const advancePx = parsed.advancePx ?? parsed.sizePx
-  const key = `${parsed.sizePx}|${advancePx}|${wght}|${opsz}|${wdth}|${unrounded ? 'unrounded' : 'harfbuzz'}`
+  const rounding = parsed.advanceRounding
+  const key = `${parsed.sizePx}|${advancePx}|${rounding}|${wght}|${opsz}|${wdth}|${unrounded ? 'unrounded' : 'harfbuzz'}`
   let bySize = fonts.get(face)
   if (bySize === undefined) {
     bySize = new Map()
@@ -204,6 +210,8 @@ function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
   let shaping = bySize.get(key)
   if (shaping === undefined) {
     const font = new Font(hbFace(face))
+    // On Windows the data constrains this rounding (GPOS) only weakly: truncating instead changes 189 of the 465
+    // fractional sizes' scales and still reproduces all 1,464 widths, as only 'Nebenrollen-Takes' kerns.
     const scale = Math.round(parsed.sizePx * 65536)
     font.setScale(scale, scale)
     const variations: Variation[] = []
@@ -215,7 +223,7 @@ function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
     if (variations.length > 0) font.setVariations(variations)
     shaping = variations.length > 0 && unrounded
       ? withVariedAdvances(font, face, parsed.sizePx, design)
-      : advancePx !== parsed.sizePx ? withAdvancesAt(font, face, advancePx, variations) : { font, varied: null }
+      : advancePx !== parsed.sizePx || rounding !== undefined ? withAdvancesAt(font, face, advancePx, rounding, variations) : { font, varied: null }
     bySize.set(key, shaping)
   }
   // The sub font is alive (this cache holds it), so its pointer is its own: its entry is put back
@@ -532,15 +540,32 @@ export type HeadlessContext = {
 // (test/headless/fractional-size.test.ts). Later in a document Chromium can reuse the glyph metrics of a nearby
 // fractional size measured before, in either direction; that is not modelled, so two fractional sizes within a few
 // hundredths of a px on one page can measure one 1/64 px advance step apart from here.
-const linuxSizes = new WeakMap<ParsedFont, ParsedFont>()
+// Chromium on Windows (Chromium 149, Inter) keys the font by the same whole hundredths; HarfBuzz scales GPOS by
+// that size, and each glyph advance is its font units times float32(size / upem), in float32, truncated to 1/65536
+// px. Exact on this data, not derived from Chromium's source: all 1,464 widths a windows-latest run recorded, each the
+// first use of its size in a document (test/headless/fractional-size-windows.test.ts), with Inter (upem 2048). The
+// data pins fround(fround(u) * fround(s / upem)) only for a power-of-two upem: for 2048 and 1024 it equals
+// fround(s * u / upem) and fround(fround(s * u) / upem), while for upem 1000 (Shantell Sans) they differ in about 4%
+// of advances. In-page metric sharing between nearby sizes, and variable fonts at fractional sizes, are unmeasured
+// on Windows. Whole sizes keep HarfBuzz's rounding so integer sizes are unchanged; that rounding is known inexact for
+// upem-1000 fonts on Windows (Shantell Sans, EVALUATION §7), so a upem-1000 font switches rule between 16.004px
+// (cut to 16) and 16.01px.
+const platformSizes = { linux: new WeakMap<ParsedFont, ParsedFont>(), windows: new WeakMap<ParsedFont, ParsedFont>() }
 function sizedFor(parsed: ParsedFont, platform: Platform): ParsedFont {
-  if (platform !== 'linux') return parsed
-  let out = linuxSizes.get(parsed)
+  if (platform === 'macos') return parsed
+  let out = platformSizes[platform].get(parsed)
   if (out === undefined) {
     const sizePx = Math.fround(Math.trunc(Math.fround(Math.fround(parsed.sizePx) * 100)) / 100)
-    const advancePx = Math.floor(sizePx * 64) / 64
-    out = sizePx === parsed.sizePx && advancePx === sizePx ? parsed : { ...parsed, sizePx, advancePx }
-    linuxSizes.set(parsed, out)
+    if (platform === 'linux') {
+      const advancePx = Math.floor(sizePx * 64) / 64
+      out = sizePx === parsed.sizePx && advancePx === sizePx ? parsed : { ...parsed, sizePx, advancePx }
+    } else if (Number.isInteger(sizePx)) {
+      // Unchanged from before the Windows model, HarfBuzz rounding included (see above).
+      out = sizePx === parsed.sizePx ? parsed : { ...parsed, sizePx }
+    } else {
+      out = { ...parsed, sizePx, advanceRounding: 'float32-trunc' }
+    }
+    platformSizes[platform].set(parsed, out)
   }
   return out
 }
