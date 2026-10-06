@@ -82,6 +82,18 @@ test('applyEdit takes exactly one occurrence, or throws', () => {
   assert.throws(() => applyEdit('a < b; a < b', edit, 'm'), /found 2/)
 })
 
+test('applyEdit matches a CRLF source as LF, exactly once, and returns LF', () => {
+  const edit = { file: 'f.ts', from: 'const box = a\n', to: 'const box = b\n' }
+  assert.equal(applyEdit('x\r\nconst box = a\r\ny\r\n', edit, 'm'), 'x\nconst box = b\ny\n')
+  assert.throws(() => applyEdit('x\r\ny\r\n', edit, 'm'), /found 0/)
+  assert.throws(() => applyEdit('const box = a\r\nconst box = a\r\n', edit, 'm'), /found 2/)
+})
+
+test('every mutant applies to a CRLF checkout of src too', () => {
+  const read = (file: string) => readFileSync(new URL(`../../src/${file}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n').replaceAll('\n', '\r\n')
+  for (const m of MUTANTS) applyMutant(m, read, () => {})
+})
+
 test('applyMutant applies edits to one file in order and writes each file once', () => {
   const written: [string, string][] = []
   applyMutant(

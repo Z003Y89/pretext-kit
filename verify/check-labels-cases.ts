@@ -266,8 +266,9 @@ export const MUTANTS: Mutant[] = [
   },
 ]
 
+// Matched on LF line endings whatever the checkout has (Windows checks out CRLF); the result keeps LF.
 export function applyEdit(source: string, edit: Edit, mutant: string): string {
-  const parts = source.split(edit.from)
+  const parts = source.replaceAll('\r\n', '\n').split(edit.from)
   if (parts.length !== 2) throw new Error(`mutant "${mutant}": expected one occurrence in ${edit.file}, found ${parts.length - 1}: ${JSON.stringify(edit.from)}`)
   return parts.join(edit.to)
 }
