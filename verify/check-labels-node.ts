@@ -7,12 +7,17 @@ import { pathToFileURL } from 'node:url'
 import type { CheckInput, Condition, Issue, Label, Platform, RowMap, Slot } from '../src/check/types.ts'
 
 // One checkLabels call: the slots of one text scale, in that text scale's conditions. shrink: the shrinkTo labels,
-// whose fitted size (no issue when it passes) is read from the checker's own evaluation.
-export type NodeGroup = { labels: Label[], slots: Record<string, Slot>, rows: RowMap, conditions: Condition[], shrink: string[] }
+// whose fitted size (no issue when it passes) is read from the checker's own evaluation. nearMiss: the margin the group
+// runs with (the near-miss family); without it the report must hold no near-miss.
+export type NodeGroup = { labels: Label[], slots: Record<string, Slot>, rows: RowMap, conditions: Condition[], shrink: string[], nearMiss?: number }
 export type NodeInput = { fontPath: string, family: string, platform: Platform, groups: NodeGroup[] }
-// verdicts[condition name][label key or row name]: the issue the report holds for it, absent when it passes.
+// verdicts[condition name][label key or row name]: the issue the report holds for it, absent when it passes; a near-miss
+// goes to nearMiss[condition name][key] instead, its missing.px (the slack).
 export type Verdict = { kind: Issue['kind'], fontPx: number, lines: number, stage?: number, detail?: string }
-export type NodeOutput = { checked: number, verdicts: Record<string, Record<string, Verdict>>, fitted: Record<string, Record<string, number>> }
+export type NodeOutput = {
+  checked: number, verdicts: Record<string, Record<string, Verdict>>, fitted: Record<string, Record<string, number>>,
+  nearMiss: Record<string, Record<string, number>>,
+}
 
 const [srcDir, inputPath, outputPath] = process.argv.slice(2)
 if (srcDir === undefined || inputPath === undefined || outputPath === undefined) {
@@ -27,7 +32,7 @@ const { evaluateLabel } = await load<typeof import('../src/check/evaluate.ts')>(
 const { tabularFont } = await load<typeof import('../src/check/run.ts')>('check/run.ts')
 const { clearCache } = await import('@chenglou/pretext')
 
-const output: NodeOutput = { checked: 0, verdicts: {}, fitted: {} }
+const output: NodeOutput = { checked: 0, verdicts: {}, fitted: {}, nearMiss: {} }
 for (const group of input.groups) {
   const checkInput: CheckInput = {
     fonts: [{ family: input.family, path: input.fontPath, weight: 400 }],
@@ -36,11 +41,22 @@ for (const group of input.groups) {
     rows: group.rows,
     conditions: group.conditions,
     platforms: [input.platform],
+    ...(group.nearMiss === undefined ? {} : { nearMiss: group.nearMiss }),
   }
   const report = await check.checkLabels(checkInput)
   output.checked += report.checked
-  for (const c of group.conditions) output.verdicts[c.name] = {}
+  for (const c of group.conditions) {
+    output.verdicts[c.name] ??= {}
+    output.nearMiss[c.name] ??= {}
+  }
   for (const issue of [...report.failures, ...report.warnings, ...report.notes]) {
+    if (issue.kind === 'near-miss') {
+      if (group.nearMiss === undefined) throw new Error(`near-miss for ${issue.key} in ${issue.condition} with no nearMiss set`)
+      const near = output.nearMiss[issue.condition]!
+      if (near[issue.key] !== undefined) throw new Error(`two near-misses for ${issue.key} in ${issue.condition}`)
+      near[issue.key] = issue.missing!.px!
+      continue
+    }
     const at = output.verdicts[issue.condition]!
     if (at[issue.key] !== undefined) throw new Error(`two issues for ${issue.key} in ${issue.condition}: ${at[issue.key]!.kind}, ${issue.kind}`)
     at[issue.key] = {
@@ -63,7 +79,7 @@ for (const group of input.groups) {
       if (slot.numeric === 'tabular') slot.font = tabularFont(slot.font, f => `${f} __tnum`)!
       out[key] = evaluateLabel(label.text, resolveSlot(label.slot, slot, condition), label.locale ?? 'und').measured.fontPx
     }
-    output.fitted[condition.name] = out
+    output.fitted[condition.name] = { ...output.fitted[condition.name], ...out }
   }
 }
 writeFileSync(outputPath, JSON.stringify(output))

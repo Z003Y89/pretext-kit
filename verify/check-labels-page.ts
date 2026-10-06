@@ -11,29 +11,34 @@ import type { PreparedTextWithSegments } from '@chenglou/pretext'
 
 export type LoadedFace = { family: string, status: string }
 export type MeasureItem = { text: string, locale: string, style: Style }
-export type PageCase = { text: string, locale: string, style: Style, policy: PolicyName, width: number }
+// slack: also measure the room the text leaves in the box (the near-miss family).
+export type PageCase = { text: string, locale: string, style: Style, policy: PolicyName, width: number, slack?: boolean }
 export type RefKind = 'pass' | 'overflow' | 'below-min-size' | 'too-many-lines' | 'truncated'
 // fontPx: the shrinkTo size chosen (or its minimum when none fits); next: the next larger size the search would
 // have taken, null at the slot size.
-export type Ref = { kind: RefKind, fontPx: number, lines: number, next: number | null }
+// slack: on a pass of a case that asks for it, the box less the widest line, word or one-line width, at least 0 (zoomed px).
+export type Ref = { kind: RefKind, fontPx: number, lines: number, next: number | null, slack?: number }
 // overflow: the text element's content wider than its box (overflow(), below), at the slot size, or for shrinkTo at
 // ref.fontPx; overflowNext at ref.next; scrollOverflow*: the same by scrollWidth > clientWidth, a cross-check. lines:
 // the text's line boxes (rects of a range over it, by top), and heightLines its height over the line height (-1 when
 // no whole number, each line allowed 1/64 px of layout rounding); overflow, for lines too, a line wider than the box.
 // clamped: scrollHeight > clientHeight under -webkit-line-clamp; for truncate end (normal) overflow too, a line
-// cut at the box by text-overflow. textWidth and boxWidth: zoomed px.
+// cut at the box by text-overflow. textWidth and boxWidth: zoomed px. slack: the box less the text's width (one line) or
+// its widest line (the rects of a range over it grouped by top, which leave out a line's trailing space and take in a
+// painted soft hyphen), zoomed px.
 export type Dom = {
-  overflow?: boolean, overflowNext?: boolean, lines?: number, heightLines?: number, clamped?: boolean,
+  overflow?: boolean, overflowNext?: boolean, lines?: number, heightLines?: number, clamped?: boolean, slack?: number,
   scrollOverflow?: boolean, scrollOverflowNext?: boolean,
   scrollWidth?: number, clientWidth?: number, textWidth?: number, boxWidth?: number, textWidthNext?: number,
 }
 export type PageResult = { ref: Ref, dom: Dom }
 
 export type PageRowItem = { text: string, short?: string, order?: number }
-export type PageRow = { locale: string, items: PageRowItem[], width: number, gap: number, iconWidth: number, style: Style }
+export type PageRow = { locale: string, items: PageRowItem[], width: number, gap: number, iconWidth: number, style: Style, slack?: boolean }
 // stage: the first stage that fits, or the last when none does (overflow); dom: whether the row overflows at that
 // stage and at the one before it (null at stage 0).
-export type RowRef = { kind: 'pass' | 'row-collapsed' | 'row-overflow', stage: number, stages: number }
+// slack: when the row fits at its stage, the row box less the stage's total (zoomed px), for a row that asks for it.
+export type RowRef = { kind: 'pass' | 'row-collapsed' | 'row-overflow', stage: number, stages: number, slack?: number }
 export type RowResult = {
   ref: RowRef
   dom: { overflow: boolean, scrollOverflow: boolean, overflowBefore: boolean | null, scrollOverflowBefore: boolean | null, textWidth: number, boxWidth: number }
@@ -95,7 +100,7 @@ function hyphenLine(prepared: PreparedTextWithSegments, piece: Piece, width: num
 // natural width, which is what an unbroken word paints, or, before a soft hyphen, its line at the box ends there wider
 // than the box (plus FIT_TOLERANCE). at: the width lines are laid out at, the box plus FIT_TOLERANCE when a word that
 // passes is wider than the box, since the browser shows it whole.
-function normalWrap(prepared: PreparedTextWithSegments, style: Style, px: number, spacing: number, width: number): { tooWide: boolean, at: number } {
+function normalWrap(prepared: PreparedTextWithSegments, style: Style, px: number, spacing: number, width: number): { tooWide: boolean, at: number, widest: number } {
   let tooWide = false
   let widest = 0
   for (const piece of unbreakablePieces(prepared.segments, prepared.kinds)) {
@@ -104,10 +109,39 @@ function normalWrap(prepared: PreparedTextWithSegments, style: Style, px: number
     const hyphen = hyphenLine(prepared, piece, width)
     if (natural > width + FIT_TOLERANCE || (hyphen !== null && hyphen > width + FIT_TOLERANCE)) tooWide = true
   }
-  return { tooWide, at: widest > width ? width + FIT_TOLERANCE : width }
+  return { tooWide, at: widest > width ? width + FIT_TOLERANCE : width, widest }
+}
+
+// The near-miss slack of a pass: the box less what the policy fits in it, measured at the size the verdict took.
+function slackOf(c: PageCase, cond: SweepCondition, ref: Ref): number {
+  const g = geometry(c.style, c.width, cond)
+  const text = transform(c.text, c.style, c.locale)
+  const opts = { letterSpacing: g.spacing }
+  const one = (t: string, px: number): number => measureNaturalWidth(prepareWithSegments(t, fontAt(c.style, px), opts))
+  const prepared = prepareWithSegments(text, fontAt(c.style, g.px), opts)
+  let used: number
+  switch (c.policy) {
+    case 'as-is': used = one(text, g.px); break
+    case 'truncate middle': used = one(prepareLabel(text, fontAt(c.style, g.px)).text, g.px); break
+    case 'shrinkTo': used = one(text, ref.fontPx); break
+    case 'lines':
+    case 'truncate end': used = measureLineStats(prepared, g.box).maxLineWidth; break
+    case 'lines (normal)':
+    case 'truncate end (normal)': {
+      const n = normalWrap(prepared, c.style, g.px, g.spacing, g.box)
+      used = Math.max(n.widest, measureLineStats(prepared, n.at).maxLineWidth)
+      break
+    }
+  }
+  return Math.max(0, g.box - used)
 }
 
 function reference(c: PageCase, cond: SweepCondition): Ref {
+  const ref = verdict(c, cond)
+  return c.slack === true && ref.kind === 'pass' ? { ...ref, slack: slackOf(c, cond, ref) } : ref
+}
+
+function verdict(c: PageCase, cond: SweepCondition): Ref {
   const g = geometry(c.style, c.width, cond)
   const text = transform(c.text, c.style, c.locale)
   const prepared = prepareWithSegments(text, fontAt(c.style, g.px), { letterSpacing: g.spacing })
@@ -176,7 +210,8 @@ function rowReference(r: PageRow, cond: SweepCondition): RowRef & { states: Item
   const stage = states.findIndex(ss => total(ss) <= box + FIT_TOLERANCE)
   const last = states.length - 1
   if (stage < 0) return { kind: 'row-overflow', stage: last, stages: last, states }
-  return { kind: stage === 0 ? 'pass' : 'row-collapsed', stage, stages: last, states }
+  const slack = r.slack === true ? { slack: Math.max(0, box - total(states[stage]!)) } : {}
+  return { kind: stage === 0 ? 'pass' : 'row-collapsed', stage, stages: last, states, ...slack }
 }
 
 // ---- The DOM ----------------------------------------------------------------------------------------------
@@ -235,6 +270,21 @@ function overflow(el: HTMLElement): Overflow {
     overflow: textWidth > boxWidth + OVERFLOW_TOLERANCE, scrollOverflow: el.scrollWidth > el.clientWidth,
     textWidth, boxWidth, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth,
   }
+}
+
+// The widest line of an element's text: its range's rects grouped by top, each line from its leftmost to its rightmost rect.
+function widestLine(el: HTMLElement): number {
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  const lines = new Map<number, { left: number, right: number }>()
+  for (const r of range.getClientRects()) {
+    if (r.width <= 0) continue
+    const top = Math.round(r.top * 64)
+    const line = lines.get(top)
+    if (line === undefined) lines.set(top, { left: r.left, right: r.right })
+    else lines.set(top, { left: Math.min(line.left, r.left), right: Math.max(line.right, r.right) })
+  }
+  return Math.max(0, ...[...lines.values()].map(l => l.right - l.left))
 }
 
 // Line boxes sit on at most a 1/64 px grid, so a height within this per line of n lines is n lines.
@@ -321,6 +371,7 @@ if (typeof window !== 'undefined') {
           Object.assign(dom, overflow(text))
         } else {
           Object.assign(dom, overflow(text))
+          if (c.slack === true) dom.slack = dom.boxWidth! - dom.textWidth!
           if (next !== undefined) {
             const n = overflow(next)
             dom.overflowNext = n.overflow
@@ -328,6 +379,7 @@ if (typeof window !== 'undefined') {
             dom.textWidthNext = n.textWidth
           }
         }
+        if (c.slack === true && dom.slack === undefined) dom.slack = text.getBoundingClientRect().width - widestLine(text)
         return { ref: refs[i]!, dom }
       })
     },

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import {
-  FACTORS, HAND_LABELS, MUTANTS, NORMAL_WRAP, POLICIES, WORD_EDGES, ROW_FAMILY, STYLES, TEXT_SCALES, applyEdit, applyMutant, conditions, grid64, policyKey, rowTotal,
-  rowWidths, shortLines, slotCases, stageWidths, sweepTexts, unbreakablePieces, vacuousCells,
+  FACTORS, HAND_LABELS, MUTANTS, NEAR_EVERY, NEAR_MISS, NEAR_OFFSETS, NORMAL_WRAP, POLICIES, WORD_EDGES, ROW_FAMILY, STYLES, TEXT_SCALES, applyEdit, applyMutant,
+  conditions, grid64, nearMissCases, policyKey, rowNearWidths, rowTotal, rowWidths, shortLines, slotCases, stageWidths, sweepTexts, unbreakablePieces, vacuousCells,
 } from '../../verify/check-labels-cases.ts'
 import { CORPORA } from '../../verify/corpora.ts'
 
@@ -119,7 +119,8 @@ test('applyMutant applies edits to one file in order and writes each file once',
 
 test('every mutant applies to the current src exactly once per edit', () => {
   const read = (file: string) => readFileSync(new URL(`../../src/${file}`, import.meta.url), 'utf8')
-  assert.equal(MUTANTS.length, 7)
+  assert.equal(MUTANTS.length, 8)
+  assert.equal(MUTANTS.at(-1)!.name, 'ignore nearMiss')
   for (const m of MUTANTS) {
     let changed = 0
     applyMutant(m, read, (file, source) => {
@@ -141,4 +142,24 @@ test('unbreakable pieces: segments of text split at every break, glue and contro
   assert.deepEqual(unbreakablePieces([], []), [])
   assert.equal(policyKey('truncate end (normal)'), 'truncate-end-normal')
   assert.equal(policyKey('as-is'), 'as-is')
+})
+
+test('near-miss cases: every NEAR_EVERY-th text in every policy at its boundary plus each offset, on the 1/64 px grid', () => {
+  assert.equal(NEAR_MISS, 2)
+  assert.deepEqual(NEAR_OFFSETS, [-0.5, 0, 2 / 1.3 - 0.25, 2 / 1.3 + 0.25, 1.75, 2.25])
+  const texts = Array.from({ length: NEAR_EVERY + 1 }, (_, i) => ({ id: `t${i}`, source: 's', text: 'a b', locale: 'en' as const, style: STYLES.corpusIcon }))
+  const m = { natural: 100.3, naturalMin: 75.2, twoLines: 50.1, widestPiece: 60.7 }
+  const cases = nearMissCases(texts, TEXT_SCALES.map(() => texts.map(() => m)))
+  assert.equal(cases.length, 2 * POLICIES.length * NEAR_OFFSETS.length * TEXT_SCALES.length)
+  assert.deepEqual([...new Set(cases.map(c => c.text))], [0, NEAR_EVERY])
+  const at = (policy: string, offset: number, scale: number) => cases.find(c => c.text === 0 && c.policy === policy && c.edge === `near${offset < 0 ? '' : '+'}${offset}` && c.scale === scale)!.width
+  assert.equal(at('as-is', 1.75, 1), grid64(100.3 + 1.75 + 20))
+  assert.equal(at('shrinkTo', -0.5, 1.3), grid64(75.2 - 0.5 + 26))
+  assert.equal(at('lines', 0, 1.15), grid64(50.1 + 23))
+  assert.equal(at('truncate end (normal)', 2.25, 1), grid64(60.7 + 2.25 + 20))
+  assert.ok(cases.every(c => c.factor === null && c.edge!.startsWith('near')))
+  assert.equal(new Set(cases.map(c => c.key)).size, cases.length)
+  const all = [...cases, ...slotCases(texts, TEXT_SCALES.map(() => texts.map(() => m)))]
+  assert.equal(new Set(all.map(c => c.key)).size, all.length)
+  assert.deepEqual(rowNearWidths([100]), NEAR_OFFSETS.map(o => grid64(100 + o)))
 })

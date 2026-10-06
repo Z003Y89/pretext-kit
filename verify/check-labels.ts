@@ -11,8 +11,9 @@
 // (real canvas, the same file by @font-face); and by Chromium's DOM, a real element styled as the slot (text scale as
 // a font-size change in a fixed-width box, zoom as CSS zoom on the container). Attribution as EVALUATION §2: the
 // checker against the reference first, where a difference is a check-mismatch; then the reference against the DOM,
-// where a difference is a pretext-gap. Mutants: the checker side again from a mutated copy of src under
-// verify/dist/mutants; each must produce check-mismatches.
+// where a difference is a pretext-gap. The near-miss family (every sixth text, and rows, at the boundary box plus offsets
+// around the margin) runs with nearMiss and compares the slack the same two ways. Mutants: the checker side again from
+// a mutated copy of src under verify/dist/mutants; each must produce check-mismatches.
 //
 // Exits 1 on any check-mismatch, any mutant not caught, a font Chromium did not load and a page error.
 //
@@ -30,9 +31,9 @@ import { chromium } from 'playwright'
 import type { Label, Platform, RowMap, Slot } from '../src/check/types.ts'
 import { clopperPearsonUpper, pct, wilsonUpper } from './bounds.ts'
 import {
-  FACTORS, FAMILY, FONT_FILE, HAND_LABELS, ICON_WIDTH, LINE_HEIGHT_RATIO, LINES, MAX_CHARS, MUTANTS, NORMAL_WRAP, POLICIES, ROW_FAMILY, ROW_GAP,
-  ROW_STYLE, SHRINK_BY, TEXT_SCALES, TNUM_FAMILY, ZOOMS, applyMutant, conditions, rowTotal, rowWidths, slotCases, stageWidths,
-  sweepTexts, vacuousCells,
+  FACTORS, FAMILY, FONT_FILE, HAND_LABELS, ICON_WIDTH, LINE_HEIGHT_RATIO, LINES, MAX_CHARS, MUTANTS, NEAR_EVERY, NEAR_MISS, NEAR_OFFSETS, NORMAL_WRAP,
+  POLICIES, ROW_FAMILY, ROW_GAP, ROW_STYLE, SHRINK_BY, TEXT_SCALES, TNUM_FAMILY, ZOOMS, applyMutant, conditions, nearMissCases, rowNearWidths, rowTotal,
+  rowWidths, slotCases, stageWidths, sweepTexts, vacuousCells,
 } from './check-labels-cases.ts'
 import type { ConditionKind, Locale, Mutant, PolicyName, SlotCase, Style, SweepCondition } from './check-labels-cases.ts'
 import type { NodeGroup, NodeInput, NodeOutput } from './check-labels-node.ts'
@@ -148,10 +149,15 @@ const allCases = slotCases(texts, measured)
 const zoomMutantBox = (c: SlotCase): number => c.width - texts[c.text]!.style.reserve * c.scale * MAX_ZOOM
 const cases = allCases.filter(c => zoomMutantBox(c) > 0)
 const invalid = allCases.filter(c => !(zoomMutantBox(c) > 0))
+// The near-miss family: its own slots, run with nearMiss in groups of their own.
+const allNear = nearMissCases(texts, measured)
+const nearCases = allNear.filter(c => zoomMutantBox(c) > 0)
+const nearInvalid = allNear.filter(c => !(zoomMutantBox(c) > 0))
 
 // The row family: one row per locale, text scale and width, its widths from the items measured at that text scale.
 type RowCase = { name: string, locale: Locale, scale: number, width: number, stages: number }
 const rowCases: RowCase[] = []
+const nearRowCases: RowCase[] = []
 for (const scale of TEXT_SCALES) {
   for (const locale of Object.keys(ROW_FAMILY) as Locale[]) {
     const defs = ROW_FAMILY[locale]
@@ -159,32 +165,41 @@ for (const scale of TEXT_SCALES) {
     const widths = await page.evaluate(([xs, s]) => window.ck.naturals(xs, s), [all.map(text => ({ text, locale, style: ROW_STYLE })), scale] as const)
     const of = (text: string): number => widths[all.indexOf(text)]! + ROW_STYLE.reserve * scale
     const stages = stageWidths(defs, defs.map(i => of(i.text)), defs.map(i => (i.short === undefined ? undefined : of(i.short))), ICON_WIDTH * scale)
-    rowWidths(stages.map(s => rowTotal(s, ROW_GAP))).forEach((width, i) => rowCases.push({ name: `row.${locale}.${scale}.${i}`, locale, scale, width, stages: stages.length - 1 }))
+    const totals = stages.map(s => rowTotal(s, ROW_GAP))
+    rowWidths(totals).forEach((width, i) => rowCases.push({ name: `row.${locale}.${scale}.${i}`, locale, scale, width, stages: stages.length - 1 }))
+    rowNearWidths(totals).forEach((width, i) => nearRowCases.push({ name: `near-row.${locale}.${scale}.${i}`, locale, scale, width, stages: stages.length - 1 }))
   }
 }
 const casesAt = conds.map(c => cases.filter(x => x.scale === c.textScale))
 const rowsAt = conds.map(c => rowCases.filter(r => r.scale === c.textScale))
-const rowOf = (r: RowCase): PageRow => ({
-  locale: r.locale, width: r.width, gap: ROW_GAP, iconWidth: ICON_WIDTH, style: ROW_STYLE,
+const nearAt = conds.map(c => nearCases.filter(x => x.scale === c.textScale))
+const nearRowsAt = conds.map(c => nearRowCases.filter(r => r.scale === c.textScale))
+const rowOf = (r: RowCase, slack = false): PageRow => ({
+  locale: r.locale, width: r.width, gap: ROW_GAP, iconWidth: ICON_WIDTH, style: ROW_STYLE, ...(slack ? { slack } : {}),
   items: ROW_FAMILY[r.locale].map(i => ({ text: i.text, ...(i.short === undefined ? {} : { short: i.short }), ...(i.order === undefined ? {} : { order: i.order }) })),
 })
 
-const pageCase = (c: SlotCase): PageCase => {
+const pageCase = (c: SlotCase, slack = false): PageCase => {
   const t = texts[c.text]!
-  return { text: t.text, locale: t.locale, style: t.style, policy: c.policy, width: c.width }
+  return { text: t.text, locale: t.locale, style: t.style, policy: c.policy, width: c.width, ...(slack ? { slack } : {}) }
 }
 const CHUNK = 3000
 const pageLabels: PageResult[][] = []
 const pageRows: RowResult[][] = []
-for (const [j, cond] of conds.entries()) {
+const pageNear: PageResult[][] = []
+const pageNearRows: RowResult[][] = []
+const labelsIn = async (list: PageCase[], cond: SweepCondition): Promise<PageResult[]> => {
   const out: PageResult[] = []
-  for (let i = 0; i < casesAt[j]!.length; i += CHUNK) {
-    const chunk = casesAt[j]!.slice(i, i + CHUNK).map(pageCase)
-    out.push(...await page.evaluate(([cs, c]) => window.ck.labels(cs, c), [chunk, cond] as const))
-  }
+  for (let i = 0; i < list.length; i += CHUNK) out.push(...await page.evaluate(([cs, c]) => window.ck.labels(cs, c), [list.slice(i, i + CHUNK), cond] as const))
+  return out
+}
+for (const [j, cond] of conds.entries()) {
+  const out = await labelsIn(casesAt[j]!.map(c => pageCase(c)), cond)
   pageLabels.push(out)
-  pageRows.push(await page.evaluate(([rs, c]) => window.ck.rows(rs, c), [rowsAt[j]!.map(rowOf), cond] as const))
-  console.log(`Chromium ${cond.name}: ${out.length} slot cases, ${rowsAt[j]!.length} rows (${((performance.now() - t0) / 1000).toFixed(1)}s)`)
+  pageRows.push(await page.evaluate(([rs, c]) => window.ck.rows(rs, c), [rowsAt[j]!.map(r => rowOf(r)), cond] as const))
+  pageNear.push(await labelsIn(nearAt[j]!.map(c => pageCase(c, true)), cond))
+  pageNearRows.push(await page.evaluate(([rs, c]) => window.ck.rows(rs, c), [nearRowsAt[j]!.map(r => rowOf(r, true)), cond] as const))
+  console.log(`Chromium ${cond.name}: ${out.length} slot cases, ${rowsAt[j]!.length} rows; near-miss ${nearAt[j]!.length} slot cases, ${nearRowsAt[j]!.length} rows (${((performance.now() - t0) / 1000).toFixed(1)}s)`)
 }
 const chromiumSeconds = (performance.now() - t0) / 1000
 await browser.close()
@@ -210,10 +225,10 @@ const slotOf = (style: Style, width: number, policy: Slot['policy'], overflowWra
 // One checkLabels call per text scale. The row items' own texts are labels too (rows look their texts up among the
 // labels), in a slot wide enough to pass; their verdicts are not part of the sweep.
 const ROW_SLOT = 'row-item'
-const groups: NodeGroup[] = TEXT_SCALES.map(scale => {
+const group = (scale: number, slotList: SlotCase[], rowList: RowCase[], nearMiss?: number): NodeGroup => {
   const labels: Label[] = []
   const slots: Record<string, Slot> = { [ROW_SLOT]: slotOf(ROW_STYLE, 4000, 'as-is') }
-  const mine = cases.filter(c => c.scale === scale)
+  const mine = slotList.filter(c => c.scale === scale)
   for (const c of mine) {
     const t = texts[c.text]!
     labels.push({ key: c.key, text: t.text, slot: c.key, locale: t.locale })
@@ -226,7 +241,7 @@ const groups: NodeGroup[] = TEXT_SCALES.map(scale => {
     }
   }
   const rows: RowMap = {}
-  for (const r of rowCases.filter(x => x.scale === scale)) {
+  for (const r of rowList.filter(x => x.scale === scale)) {
     rows[r.name] = {
       width: r.width, gap: ROW_GAP,
       items: ROW_FAMILY[r.locale].map(i => ({
@@ -237,8 +252,13 @@ const groups: NodeGroup[] = TEXT_SCALES.map(scale => {
     }
   }
   const conditions = conds.filter(c => c.textScale === scale).map(c => ({ name: c.name, textScale: c.textScale, zoom: c.zoom }))
-  return { labels, slots, rows, conditions, shrink: mine.filter(c => c.policy === 'shrinkTo').map(c => c.key) }
-})
+  return { labels, slots, rows, conditions, shrink: mine.filter(c => c.policy === 'shrinkTo').map(c => c.key), ...(nearMiss === undefined ? {} : { nearMiss }) }
+}
+// One checkLabels call per text scale, and one more per text scale for the near-miss family, with nearMiss.
+const groups: NodeGroup[] = [
+  ...TEXT_SCALES.map(scale => group(scale, cases, rowCases)),
+  ...TEXT_SCALES.map(scale => group(scale, nearCases, nearRowCases, NEAR_MISS)),
+]
 
 mkdirSync(dist, { recursive: true })
 const inputPath = join(dist, 'check-input.json')
@@ -286,23 +306,25 @@ const nodeSeconds = (performance.now() - t0) / 1000
 
 const round64 = (x: number): number => Math.round(x * 64) / 64
 type Outcome = 'pass' | 'check-mismatch' | 'pretext-gap' | 'excluded'
-// verdict: the checker's kind; cross: the DOM's overflow by fractional widths and by scrollWidth disagree.
+// verdict: the checker's kind (in the near-miss family a pass is 'near-miss' or 'no near-miss'); cross: the DOM's
+// overflow by fractional widths and by scrollWidth disagree.
+type Family = 'verdict' | 'near-miss'
 type Result = {
   what: string, policy: PolicyName | 'row', cond: SweepCondition, unit: string, outcome: Outcome, cause: string,
-  checker: string, reference: string, verdict: string, cross: boolean,
+  checker: string, reference: string, verdict: string, cross: boolean, family: Family,
 }
 
-function labelResult(out: NodeOutput, c: SlotCase, i: number, j: number): Result {
+function labelResult(out: NodeOutput, c: SlotCase, i: number, j: number, pages = pageLabels): Result {
   const cond = conds[j]!
   const t = texts[c.text]!
-  const { ref, dom } = pageLabels[j]![i]!
+  const { ref, dom } = pages[j]![i]!
   const v = out.verdicts[cond.name]![c.key]
   const kind = v?.kind ?? 'pass'
   const fitted = c.policy === 'shrinkTo' ? out.fitted[cond.name]![c.key]! : undefined
   const checker = fitted === undefined ? kind : `${kind} at ${round64(fitted)}px`
   const reference = c.policy === 'shrinkTo' ? `${ref.kind} at ${round64(ref.fontPx)}px` : ref.kind
   const cross = dom.scrollOverflow !== undefined && (dom.overflow !== dom.scrollOverflow || (dom.overflowNext !== undefined && dom.overflowNext !== dom.scrollOverflowNext))
-  const base = { what: `${c.key} ${JSON.stringify(t.text)} (${t.locale}, ${t.style.name}) @ ${c.width}px`, policy: c.policy, cond, unit: t.id, checker, reference, verdict: kind, cross }
+  const base = { what: `${c.key} ${JSON.stringify(t.text)} (${t.locale}, ${t.style.name}) @ ${c.width}px`, policy: c.policy, cond, unit: t.id, checker, reference, verdict: kind, cross, family: 'verdict' as Family }
   if (kind === 'uncovered') return { ...base, outcome: 'excluded', cause: `uncovered ${v!.detail ?? ''}`.trim() }
   if (kind !== ref.kind || (fitted !== undefined && round64(fitted) !== round64(ref.fontPx))) return { ...base, outcome: 'check-mismatch', cause: `checker ${checker}, reference ${reference}` }
   let agrees: boolean
@@ -346,16 +368,16 @@ function labelResult(out: NodeOutput, c: SlotCase, i: number, j: number): Result
   return { ...base, what: agrees ? base.what : base.what + detail, outcome: agrees ? 'pass' : 'pretext-gap', cause: agrees ? '' : cause }
 }
 
-function rowResult(out: NodeOutput, r: RowCase, i: number, j: number): Result {
+function rowResult(out: NodeOutput, r: RowCase, i: number, j: number, pages = pageRows): Result {
   const cond = conds[j]!
-  const { ref, dom } = pageRows[j]![i]!
+  const { ref, dom } = pages[j]![i]!
   const v = out.verdicts[cond.name]![r.name]
   const kind = v?.kind ?? 'pass'
   const stage = v?.stage ?? 0
   const checker = `${kind} stage ${stage}`
   const reference = `${ref.kind} stage ${ref.stage}`
   const cross = dom.overflow !== dom.scrollOverflow || (dom.overflowBefore !== null && dom.overflowBefore !== dom.scrollOverflowBefore)
-  const base = { what: `${r.name} @ ${r.width}px`, policy: 'row' as const, cond, unit: `row.${r.locale}`, checker, reference, verdict: kind, cross }
+  const base = { what: `${r.name} @ ${r.width}px`, policy: 'row' as const, cond, unit: `row.${r.locale}`, checker, reference, verdict: kind, cross, family: 'verdict' as Family }
   if (kind === 'uncovered') return { ...base, outcome: 'excluded', cause: `uncovered ${v!.detail ?? ''}`.trim() }
   if (kind !== ref.kind || stage !== ref.stage) return { ...base, outcome: 'check-mismatch', cause: `checker ${checker}, reference ${reference}` }
   const fitsAt = ref.kind === 'row-overflow' ? dom.overflow : !dom.overflow
@@ -365,19 +387,74 @@ function rowResult(out: NodeOutput, r: RowCase, i: number, j: number): Result {
   return { ...base, what: fitsAt && before ? base.what : base.what + detail, outcome: fitsAt && before ? 'pass' : 'pretext-gap', cause: fitsAt && before ? '' : cause }
 }
 
-function compare(out: NodeOutput): Result[] {
+// The near-miss family: the verdict judged as above, then whether the slack is under NEAR_MISS. The checker's
+// near-miss (its missing.px) against the reference's slack (the same rule recomputed in the page): a near-miss on a
+// failing verdict, a different decision, or a slack more than 1/64 px apart is a check-mismatch. Then the reference
+// against the DOM's slack (the box less the text's width or widest line): a different decision is a pretext-gap,
+// unless the DOM's slack is within 1/64 px of NEAR_MISS.
+const STEP = 1 / 64 + 1e-9
+const fmt = (n: number): string => `${+n.toFixed(4)}`
+// A row that fits at a collapse stage passes too.
+const fits = (kind: string): boolean => kind === 'pass' || kind === 'row-collapsed'
+function nearResult(o: NodeOutput, judged: Result, key: string, ref: { kind: string, slack?: number }, domSlack: number | undefined): Result {
+  const px = o.nearMiss[judged.cond.name]![key]
+  const checkerNear = px !== undefined
+  const refNear = ref.slack !== undefined && round64(ref.slack) < NEAR_MISS
+  const shown = (near: boolean, slack: number | undefined): string => (slack === undefined ? 'none' : `${near ? 'near-miss' : 'no near-miss'} (${fmt(slack)}px to spare)`)
+  const r: Result = {
+    ...judged, family: 'near-miss',
+    verdict: fits(judged.verdict) ? (checkerNear ? 'near-miss' : 'no near-miss') : judged.verdict,
+    checker: `${judged.checker}, ${checkerNear ? `near-miss ${fmt(px)}px` : 'no near-miss'}`,
+    reference: `${judged.reference}, ${shown(refNear, ref.slack)}`,
+  }
+  if (checkerNear && !fits(judged.verdict)) return { ...r, outcome: 'check-mismatch', cause: `near-miss on a failing verdict (${judged.verdict})` }
+  if (r.outcome === 'check-mismatch' || r.outcome === 'excluded') return r
+  if (checkerNear !== refNear || (checkerNear && Math.abs(px - round64(ref.slack!)) > STEP)) {
+    return { ...r, outcome: 'check-mismatch', cause: `near-miss: checker ${checkerNear ? `near-miss ${fmt(px)}px` : 'no near-miss'}, reference ${shown(refNear, ref.slack)}` }
+  }
+  if (r.outcome === 'pretext-gap' || !fits(ref.kind) || domSlack === undefined) return r
+  const domNear = domSlack < NEAR_MISS
+  if (domNear === refNear || Math.abs(domSlack - NEAR_MISS) <= STEP) return r
+  return {
+    ...r, outcome: 'pretext-gap',
+    what: `${r.what} (DOM ${fmt(domSlack)}px to spare, Pretext ${fmt(ref.slack!)}, zoomed px)`,
+    cause: `near-miss ${judged.policy}: DOM ${domNear ? 'under' : 'at or over'} the ${NEAR_MISS}px margin where Pretext is ${refNear ? 'under' : 'at or over'} it`,
+  }
+}
+function compare(o: NodeOutput): Result[] {
   const results: Result[] = []
   conds.forEach((_, j) => {
-    casesAt[j]!.forEach((c, i) => results.push(labelResult(out, c, i, j)))
-    rowsAt[j]!.forEach((r, i) => results.push(rowResult(out, r, i, j)))
+    casesAt[j]!.forEach((c, i) => results.push(labelResult(o, c, i, j)))
+    rowsAt[j]!.forEach((r, i) => results.push(rowResult(o, r, i, j)))
+  })
+  conds.forEach((_, j) => {
+    nearAt[j]!.forEach((c, i) => {
+      const { ref, dom } = pageNear[j]![i]!
+      results.push(nearResult(o, labelResult(o, c, i, j, pageNear), c.key, ref, dom.slack))
+    })
+    nearRowsAt[j]!.forEach((r, i) => {
+      const { ref, dom } = pageNearRows[j]![i]!
+      results.push(nearResult(o, rowResult(o, r, i, j, pageNearRows), r.name, ref, dom.boxWidth - dom.textWidth))
+    })
   })
   return results
 }
 
 const control = outputs.get('control')!
 const results = compare(control)
-const vacuous = vacuousCells(results.map(r => ({ policy: r.policy, kind: r.cond.kind, verdict: r.verdict === 'pass' ? 'pass' : 'fail' })))
+const main = results.filter(r => r.family === 'verdict')
+const near = results.filter(r => r.family === 'near-miss')
+const vacuous = vacuousCells(main.map(r => ({ policy: r.policy, kind: r.cond.kind, verdict: r.verdict === 'pass' ? 'pass' : 'fail' })))
 for (const v of vacuous) failures.push(`vacuous cell ${v}: every checker verdict is the same`)
+// Each near-miss cell needs passes both with and without a near-miss.
+const KINDS: ConditionKind[] = ['none', 'text scale', 'zoom', 'text scale + zoom']
+const POLICY_ROWS: (PolicyName | 'row')[] = [...POLICIES, 'row']
+for (const p of POLICY_ROWS) {
+  for (const k of KINDS) {
+    const seen = new Set(near.filter(r => r.policy === p && r.cond.kind === k).map(r => r.verdict))
+    if (!seen.has('near-miss') || !seen.has('no near-miss')) failures.push(`vacuous near-miss cell ${p} · ${k}: ${[...seen].sort().join(', ') || 'no cases'}`)
+  }
+}
 const count = (rs: Result[], o: Outcome): number => rs.filter(r => r.outcome === o).length
 const mismatches = results.filter(r => r.outcome === 'check-mismatch')
 if (mismatches.length > 0) failures.push(`${mismatches.length} check-mismatch cases`)
@@ -408,21 +485,26 @@ const pretextCommit = (() => {
 })()
 const display = headless ? 'headless (`--headless`)' : process.env.DISPLAY !== undefined && process.platform === 'linux' ? `headed on X display ${process.env.DISPLAY}` : 'headed'
 
-const KINDS: ConditionKind[] = ['none', 'text scale', 'zoom', 'text scale + zoom']
-const POLICY_ROWS: (PolicyName | 'row')[] = [...POLICIES, 'row']
 const cell = (text: string): string => text.replaceAll('|', '\\|')
 const tableRow = (label: string, rs: Result[]): string =>
   `| ${label} | ${rs.length} | ${count(rs, 'pass')} | ${count(rs, 'check-mismatch')} | ${count(rs, 'pretext-gap')} | ${count(rs, 'excluded')} |`
-const agreement = POLICY_ROWS.flatMap(p => KINDS.map(k => tableRow(`${p} · ${k}`, results.filter(r => r.policy === p && r.cond.kind === k))))
+const agreement = POLICY_ROWS.flatMap(p => KINDS.map(k => tableRow(`${p} · ${k}`, main.filter(r => r.policy === p && r.cond.kind === k))))
+const nearAgreement = POLICY_ROWS.flatMap(p => KINDS.map(k => tableRow(`${p} · ${k}`, near.filter(r => r.policy === p && r.cond.kind === k))))
 
 // The checker's verdicts per policy and condition kind, to show the widths put each policy on both sides of its
 // boundary in every kind of condition (a cell with one verdict only fails the run).
 const verdictSplit = POLICY_ROWS.flatMap(p => KINDS.map(k => {
-  const rs = results.filter(r => r.policy === p && r.cond.kind === k)
+  const rs = main.filter(r => r.policy === p && r.cond.kind === k)
   const tally = new Map<string, number>()
   for (const r of rs) tally.set(r.verdict, (tally.get(r.verdict) ?? 0) + 1)
   const pass = tally.get('pass') ?? 0
   return `| ${p} · ${k} | ${pass} | ${rs.length - pass} | ${[...tally].filter(([v]) => v !== 'pass').sort().map(([v, n]) => `${v} ${n}`).join(', ')} |`
+}))
+// The near-miss family's checker decisions: passes with and without a near-miss, and failing verdicts.
+const nearSplit = POLICY_ROWS.flatMap(p => KINDS.map(k => {
+  const rs = near.filter(r => r.policy === p && r.cond.kind === k)
+  const n = (v: string): number => rs.filter(r => r.verdict === v).length
+  return `| ${p} · ${k} | ${n('near-miss')} | ${n('no near-miss')} | ${rs.length - n('near-miss') - n('no near-miss')} |`
 }))
 const crossChecked = results.filter(r => r.cross)
 
@@ -452,7 +534,7 @@ const byCause = (rs: Result[], limit: number): string[] => {
 }
 const gaps = results.filter(r => r.outcome === 'pretext-gap')
 const excluded = results.filter(r => r.outcome === 'excluded')
-const invalidLines = invalid.map(c => {
+const invalidLines = [...invalid, ...nearInvalid].map(c => {
   const t = texts[c.text]!
   return `- ${c.key} ${JSON.stringify(t.text)} (${t.locale}, ${t.style.name}) @ ${c.width}px: less the icon grown ${+(c.scale * MAX_ZOOM).toFixed(2)}× leaves ${+zoomMutantBox(c).toFixed(4)}px`
 })
@@ -512,6 +594,19 @@ const render = (limit: number): string[] => [
   '`unreliable` when the DOM\'s two line counts disagree; `pretext-gap` when the DOM contradicts the reference; else',
   '`pass`. Pass bar: 0 check-mismatch.',
   '',
+  `**Near-miss family.** Its own slots and rows, run with \`nearMiss: ${NEAR_MISS}\` in checkLabels calls of their own (the cases above run`,
+  'without it, and a near-miss in their report fails the run). Each is first judged as above; then, on a pass (a row also',
+  'at a collapse stage), the slack: **checker** a `near-miss` issue and its `missing.px`; **reference** the box less what the',
+  'verdict fitted, recomputed in the page (as-is: the natural width; truncate middle: the collapsed text\'s; shrinkTo: the',
+  'natural width at the chosen size; lines and truncate end: Pretext\'s widest line at the box, and for the "(normal)"',
+  'policies at the width their lines are laid out at and no less than the widest word; rows: the stage\'s total), at least',
+  `0, a near-miss when, rounded to 1/64 px, it is under ${NEAR_MISS}px; **DOM** the element\'s box less the text\'s width (nowrap`,
+  'policies, shrinkTo at the chosen size; a range\'s bounding width) or its widest line (the rects of a range over the text',
+  'grouped by top, from the leftmost to the rightmost rect of each: a line\'s trailing space is not in them, a painted soft',
+  'hyphen is), rows the row box less its content, zoomed px. `check-mismatch` when the checker reports a near-miss on a failing',
+  'verdict, decides differently from the reference, or reports a slack more than 1/64 px from the reference\'s; then',
+  `\`pretext-gap\` when the DOM\'s slack is on the other side of ${NEAR_MISS}px from the reference\'s, unless it is within 1/64 px of ${NEAR_MISS}px.`,
+  '',
   `Fractional font sizes: the checker measures ${fractional.length} here (${fractional.map(px => +px.toFixed(4)).join(', ')}px; whole-pixel`,
   `shrinkTo candidates besides). On the 'linux' profile (this run: '${platform}') the stand-in measures a fractional size with`,
   `Chromium on Linux's own rule (src/headless/canvas.ts sizedFor: the size in float32 hundredths, advances at it truncated to`,
@@ -542,7 +637,11 @@ const render = (limit: number): string[] => [
   `stays): ${cases.length} slots run (${invalid.length} not run, below). Line height ${LINE_HEIGHT_RATIO} × the size. Conditions: ${conds.map(c => c.name).join(', ')}.`,
   `Rows: a five-item toolbar per locale (${Object.keys(ROW_FAMILY).join(', ')}) and text scale, gap ${ROW_GAP}px, icon reserve ${ROW_STYLE.reserve}px, collapsed icon`,
   `${ICON_WIDTH}px, ${rowCases[0]!.stages} collapse stages, at each stage's total at that text scale, halfway to the next and 0.9 of the last:`,
-  `${rowCases.length} rows. **${results.length} cases** (${results.filter(r => r.policy !== 'row').length} slot, ${results.filter(r => r.policy === 'row').length} row).`,
+  `${rowCases.length} rows: ${main.length} cases (${main.filter(r => r.policy !== 'row').length} slot, ${main.filter(r => r.policy === 'row').length} row).`,
+  `Near-miss family: every ${NEAR_EVERY}th text (${new Set(nearCases.map(c => c.text)).size}) in every policy at each text scale, at the same boundary box plus`,
+  `${NEAR_OFFSETS.map(o => `${o >= 0 ? '+' : ''}${+o.toFixed(4)}`).join(', ')}px (below it; at it; 1/4 px either side of ${NEAR_MISS}px ÷ ${MAX_ZOOM} and of ${NEAR_MISS}px, so the margin is`,
+  `crossed at zoom 100% and at ${MAX_ZOOM * 100}%), on the 1/64 px grid: ${nearCases.length} slots run (${nearInvalid.length} not run, below); rows at each stage's total plus the same`,
+  `offsets: ${nearRowCases.length} rows; ${near.length} cases (${near.filter(r => r.policy !== 'row').length} slot, ${near.filter(r => r.policy === 'row').length} row). **${results.length} cases** in all.`,
   '',
   'The checker\'s verdicts (control run) per policy and condition kind; the run fails if a cell has one verdict only:',
   '',
@@ -550,13 +649,27 @@ const render = (limit: number): string[] => [
   '|---|---:|---:|---|',
   ...verdictSplit,
   '',
+  `The near-miss family\'s checker decisions (control run); the run fails if a cell lacks passes with or without a near-miss:`,
+  '',
+  '| policy · condition kind | near-miss | no near-miss | failing verdict |',
+  '|---|---:|---:|---:|',
+  ...nearSplit,
+  '',
   '## Agreement',
   '',
   `**${results.length} cases: ${count(results, 'check-mismatch')} check-mismatch, ${count(results, 'pretext-gap')} pretext-gap, ${count(results, 'excluded')} excluded, ${count(results, 'pass')} pass.**`,
+  `Verdicts: ${main.length} cases, ${count(main, 'check-mismatch')} check-mismatch, ${count(main, 'pretext-gap')} pretext-gap, ${count(main, 'excluded')} excluded, ${count(main, 'pass')} pass.`,
+  `Near-miss family: ${near.length} cases, ${count(near, 'check-mismatch')} check-mismatch, ${count(near, 'pretext-gap')} pretext-gap, ${count(near, 'excluded')} excluded, ${count(near, 'pass')} pass.`,
   '',
   '| policy · condition kind | cases | pass | check-mismatch | pretext-gap | excluded |',
   '|---|---:|---:|---:|---:|---:|',
   ...agreement,
+  '',
+  'Near-miss family:',
+  '',
+  '| policy · condition kind | cases | pass | check-mismatch | pretext-gap | excluded |',
+  '|---|---:|---:|---:|---:|---:|',
+  ...nearAgreement,
   '',
   `Statistics (PROTOCOL §4), one unit per label text (a text's slots, widths and conditions are one unit; each locale's`,
   `row is one): ${units.length} units, ${failedUnits.size} with a check-mismatch, 95% upper bound on the rate ${bound(failedUnits.size, units.length)}`,
@@ -579,9 +692,9 @@ const render = (limit: number): string[] => [
   ...(excluded.length === 0 ? ['', 'None.'] : byCause(excluded, limit)),
   '',
   `**Not run: slots with no box left beside the icon grown with the text scale and ${MAX_ZOOM}× zoom, as the zoom mutant grows it`,
-  `without the box** (${invalid.length} slots, so ${invalid.length * ZOOMS.length} cases; the checker rejects a slot with no box with a RangeError):`,
+  `without the box** (${invalid.length + nearInvalid.length} slots, ${nearInvalid.length} of them near-miss family, so ${(invalid.length + nearInvalid.length) * ZOOMS.length} cases; the checker rejects a slot with no box with a RangeError):`,
   '',
-  ...(invalid.length === 0 ? ['None.'] : shown(invalidLines, limit, l => l)),
+  ...(invalidLines.length === 0 ? ['None.'] : shown(invalidLines, limit, l => l)),
   '',
   '## Mutants',
   '',
@@ -589,12 +702,12 @@ const render = (limit: number): string[] => [
   'harness fails), run as the checker side of the same sweep against the same Chromium data. Caught: at least one',
   'check-mismatch of its own (a case the control does not already mismatch; the counts below leave those out).',
   '',
-  '| mutant | edits | check-mismatch | by policy | caught |',
-  '|---|---|---:|---|---|',
+  '| mutant | edits | check-mismatch | of them near-miss family | by policy | caught |',
+  '|---|---|---:|---:|---|---|',
   ...mutantResults.map(({ m, mismatches: ms }) => {
     const by = POLICY_ROWS.map(p => [p, ms.filter(r => r.policy === p).length] as const).filter(([, n]) => n > 0).map(([p, n]) => `${p} ${n}`).join(', ')
     const edits = m.edits.map(e => `${e.file}: \`${cell(e.from.trim())}\` → \`${cell(e.to.trim())}\``).join('; ')
-    return `| ${m.name} | ${edits} | ${ms.length} | ${by} | ${ms.length > 0 ? 'yes' : '**no**'} |`
+    return `| ${m.name} | ${edits} | ${ms.length} | ${ms.filter(r => r.family === 'near-miss').length} | ${by} | ${ms.length > 0 ? 'yes' : '**no**'} |`
   }),
   '',
   ...mutantResults.filter(r => r.mismatches.length > 0).map(({ m, mismatches: ms }) => `- ${m.name}, e.g. ${ms[0]!.cond.name}: ${ms[0]!.what}: ${ms[0]!.cause}`),

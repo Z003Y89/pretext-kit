@@ -194,6 +194,38 @@ export function slotCases(texts: SweepText[], measured: Measured[][]): SlotCase[
   return out
 }
 
+// ---- The near-miss family ------------------------------------------------------------------------
+
+// Every NEAR_EVERY-th text in every policy, run with nearMiss NEAR_MISS (px) in groups of their own (the cases above run
+// without it), at the policy's boundary box plus each of NEAR_OFFSETS (CSS px, so zoom grows them): below it (a failing
+// verdict, which must give no near-miss), at it (a pass within the tolerance or with almost no slack), and 1/4 px either
+// side of NEAR_MISS and of NEAR_MISS / max zoom, so the near-miss boundary is crossed at zoom 100% and at 130%.
+export const NEAR_MISS = 2
+export const NEAR_EVERY = 6
+const MAX_ZOOM = Math.max(...ZOOMS)
+export const NEAR_OFFSETS = [-0.5, 0, NEAR_MISS / MAX_ZOOM - 0.25, NEAR_MISS / MAX_ZOOM + 0.25, NEAR_MISS - 0.25, NEAR_MISS + 0.25]
+const offsetName = (offset: number): string => `near${offset < 0 ? '' : '+'}${+offset.toFixed(4)}`
+
+export function nearMissCases(texts: SweepText[], measured: Measured[][]): SlotCase[] {
+  if (measured.length !== TEXT_SCALES.length) throw new Error(`${measured.length} text scales measured for ${TEXT_SCALES.length}`)
+  const out: SlotCase[] = []
+  TEXT_SCALES.forEach((scale, s) => {
+    texts.forEach((t, i) => {
+      if (i % NEAR_EVERY !== 0) return
+      for (const policy of POLICIES) {
+        for (const offset of NEAR_OFFSETS) {
+          const width = grid64(basis(policy, measured[s]![i]!) + offset + t.style.reserve * scale)
+          out.push({ key: `${t.id}.${policyKey(policy)}.${scale}.${offsetName(offset)}`, text: i, policy, scale, factor: null, edge: offsetName(offset), width })
+        }
+      }
+    })
+  })
+  return out
+}
+
+// A row at each stage's total plus each of NEAR_OFFSETS.
+export const rowNearWidths = (totals: number[]): number[] => totals.flatMap(t => NEAR_OFFSETS.map(o => grid64(t + o)))
+
 // The cells (policy · condition kind) where every verdict is the same: a sweep whose widths put a policy on one
 // side of its boundary only tests nothing there.
 export function vacuousCells(verdicts: { policy: string, kind: string, verdict: string }[]): string[] {
@@ -308,6 +340,10 @@ export const MUTANTS: Mutant[] = [
   {
     name: 'ignore overflowWrap',
     edits: [{ file: 'check/conditions.ts', from: "overflowWrap: merged.overflowWrap ?? 'break-word',", to: "overflowWrap: 'break-word'," }],
+  },
+  {
+    name: 'ignore nearMiss',
+    edits: [{ file: 'check/run.ts', from: '  const nearMiss = input.nearMiss\n', to: '  const nearMiss: number | undefined = undefined\n' }],
   },
 ]
 
