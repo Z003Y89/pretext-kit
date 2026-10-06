@@ -35,6 +35,8 @@ import {
   POLICIES, ROW_FAMILY, ROW_GAP, ROW_STYLE, SHRINK_BY, TEXT_SCALES, TNUM_FAMILY, ZOOMS, applyMutant, conditions, nearMissCases, rowNearWidths, rowTotal,
   rowWidths, slotCases, stageWidths, sweepTexts, vacuousCells,
 } from './check-labels-cases.ts'
+import { groupTable, mismatchDiagnostic, spreadExamples } from './check-diagnose.ts'
+import type { DiagCase, DiagSide } from './check-diagnose.ts'
 import type { ConditionKind, Locale, Mutant, PolicyName, SlotCase, Style, SweepCondition } from './check-labels-cases.ts'
 import type { NodeGroup, NodeInput, NodeOutput } from './check-labels-node.ts'
 import type { LoadedFace, PageCase, PageResult, PageRow, RowResult } from './check-labels-page.ts'
@@ -275,10 +277,10 @@ function mutate(m: Mutant): string {
   return dir
 }
 
-function runNode(srcDir: string, name: string): Promise<NodeOutput> {
+function runNode(srcDir: string, name: string, from = inputPath): Promise<NodeOutput> {
   const out = join(dist, `check-output-${name}.json`)
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [join(here, 'check-labels-node.ts'), srcDir, inputPath, out], { stdio: 'inherit' })
+    const child = spawn(process.execPath, [join(here, 'check-labels-node.ts'), srcDir, from, out], { stdio: 'inherit' })
     child.on('error', reject)
     child.on('exit', code => (code === 0 ? resolve(JSON.parse(readFileSync(out, 'utf8'))) : reject(new Error(`checker run "${name}" exited ${code}`))))
   })
@@ -309,25 +311,29 @@ type Outcome = 'pass' | 'check-mismatch' | 'pretext-gap' | 'excluded'
 // verdict: the checker's kind (in the near-miss family a pass is 'near-miss' or 'no near-miss'); cross: the DOM's
 // overflow by fractional widths and by scrollWidth disagree.
 type Family = 'verdict' | 'near-miss'
+// What a result was judged from, for the diagnostic of check-mismatches (not written to check-results.json.gz).
+type Source = { type: 'slot', c: SlotCase, page: PageResult } | { type: 'row', r: RowCase, page: RowResult }
 type Result = {
   what: string, policy: PolicyName | 'row', cond: SweepCondition, unit: string, outcome: Outcome, cause: string,
   checker: string, reference: string, verdict: string, cross: boolean, family: Family,
   // Near-miss family, on a pass the DOM agrees with: the DOM's slack less the reference's; on a near-miss: the
   // checker's missing.px less the reference's slack rounded to 1/64 px.
   slackDiff?: number, pxDiff?: number,
+  src: Source,
 }
 
 function labelResult(out: NodeOutput, c: SlotCase, i: number, j: number, pages = pageLabels): Result {
   const cond = conds[j]!
   const t = texts[c.text]!
   const { ref, dom } = pages[j]![i]!
+  const src: Source = { type: 'slot', c, page: pages[j]![i]! }
   const v = out.verdicts[cond.name]![c.key]
   const kind = v?.kind ?? 'pass'
   const fitted = c.policy === 'shrinkTo' ? out.fitted[cond.name]![c.key]! : undefined
   const checker = fitted === undefined ? kind : `${kind} at ${round64(fitted)}px`
   const reference = c.policy === 'shrinkTo' ? `${ref.kind} at ${round64(ref.fontPx)}px` : ref.kind
   const cross = dom.scrollOverflow !== undefined && (dom.overflow !== dom.scrollOverflow || (dom.overflowNext !== undefined && dom.overflowNext !== dom.scrollOverflowNext))
-  const base = { what: `${c.key} ${JSON.stringify(t.text)} (${t.locale}, ${t.style.name}) @ ${c.width}px`, policy: c.policy, cond, unit: t.id, checker, reference, verdict: kind, cross, family: 'verdict' as Family }
+  const base = { what: `${c.key} ${JSON.stringify(t.text)} (${t.locale}, ${t.style.name}) @ ${c.width}px`, policy: c.policy, cond, unit: t.id, checker, reference, verdict: kind, cross, family: 'verdict' as Family, src }
   if (kind === 'uncovered') return { ...base, outcome: 'excluded', cause: `uncovered ${v!.detail ?? ''}`.trim() }
   if (kind !== ref.kind || (fitted !== undefined && round64(fitted) !== round64(ref.fontPx))) return { ...base, outcome: 'check-mismatch', cause: `checker ${checker}, reference ${reference}` }
   let agrees: boolean
@@ -374,13 +380,14 @@ function labelResult(out: NodeOutput, c: SlotCase, i: number, j: number, pages =
 function rowResult(out: NodeOutput, r: RowCase, i: number, j: number, pages = pageRows): Result {
   const cond = conds[j]!
   const { ref, dom } = pages[j]![i]!
+  const src: Source = { type: 'row', r, page: pages[j]![i]! }
   const v = out.verdicts[cond.name]![r.name]
   const kind = v?.kind ?? 'pass'
   const stage = v?.stage ?? 0
   const checker = `${kind} stage ${stage}`
   const reference = `${ref.kind} stage ${ref.stage}`
   const cross = dom.overflow !== dom.scrollOverflow || (dom.overflowBefore !== null && dom.overflowBefore !== dom.scrollOverflowBefore)
-  const base = { what: `${r.name} @ ${r.width}px`, policy: 'row' as const, cond, unit: `row.${r.locale}`, checker, reference, verdict: kind, cross, family: 'verdict' as Family }
+  const base = { what: `${r.name} @ ${r.width}px`, policy: 'row' as const, cond, unit: `row.${r.locale}`, checker, reference, verdict: kind, cross, family: 'verdict' as Family, src }
   if (kind === 'uncovered') return { ...base, outcome: 'excluded', cause: `uncovered ${v!.detail ?? ''}`.trim() }
   if (kind !== ref.kind || stage !== ref.stage) return { ...base, outcome: 'check-mismatch', cause: `checker ${checker}, reference ${reference}` }
   const fitsAt = ref.kind === 'row-overflow' ? dom.overflow : !dom.overflow
@@ -739,10 +746,77 @@ writeFileSync(join(here, 'CHECK_RESULTS.md'), render(EXAMPLES).join('\n'))
 writeFileSync(join(root, FULL_LISTING), render(Infinity).join('\n'))
 // Every case's outcome, for anything that wants to re-read the run without repeating it.
 writeFileSync(join(dist, 'check-results.json.gz'), gzipSync(JSON.stringify({
-  results: results.map(({ cond, ...r }) => ({ ...r, condition: cond.name })),
-  mutants: mutantResults.map(({ m, mismatches: ms }) => ({ name: m.name, mismatches: ms.map(({ cond, ...r }) => ({ ...r, condition: cond.name })) })),
+  results: results.map(({ cond, src: _, ...r }) => ({ ...r, condition: cond.name })),
+  mutants: mutantResults.map(({ m, mismatches: ms }) => ({ name: m.name, mismatches: ms.map(({ cond, src: _, ...r }) => ({ ...r, condition: cond.name })) })),
 })))
 console.log(`wrote verify/CHECK_RESULTS.md, ${FULL_LISTING} and verify/dist/check-results.json.gz`)
 console.log(`${results.length} cases: ${count(results, 'check-mismatch')} check-mismatch, ${count(results, 'pretext-gap')} pretext-gap, ${count(results, 'excluded')} excluded, ${count(results, 'pass')} pass`)
+
+// ---- Diagnostic on stdout (the CI log is all a CI run leaves readable) --------------------------------------
+
+const grouped = (r: Result) => ({ policy: r.policy, condKind: r.cond.kind, platform, family: r.family })
+for (const line of groupTable('pretext-gap by policy · condition kind · platform', gaps.map(grouped))) console.log(line)
+if (mismatches.length > 0) {
+  const picked = spreadExamples(mismatches.map(r => ({ ...grouped(r), r })), 60).map(x => x.r)
+  // The checker's own evaluation of each example slot (a passing verdict has no issue to read it from), in a small run
+  // of its own: the examples' labels and slots only, in their groups' conditions.
+  let explained: NodeOutput['explained'] = {}
+  try {
+    const byGroup = new Map<string, NodeGroup>()
+    for (const r of picked) {
+      if (r.src.type !== 'slot') continue
+      const c = r.src.c
+      const t = texts[c.text]!
+      const near = r.family === 'near-miss'
+      const name = `${c.scale}|${near}`
+      let g = byGroup.get(name)
+      if (g === undefined) {
+        const conditions = conds.filter(x => x.textScale === c.scale).map(x => ({ name: x.name, textScale: x.textScale, zoom: x.zoom }))
+        g = { labels: [], slots: {}, rows: {}, conditions, shrink: [], explain: true, ...(near ? { nearMiss: NEAR_MISS } : {}) }
+        byGroup.set(name, g)
+      }
+      if (g.slots[c.key] !== undefined) continue
+      g.labels.push({ key: c.key, text: t.text, slot: c.key, locale: t.locale })
+      g.slots[c.key] = slotOf(t.style, c.width, policyOf(c.policy, t.style), NORMAL_WRAP.includes(c.policy) ? 'normal' : undefined)
+    }
+    const explainPath = join(dist, 'check-explain-input.json')
+    writeFileSync(explainPath, JSON.stringify({ fontPath, family: FAMILY, platform, groups: [...byGroup.values()] } satisfies NodeInput))
+    explained = (await runNode(join(root, 'src'), 'explain', explainPath)).explained ?? {}
+  } catch (error) {
+    console.log(`(the checker's evaluation of the examples failed: ${error instanceof Error ? error.message : String(error)})`)
+  }
+  const diag = (r: Result): DiagCase => {
+    const v = control.verdicts[r.cond.name]![r.src.type === 'slot' ? r.src.c.key : r.src.r.name]
+    const near = control.nearMiss[r.cond.name]![r.src.type === 'slot' ? r.src.c.key : r.src.r.name]
+    const common = { policy: r.policy, condKind: r.cond.kind, platform, family: r.family, textScale: r.cond.textScale, zoom: r.cond.zoom }
+    const nearOf = near === undefined ? {} : { near }
+    const fromIssue = v === undefined ? null : {
+      kind: v.kind, width: v.width, box: v.box, lines: v.lines, fontPx: v.fontPx,
+      ...(v.missing?.px === undefined ? {} : { missing: v.missing.px }), ...(v.missing?.fitsAtPx === undefined ? {} : { fitsAtPx: v.missing.fitsAtPx }),
+      ...(v.stage === undefined ? {} : { stage: v.stage }), ...nearOf,
+    }
+    if (r.src.type === 'row') {
+      const { ref, dom } = r.src.page
+      const reference: DiagSide = { kind: ref.kind, stage: ref.stage, ...(ref.slack === undefined ? {} : { slack: ref.slack }) }
+      const text = ROW_FAMILY[r.src.r.locale].map(i => i.text).join(' | ')
+      return { ...common, id: r.src.r.name, text, box: r.src.r.width, checker: fromIssue ?? { kind: 'pass', stage: 0, ...nearOf }, reference, dom }
+    }
+    const { c, page: { ref, dom } } = r.src
+    const e = explained[r.cond.name]?.[c.key]
+    const evaluated: DiagSide | null = e === undefined ? null : {
+      kind: e.kind, width: e.measured.width, box: e.measured.box, lines: e.measured.lines, fontPx: e.measured.fontPx,
+      ...(e.missing?.px === undefined ? {} : { missing: e.missing.px }), ...(e.missing?.fitsAtPx === undefined ? {} : { fitsAtPx: e.missing.fitsAtPx }),
+      ...(e.slack === undefined ? {} : { slack: e.slack }), ...nearOf,
+    }
+    // The report's issue is the verdict; evaluateLabel fills in a pass (and the fitted size for shrinkTo).
+    const fitted = c.policy === 'shrinkTo' ? control.fitted[r.cond.name]?.[c.key] : undefined
+    const checker = fromIssue ?? evaluated ?? { kind: 'pass', ...nearOf }
+    const reference: DiagSide = {
+      kind: ref.kind, width: ref.width, maxLine: ref.maxLine, box: ref.box, lines: ref.lines, fontPx: ref.fontPx, ...(ref.slack === undefined ? {} : { slack: ref.slack }),
+    }
+    return { ...common, id: c.key, text: texts[c.text]!.text, box: c.width, checker: fitted === undefined ? checker : { ...checker, fontPx: fitted }, reference, dom }
+  }
+  for (const line of mismatchDiagnostic(picked.map(diag), mismatches.map(grouped))) console.log(line)
+}
 for (const f of failures) console.log(`FAIL ${f}`)
 if (failures.length > 0) process.exitCode = 1
