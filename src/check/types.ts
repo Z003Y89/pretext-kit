@@ -25,6 +25,7 @@ export type Slot = {
   letterSpacing?: number
   lineHeight?: number
   whiteSpace?: 'normal' | 'pre-wrap'
+  overflowWrap?: 'normal' | 'break-word'
   numeric?: 'proportional' | 'tabular'
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
   policy: 'as-is' | { shrinkTo: number } | { lines: number } | { truncate: 'end' | 'middle'; lines?: number }

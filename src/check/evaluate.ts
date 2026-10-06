@@ -108,8 +108,40 @@ function shrink(text: string, slot: ResolvedSlot, shrinkTo: number): Verdict {
   }
 }
 
+// Under overflow-wrap: normal a browser breaks a line only at a break opportunity, so a piece between two is
+// never split. Pretext's segments run between break opportunities; zero-width glue and controls hold none, so
+// they join the text around them. A piece fails when it does not fit the box on one line by the as-is test, and
+// the widest such piece is the one reported, by its natural width less the box. Under break-word, null.
+function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): { piece: string; px: number; width: number } | null {
+  if (slot.overflowWrap === 'break-word') return null
+  let worst: { piece: string; px: number; width: number } | null = null
+  let piece = ''
+  const close = (): void => {
+    if (piece !== '' && !fitsAt(piece, slot, slot.sizePx, slot.box, 1)) {
+      const width = measureNaturalWidth(prepareAt(piece, slot, slot.sizePx))
+      if (worst === null || width > worst.width) worst = { piece, px: round64(width - slot.box), width }
+    }
+    piece = ''
+  }
+  prepared.kinds.forEach((kind, i) => {
+    if (kind === 'text' && prepared.kinds[i - 1] === 'text') close()
+    if (kind === 'text' || kind === 'zero-width-glue' || kind === 'control') piece += prepared.segments[i]
+    else close()
+  })
+  close()
+  return worst
+}
+
+const unbroken = (piece: string): string => `${JSON.stringify(piece)} does not break (overflow-wrap: normal)`
+
 function lines(text: string, slot: ResolvedSlot, max: number): Verdict {
   const prepared = prepareAt(text, slot, slot.sizePx)
+  const wide = unbreakable(prepared, slot)
+  if (wide !== null) {
+    const lineCount = measureLineStats(prepared, slot.box).lineCount
+    const missing = wide.px > 0 ? { missing: { px: wide.px } } : {}
+    return { kind: 'overflow', measured: measured(slot, wide.width, lineCount, slot.sizePx), ...missing, detail: unbroken(wide.piece) }
+  }
   const sizes = prepareSizes(text, () => slot.fontAt(slot.sizePx), { min: 1, max: 1 }, options(slot))
   const fits = (width: number): boolean => fitFontSize(sizes, { width, maxLines: max }, noHeight) !== null
   const stats = measureLineStats(prepared, slot.box)
@@ -134,9 +166,13 @@ function lines(text: string, slot: ResolvedSlot, max: number): Verdict {
 function truncateEnd(text: string, slot: ResolvedSlot, max: number): Verdict {
   const prepared = prepareAt(text, slot, slot.sizePx)
   const cut = clamp(prepared, slot.box, max)
+  // A piece too wide to break is cut at the box with the ellipsis on its own line, as Chromium's text-overflow
+  // does on any line of a clamp, so the label is truncated however few lines it takes.
+  const wide = unbreakable(prepared, slot)
   return {
-    kind: cut.truncated ? 'truncated' : 'pass',
+    kind: cut.truncated || wide !== null ? 'truncated' : 'pass',
     measured: measured(slot, measureNaturalWidth(prepared), cut.lineCount, slot.sizePx),
+    ...(wide === null ? {} : { detail: unbroken(wide.piece) }),
   }
 }
 

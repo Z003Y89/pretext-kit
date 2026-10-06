@@ -9,6 +9,7 @@ export type ResolvedSlot = {
   letterSpacing: number
   lineHeight: number | null
   whiteSpace: 'normal' | 'pre-wrap'
+  overflowWrap: 'normal' | 'break-word'
   numeric: 'proportional' | 'tabular'
   textTransform: NonNullable<Slot['textTransform']>
   policy: Slot['policy']
@@ -36,6 +37,9 @@ export function resolveSlot(name: string, slot: Slot, condition: Condition): Res
   const width = typeof merged.width === 'number' ? merged.width : merged.width(viewport)
   const box = width * zoom - (merged.reserve ?? 0) * scale
   if (!(box > 0)) throw new RangeError(where(`box is ${box}px (width ${width * zoom} less reserve ${(merged.reserve ?? 0) * scale})`))
+  if (merged.overflowWrap !== undefined && merged.overflowWrap !== 'normal' && merged.overflowWrap !== 'break-word') {
+    throw new RangeError(where(`overflowWrap must be 'normal' or 'break-word', not ${JSON.stringify(merged.overflowWrap)}`))
+  }
   const found = PX.exec(merged.font)
   if (found === null) throw new RangeError(where(`font "${merged.font}" has no px size`))
   const policy = merged.policy
@@ -57,6 +61,7 @@ export function resolveSlot(name: string, slot: Slot, condition: Condition): Res
     letterSpacing: (merged.letterSpacing ?? 0) * scale,
     lineHeight: merged.lineHeight === undefined ? null : merged.lineHeight * scale,
     whiteSpace: merged.whiteSpace ?? 'normal',
+    overflowWrap: merged.overflowWrap ?? 'break-word',
     numeric: merged.numeric ?? 'proportional',
     textTransform: merged.textTransform ?? 'none',
     policy: typeof policy === 'object' && 'shrinkTo' in policy ? { shrinkTo: policy.shrinkTo * scale } : policy,
