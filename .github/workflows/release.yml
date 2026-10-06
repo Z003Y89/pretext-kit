@@ -2,8 +2,9 @@
 # the local tarballs on Node 22 and 24), step 5's `gh release create`, and step 6 (download the uploaded assets, check
 # their sums, smoke-test them and README's install line). Laid out as ci.yml (this repository in pretext-kit/,
 # chenglou/pretext at the pinned commit in pretext/). The tarballs are packed with Node 24.4.1 and npm 11.4.2, the
-# versions README and RELEASING.md name, so their sums are reproducible. workflow_dispatch re-runs it for an existing
-# tag; an existing release is never overwritten.
+# versions README and RELEASING.md name, so their sums are reproducible. workflow_dispatch runs it for a tag, which it
+# creates at the dispatched commit when it does not exist yet (for a session whose git cannot push tags); an existing
+# release is never overwritten.
 name: Release
 
 on:
@@ -12,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (v<version>, already pushed)'
+        description: 'Tag to release (v<version>); created at the dispatched commit if it does not exist'
         required: true
         type: string
 
@@ -43,6 +44,19 @@ jobs:
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::'$TAG' is not a release tag v<major>.<minor>.<patch>"
             exit 1
+          fi
+      - name: Create the tag when dispatching for a tag that does not exist
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" > /dev/null 2>&1; then
+            echo "tag $TAG exists"
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$GITHUB_SHA" > /dev/null
+            echo "created tag $TAG at $GITHUB_SHA"
           fi
       - uses: actions/checkout@v7
         with:
