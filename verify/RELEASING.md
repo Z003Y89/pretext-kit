@@ -3,6 +3,20 @@
 How a release `v<version>` is cut (the steps are the same for every version). Nothing goes to the npm registry: the
 assets are attached to a GitHub release and installed by URL.
 
+**The release is cut by GitHub Actions.** Pushing the tag `v<version>` runs `.github/workflows/release.yml`, which does
+steps 2–4 and 6 below on `ubuntu-latest` and step 5's `gh release create`: it checks that the tag is `v` + the
+package.json version and that CHANGELOG.md has a dated `## <version> — <date>` heading, runs `npm test`, `npm run check`
+and `npm run build`, packs with Node 24.4.1 and npm 11.4.2 (so the sums are reproducible), records the SHA-256 sums,
+smoke-tests the local tarballs on Node 24.4.1 and Node 22, writes the release notes (the CHANGELOG.md entry, the sums
+with the Node and npm versions, and the unofficial-snapshot sentence of step 5), creates the release (it fails, and
+overwrites nothing, if one exists for the tag), then downloads the three assets, checks their sums against the ones
+recorded before upload, smoke-tests the downloads and runs README's install line in an empty project. The run's
+summary lists the sums; recording them in the CHANGELOG.md entry (step 3) is a commit after the run, since the
+workflow packs only once the tag is pushed. Its `workflow_dispatch` (input `tag`) re-runs it for a pushed tag. The macOS rows of the
+release gate (PROTOCOL.md §8 rows 2 and 6) come from `.github/workflows/macos-parity.yml` on a `macos-latest` runner
+(artifact `macos-parity-results`; the job log carries every summary). The steps below are what the workflow does, and
+remain the manual fallback when it cannot run.
+
 1. **Prepare the commit.** Every row of the release gate in PROTOCOL.md §8 holds on it. `npm test`, `npm run check` and `npm run build` pass, CI is green on the commit, `version` in
    package.json is the new version, and CHANGELOG.md has its dated entry.
 2. **Pack.** With `../pretext` holding chenglou/pretext at f10d888:
@@ -29,7 +43,7 @@ assets are attached to a GitHub release and installed by URL.
    node verify/consumer-smoke.mjs dist-release/chenglou-pretext-0.0.10-main.f10d888.tgz dist-release/pretext-kit-<version>.tgz
    ```
 
-5. **Tag and publish** (as Z003Y89):
+5. **Tag and publish.** Pushing the tag starts `release.yml`, which publishes. Manual fallback (as Z003Y89):
 
    ```sh
    git tag -a v<version> -m "pretext-kit v<version>" && git push origin main v<version>
