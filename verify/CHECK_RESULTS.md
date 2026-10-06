@@ -1,12 +1,12 @@
 # Label checker oracle sweep results
 
-Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit f01bf83.
+Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit 4069db5.
 
 - Chromium 141.0.7390.37 (Playwright 1.61.0, headed on X display :99, executable /opt/pw-browsers/chromium from PW_CHROMIUM), `<html lang="en">`, each slot `lang` its label's locale
 - Pretext 0.0.9 (../pretext f10d888); harfbuzzjs 1.6.2
 - Node v22.22.0, Linux 6.18.44-fc-v70, x64
 - checker: `checkLabels` in Node, `platforms: ['linux']` (this OS's), font Inter-Regular.ttf from test/fonts registered as "CK Inter"
-- Chromium 213s; checker runs (control and 8 mutants, 4 at a time) 197s
+- Chromium 207s; checker runs (control and 8 mutants, 4 at a time) 197s
 
 ## Method
 
@@ -248,6 +248,13 @@ Near-miss family:
 | row · text scale | 216 | 207 | 0 | 9 | 0 |
 | row · zoom | 108 | 108 | 0 | 0 | 0 |
 | row · text scale + zoom | 216 | 195 | 0 | 21 | 0 |
+
+Resolution of the near-miss comparison. DOM slack less the reference's, over every pass of the family whose verdict the
+DOM agrees with (the reference at least 0, the DOM's not clamped; zoomed px): 80582 cases, min -2.2728, median -0.0078, max 2.7703; beyond ±1/64 px 29184, ±1/16 px 13900, ±1/4 px 6130; of them without a
+soft hyphen 59822 cases, min -2.2728, median -0.0078, max 2.7703; beyond ±1/64 px 18212, ±1/16 px 6412, ±1/4 px 1242; with one 20760 cases, min -1.2599, median -0.008, max 2.5781; beyond ±1/64 px 10972, ±1/16 px 7488, ±1/4 px 4888. Checker's `missing.px` less the reference's slack
+rounded to 1/64 px, over every near-miss: 51083 cases, min 0, median 0, max 0; beyond ±1/64 px 0, ±1/16 px 0, ±1/4 px 0. The boxes sit 1/4 px either side of the margin (and of the
+margin ÷ 1.3), so a slack error smaller than that moves no decision across it: the DOM check shows such an
+error only through the distribution above, not as a pretext-gap.
 
 Statistics (PROTOCOL §4), one unit per label text (a text's slots, widths and conditions are one unit; each locale's
 row is one): 2320 units, 0 with a check-mismatch, 95% upper bound on the rate Wilson 0.165%, Clopper-Pearson 0.159%
