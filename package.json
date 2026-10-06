@@ -1,6 +1,6 @@
 {
   "name": "pretext-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Exact text-sizing helpers built on Pretext",
   "license": "MIT",
   "repository": {
@@ -26,16 +26,18 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "scripts": {
     "test": "node --test --import ./test/setup.ts test/*.test.ts && npm run test:headless",
     "test:headless": "node --test test/headless/*.test.ts examples/*.test.ts",
     "check": "tsc --noEmit",
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
     "verify": "node verify/run.ts",
     "verify:headless": "node verify/headless.ts",
     "examples": "node examples/build.ts",
@@ -43,10 +45,11 @@
     "examples:data": "node examples/build-accuracy-data.ts && node examples/build-headless-parity.ts",
     "examples:check": "node examples/check.ts",
     "examples:screenshots": "node examples/check.ts --screenshots",
-    "bench": "node verify/bench-run.ts"
+    "bench": "node verify/bench-run.ts",
+    "pack:release": "bash verify/pack-release.sh"
   },
   "peerDependencies": {
-    "@chenglou/pretext": ">=0.0.10 <0.0.11",
+    "@chenglou/pretext": ">=0.0.10-0 <0.0.11",
     "harfbuzzjs": "^1.6.2",
     "wawoff2": "^2.0.1"
   },

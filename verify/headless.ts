@@ -221,8 +221,11 @@ const server = createServer((req, res) => {
 await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 
-// Headed, as v1: headless builds differ in font fallback from what users see.
-const browser = await chromium.launch({ headless: false })
+// Headed, as v1: headless builds differ in font fallback from what users see. `--headless` (for machines with no
+// display; CI on Linux runs headed under xvfb-run instead) launches Playwright's headless Chromium, and says so in
+// HEADLESS_RESULTS.md.
+const headless = process.argv.includes('--headless')
+const browser = await chromium.launch({ headless })
 const browserVersion = browser.version()
 const page = await browser.newPage()
 page.on('pageerror', e => failures.push(`page error: ${e.message}`))
@@ -448,7 +451,13 @@ function ranged(rs: LineResult[]): string[] {
   return out
 }
 
-const macos = execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim()
+// The OS line of HEADLESS_RESULTS.md: macOS's product version, or the platform and kernel release elsewhere.
+const osLabel = (() => {
+  if (process.platform === 'darwin') {
+    return `macOS ${execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim()} (Darwin ${release()})`
+  }
+  return `${process.platform === 'win32' ? 'Windows' : process.platform === 'linux' ? 'Linux' : process.platform} ${release()}`
+})()
 const pretextCommit = (() => {
   try {
     return execFileSync('git', ['-C', join(root, '../pretext'), 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -480,10 +489,10 @@ const md: string[] = [
   '',
   `Run on ${new Date().toISOString().slice(0, 10)} by \`npm run verify:headless\` (verify/headless.ts).`,
   '',
-  `- Chromium ${browserVersion} (Playwright ${pkg('playwright')}, headed), \`<html lang="en">\``,
+  `- Chromium ${browserVersion} (Playwright ${pkg('playwright')}, ${headless ? 'headless' : 'headed'}), \`<html lang="en">\``,
   `- harfbuzzjs ${pkg('harfbuzzjs')} (HarfBuzz ${versionString()}), wawoff2 ${pkg('wawoff2')}`,
   `- Pretext ${pkg('@chenglou/pretext')} (../pretext ${pretextCommit}), \`setLocale('en')\` on both sides`,
-  `- Node ${process.version}, macOS ${macos} (Darwin ${release()}), ${process.arch}`,
+  `- Node ${process.version}, ${osLabel}, ${process.arch}`,
   '',
   'Fonts: test/fonts, loaded in Chromium through `@font-face` from the same files the stand-in registers, each',
   'awaited with `document.fonts.load` and checked `loaded`: ' +
