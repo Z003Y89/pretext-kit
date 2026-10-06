@@ -172,12 +172,14 @@ function section(issues: Issue[], run: string[], lines: string[]): void {
   }
 }
 
+const keys = (n: number): string => `${n} ${n === 1 ? 'key' : 'keys'}`
+
 export function formatReport(report: Report, platforms: string[]): string {
   const lines: string[] = []
   for (const issues of [report.failures, report.warnings, report.notes]) section(issues, platforms, lines)
   if (lines.length > 0) lines.push('')
   lines.push(`${report.checked} checked, ${report.failures.length} failures, ${report.warnings.length} warnings`)
-  if (report.unchecked.length > 0) lines.push(`${report.unchecked.length} keys matched no slot or row`)
+  if (report.unchecked.length > 0) lines.push(`${keys(report.unchecked.length)} matched no slot or row`)
   return `${lines.join('\n')}\n`
 }
 
@@ -205,7 +207,7 @@ export async function main(argv: string[], io: Io): Promise<number> {
     const platforms = input.platforms ?? PLATFORMS
     io.stdout(options.json ? `${JSON.stringify(report, null, 2)}\n` : formatReport(report, platforms))
     if (report.checked === 0 && report.failures.length === 0 && report.warnings.length === 0 && report.unchecked.length > 0) {
-      io.stderr(`nothing was checked: ${report.unchecked.length} keys matched no slot or row; check the slots' uses patterns and the labels\n`)
+      io.stderr(`nothing was checked: ${keys(report.unchecked.length)} matched no slot or row; check the slots' uses patterns and the labels\n`)
       return 2
     }
     return report.failures.length > 0 || (options.strict && report.warnings.length > 0) ? 1 : 0

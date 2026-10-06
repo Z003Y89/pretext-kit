@@ -11,10 +11,13 @@ The label checker, and a fractional-size model for the headless Linux profile. `
   on `pretext-kit/headless` (macOS, Windows and Linux profiles); the browser entry uses the page's own fonts and
   cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 208,740 cases, 0
   check-mismatch, 5,260 pretext-gap, 6 of 6 planted bugs caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
-  README "Label checker" lists the limits, among them one call at a time (a call wipes fonts registered through
-  `pretext-kit/headless`) and soft-hyphenated text at the exact boundary.
-- **`check-labels` command** (`bin`, `npx pretext-kit check-labels [--config] [--json] [--strict] [--platform]`):
-  exit 0, 1 on failures (or warnings with `--strict`), 2 on a usage or config error; label files by its own minimal glob.
+  `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and
+  `pretext-kit/check/browser` do not. Placeholders are `{name}` and `{{name}}`. README "Label checker" lists the limits,
+  among them one call at a time (a call wipes fonts registered through `pretext-kit/headless`) and the gap at a box
+  exactly at the measured width (mostly, not only, soft-hyphenated text).
+- **`check-labels` command** (`bin`, `npx pretext-kit check-labels [--config] [--json] [--strict] [--platform] [--help]`):
+  exit 0, 1 on failures (or warnings with `--strict`), 2 on a usage or config error, including unusable `labels`, a
+  missing harfbuzzjs and a run where no key matched a slot or row; label files by its own minimal glob.
 - **Headless: `featureSettings` on `registerFont`**, the `@font-face` descriptor (`"tnum" 1`), so tabular digits can be
   measured; the checker uses it for slots with `numeric: 'tabular'`.
 - **Headless: the `'linux'` profile models Chromium on Linux's fractional font sizes** (the size in float32 hundredths,

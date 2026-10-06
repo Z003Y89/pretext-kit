@@ -217,3 +217,7 @@ test('launch exits 2 with the hint when the CLI cannot be loaded, and runs main 
   assert.doesNotMatch(out.stderr, /\n\s+at /)
   assert.equal(await launch(['x'], io, async () => ({ main: async (argv) => argv.length })), 1)
 })
+
+test('the unmatched-keys line is singular for one key', () => {
+  assert.equal(formatReport({ ...report([]), unchecked: ['de:a'] }, ALL), '7 checked, 0 failures, 0 warnings\n1 key matched no slot or row\n')
+})
