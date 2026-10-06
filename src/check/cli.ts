@@ -10,7 +10,7 @@ type FileLabels = { files: string; locale?: (path: string) => string }
 type Config = Omit<CheckInput, 'labels'> & { labels: LabelSource | FileLabels }
 type Options = { config: string | undefined; json: boolean; strict: boolean; platforms: Platform[] | undefined }
 
-const USAGE = `usage: pretext-kit check-labels [--config <path>] [--json] [--strict] [--platform macos,windows,linux]\n`
+const USAGE = `usage: pretext-kit check-labels [--config <path>] [--json] [--strict] [--platform macos,windows,linux] [--help]\n`
 const PLATFORMS: Platform[] = ['macos', 'windows', 'linux']
 
 function platformList(value: string): Platform[] {
@@ -126,6 +126,9 @@ async function loadConfig(path: string): Promise<CheckInput> {
     throw new RangeError(`config ${path}: ${what}`)
   }
   if (config.labels === undefined || config.labels === null) bad('labels is required')
+  if (typeof config.labels !== 'object' && typeof config.labels !== 'function') {
+    bad(`labels must be an object of locales, an array of labels or a function, not ${typeof config.labels}; to read locale files use { files: 'locales/*.json' }`)
+  }
   if (!Array.isArray(config.fonts)) bad('fonts must be an array')
   for (const font of config.fonts) {
     if (typeof font !== 'object' || font === null || typeof font.family !== 'string' || (font.path === undefined && font.data === undefined)) {
@@ -174,11 +177,16 @@ export function formatReport(report: Report, platforms: string[]): string {
   for (const issues of [report.failures, report.warnings, report.notes]) section(issues, platforms, lines)
   if (lines.length > 0) lines.push('')
   lines.push(`${report.checked} checked, ${report.failures.length} failures, ${report.warnings.length} warnings`)
+  if (report.unchecked.length > 0) lines.push(`${report.unchecked.length} keys matched no slot or row`)
   return `${lines.join('\n')}\n`
 }
 
 export async function main(argv: string[], io: Io): Promise<number> {
   const [command, ...rest] = argv
+  if (argv.some((a) => a === '--help' || a === '-h')) {
+    io.stdout(USAGE)
+    return 0
+  }
   if (command !== 'check-labels') {
     io.stderr(command === undefined ? USAGE : `unknown command "${command}"\n${USAGE}`)
     return 2
@@ -196,6 +204,10 @@ export async function main(argv: string[], io: Io): Promise<number> {
     const report = await checkLabels(input)
     const platforms = input.platforms ?? PLATFORMS
     io.stdout(options.json ? `${JSON.stringify(report, null, 2)}\n` : formatReport(report, platforms))
+    if (report.checked === 0 && report.failures.length === 0 && report.warnings.length === 0 && report.unchecked.length > 0) {
+      io.stderr(`nothing was checked: ${report.unchecked.length} keys matched no slot or row; check the slots' uses patterns and the labels\n`)
+      return 2
+    }
     return report.failures.length > 0 || (options.strict && report.warnings.length > 0) ? 1 : 0
   } catch (error) {
     io.stderr(`${error instanceof Error ? error.message : String(error)}\n`)

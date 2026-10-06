@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { Issue, Report } from '../../src/check/types.ts'
 import { formatReport, glob, main } from '../../src/check/cli.ts'
+import { importFailure, launch } from '../../src/check/launch.ts'
 
 const dir = fileURLToPath(new URL('./fixtures/', import.meta.url))
 const golden = (name: string) => readFileSync(`${dir}${name}`, 'utf8')
@@ -33,7 +34,7 @@ test('--json prints the Report', async () => {
 test('warnings alone exit 0, and 1 with --strict', async () => {
   const lenient = await run('check-labels', '--config', 'warnings.config.mjs')
   assert.equal(lenient.code, 0)
-  assert.match(lenient.stdout, /0 failures, 2 warnings\n$/)
+  assert.match(lenient.stdout, /0 failures, 2 warnings\n10 keys matched no slot or row\n$/)
   assert.equal((await run('check-labels', '--config', 'warnings.config.mjs', '--strict')).code, 1)
 })
 
@@ -166,4 +167,53 @@ test('glob skips dot entries and node_modules', () => {
   assert.deepEqual(glob(root, '**/*.json'), ['a.json', 'sub/b.json'])
   assert.deepEqual(glob(root, '*.json'), ['a.json'])
   rmSync(root, { recursive: true })
+})
+
+test('labels given as a string is exit 2 with a hint to use { files }', async () => {
+  const r = await run('check-labels', '--config', 'bad/bad-labels-string.config.mjs')
+  assert.equal(r.code, 2)
+  assert.match(r.stderr, /labels must be .*string.*\{ files: /)
+  assert.equal(r.stdout, '')
+})
+
+test('a run that checked nothing because no key matched is exit 2 naming the count', async () => {
+  const r = await run('check-labels', '--config', 'bad/bad-uses-typo.config.mjs')
+  assert.equal(r.code, 2)
+  assert.match(r.stderr, /nothing was checked: 2 keys matched no slot or row/)
+  assert.match(r.stdout, /^0 checked, 0 failures, 0 warnings\n2 keys matched no slot or row\n$/)
+})
+
+test('the unmatched-keys line appears only when keys went unmatched', async () => {
+  const some = await run('check-labels', '--config', 'bad/some-unchecked.config.mjs')
+  assert.equal(some.code, 0)
+  assert.equal(some.stdout, '3 checked, 0 failures, 0 warnings\n2 keys matched no slot or row\n')
+  assert.doesNotMatch(golden('report.txt'), /matched no slot/)
+  assert.equal(formatReport(report([]), ALL), '7 checked, 0 failures, 0 warnings\n')
+})
+
+test('--help and -h print usage on stdout and exit 0', async () => {
+  for (const argv of [['--help'], ['-h'], ['check-labels', '--help']]) {
+    const r = await run(...argv)
+    assert.equal(r.code, 0, argv.join(' '))
+    assert.match(r.stdout, /^usage: pretext-kit check-labels /)
+    assert.equal(r.stderr, '')
+  }
+})
+
+test('importFailure maps a missing harfbuzzjs to an install hint and keeps other messages', () => {
+  const missing = Object.assign(new Error("Cannot find package 'harfbuzzjs' imported from /x/dist/headless/canvas.js"), { code: 'ERR_MODULE_NOT_FOUND' })
+  assert.match(importFailure(missing), /^check-labels needs harfbuzzjs \(and wawoff2 for WOFF2 fonts\): npm i -D harfbuzzjs@1\.6\.2$/)
+  const other = Object.assign(new Error("Cannot find package 'left-pad' imported from /x"), { code: 'ERR_MODULE_NOT_FOUND' })
+  assert.equal(importFailure(other), other.message)
+  assert.equal(importFailure(new Error('boom')), 'boom')
+})
+
+test('launch exits 2 with the hint when the CLI cannot be loaded, and runs main otherwise', async () => {
+  const out = { stdout: '', stderr: '' }
+  const io = { stdout: (s: string) => (out.stdout += s), stderr: (s: string) => (out.stderr += s), cwd: dir }
+  const missing = Object.assign(new Error("Cannot find package 'harfbuzzjs' imported from /x"), { code: 'ERR_MODULE_NOT_FOUND' })
+  assert.equal(await launch([], io, () => Promise.reject(missing)), 2)
+  assert.match(out.stderr, /npm i -D harfbuzzjs@1\.6\.2\n$/)
+  assert.doesNotMatch(out.stderr, /\n\s+at /)
+  assert.equal(await launch(['x'], io, async () => ({ main: async (argv) => argv.length })), 1)
 })
