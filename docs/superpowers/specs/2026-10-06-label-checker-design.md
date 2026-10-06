@@ -122,7 +122,8 @@ warning, not checked. Then by policy, with `width − reserve` as the box:
   with `missing.px` at `shrinkTo`.
 - `{ lines }`: line count at the slot size ≤ `lines`, else `too-many-lines`. With `overflowWrap: 'normal'`, first: a
   word (text between two break opportunities, Pretext's segments; before a soft hyphen with the hyphen it paints) that
-  does not fit the box on one line → `overflow` with `missing.px` (the widest such word less the box).
+  is wider than the box plus 1/64 px at its natural width (what an unbroken word paints) → `overflow` with
+  `missing.px` (the widest such word less the box).
 - `{ truncate }`: `clamp` / `truncateMiddle`; cut → `truncated` (a warning). With `overflowWrap: 'normal'`, a word
   that does not fit the box also → `truncated` under `'end'` (Chromium cuts it with an ellipsis on its line).
 An uncovered code point → `uncovered` (a failure: the app's font can't draw it), never a thrown error. Issues for

@@ -621,12 +621,12 @@ the label's locale: uppercase tabs are much wider than their source text), `poli
 test (or from the async `slots` hook), so they follow the design instead of drifting from it; the checker does not
 parse CSS.
 
-`overflowWrap` defaults differ by where the slot comes from. A slot written by hand defaults to `'break-word'`, the
-checker's behaviour before 0.2.0, so existing configs keep their verdicts. `slotFromStyle` returns what the element's
-computed style does: `'break-word'` for `overflow-wrap: break-word` or `anywhere` (Tailwind's `break-words`) or
-`word-break: break-all` or `break-word`, and otherwise `'normal'`, CSS's initial value. So a slot taken from an element
-with plain CSS is `'normal'`, and a long word in a `{ lines: 2 }` slot now fails where it used to pass by breaking
-mid-word, as the browser would overflow it.
+`overflowWrap` defaults differ by where the slot comes from. A slot written by hand defaults to `'break-word'`, which
+is how Pretext lays text out. `slotFromStyle` returns what the element's computed style does: `'break-word'` for
+`overflow-wrap: break-word` (Tailwind's `break-words`) or `anywhere`, or for `word-break: break-all` or `break-word`, and
+otherwise `'normal'`, CSS's initial value. So a slot taken from an element with plain CSS is `'normal'`, and a long word
+in its `{ lines: 2 }` slot fails, as the browser overflows it, where the same slot written by hand would pass by
+breaking the word mid-word.
 
 ### Policies
 
@@ -641,9 +641,12 @@ Each slot declares what its design does with a label that is too long. The box i
 | `{ truncate: 'middle' }` | the white-space-collapsed text fits on one line | warning `truncated` |
 
 A "word" under `overflowWrap: 'normal'` is the text between two of the browser's break opportunities (spaces, the break
-after a hyphen-minus, soft hyphens, CJK breaks; Pretext's own segmentation): it fits when an `'as-is'` label of it
-would, and a word ending at a soft hyphen fits only with the hyphen it paints when the line breaks there. The issue's
-`missing.px` is the widest failing word's width less the box, and its `detail` names that word. Under `'break-word'`
+after a hyphen-minus, soft hyphens, CJK breaks; Pretext's own segmentation): an unbroken word paints at its natural
+width, so it fits when that width is at most the box plus 1/64 px, and a word ending at a soft hyphen fits only with the
+hyphen it paints when the line breaks there. The issue's `missing.px` is the widest failing word's width less the box,
+`measured.width` that word's width, and its `detail` names the word. `measured.lines` on such an `overflow` is the line
+count Pretext gives at the box with words broken mid-word (`'break-word'`), not what the browser paints under
+`'normal'`, where the word stays whole and can take fewer lines. Under `'break-word'`
 (as Pretext lays text out) such a word breaks between letters, which is how a `{ lines: 2 }` slot with `break-words`
 holds „Benachrichtigungen“ in two lines. Under truncate end, Chromium cuts an unbreakable word at the box with an
 ellipsis on whichever line of the clamp it sits (`text-overflow` applies to every line), so the label is `truncated`
@@ -787,13 +790,14 @@ note and is neither a failure nor a warning (so it is not in the counts).
   size in a page; Chromium reuses the glyph metrics of a nearby fractional size measured earlier in the same page,
   which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart can differ by
   one 1/64 px step. The model was derived on Chromium 141, not 149; `opsz` on Linux is unmeasured.
-- **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 6,298 of the
-  6,382 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it and 12 are rows. Mostly, not only, soft-hyphenated
-  text: 4,951 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle, shrinkTo), where Chromium's text
-  is wider than Pretext's natural width (for as-is at text 100% and zoom 100%, 0.125 to 0.828px, most often 0.25px; up
-  to 1.23 zoomed px over all conditions), and 2,506 line-break cases (lines and truncate end, with either
-  `overflowWrap`), where Chromium breaks differently); the other 1,431 have none (English "Just tried": DOM 3 lines,
-  Pretext 2). At a box exactly as wide as
+- **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 6,300 of the
+  7,434 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it, 12 are rows and 1,050 are `overflowWrap: 'normal'`
+  slots at the widest word's own width (all under zoom 130%, within about 1/16 zoomed px of it; none at zoom 100%).
+  Mostly, not only, soft-hyphenated text: 5,037 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle,
+  shrinkTo), where Chromium's text is wider than Pretext's natural width (for as-is at text 100% and zoom 100%, 0.125 to
+  0.828px, most often 0.25px; up to 1.23 zoomed px over all conditions), and 2,592 line-break cases (lines and truncate
+  end, with either `overflowWrap`), where Chromium breaks differently); the other 2,397 have none (English "Just tried":
+  DOM 3 lines, Pretext 2). At a box exactly as wide as
   Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on boxes sized
   from a measured width, most of all for soft-hyphenated German and French.
 - **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
@@ -803,7 +807,10 @@ note and is neither a failure nor a warning (so it is not in the counts).
   and is `truncated` only when that makes too many lines; under `'normal'` a word wider than the box is `truncated`.
 - **`overflowWrap` has two values.** `overflow-wrap: anywhere` and `word-break: break-all` map to `'break-word'`, which
   breaks a word only where it does not fit; `break-all` breaks between any two letters to fill each line, so its line
-  counts can be lower than the checker's. `word-break: keep-all` (CJK) is not modelled.
+  counts can be lower than the checker's. `word-break: keep-all` (CJK) is not modelled, nor is `hyphens: auto`: Chromium
+  may hyphenate a word the checker reports as `overflow` under `'normal'`. Words are Pretext's segments, and a boundary
+  between two text segments counts as a break opportunity; the flag Pretext keeps internally for the rare boundary that
+  is not one (around zero-width glue and controls, which the checker joins to the text beside them) is not read.
 - **`truncate: 'middle'`** collapses white space as `truncateMiddle` does, then measures the collapsed text with the slot's
   `letterSpacing` and `whiteSpace` and applies the same fit test as the other policies; `truncateMiddle`'s own result can
   disagree with it within 1/64 px above the box width, which the checker's fit test (the kit's, 1/64 px) allows.

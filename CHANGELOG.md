@@ -9,17 +9,17 @@ The label checker, and a fractional-size model for the headless Linux profile. `
   `truncate`), rows with collapse stages, and a stable, diffable report (failures, warnings, notes, unchecked keys);
   `slotFromStyle` builds slots from computed styles and `conditionGrid` builds condition products. The Node entry runs
   on `pretext-kit/headless` (macOS, Windows and Linux profiles); the browser entry uses the page's own fonts and
-  cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 292,152 cases, 0
-  check-mismatch, 6,382 pretext-gap, 7 of 7 planted bugs caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
+  cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 375,564 cases, 0
+  check-mismatch, 7,434 pretext-gap, 7 of 7 planted bugs caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
   `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and
   `pretext-kit/check/browser` do not. Placeholders are `{name}` and `{{name}}`. README "Label checker" lists the limits,
   among them one call at a time (a call wipes fonts registered through `pretext-kit/headless`) and the gap at a box
   exactly at the measured width (mostly, not only, soft-hyphenated text).
 - **`overflowWrap` on a slot** (`'break-word'`, the default, or `'normal'`; overridable per condition). Under `'normal'`
-  a word (the text between two break opportunities; one ending at a soft hyphen with the hyphen it paints) wider than
-  the box is the failure `overflow` under `lines`, with `missing.px` and the word in `detail`, and makes `truncate: 'end'`
+  a word (the text between two break opportunities; one ending at a soft hyphen with the hyphen it paints) whose natural
+  width is past the box by more than 1/64 px is the failure `overflow` under `lines`, with `missing.px` and the word in `detail`, and makes `truncate: 'end'`
   `truncated`, as Chromium cuts it with an ellipsis on its line of the clamp. `slotFromStyle` reads `overflow-wrap` and
-  `word-break` from the computed style, so a slot it builds from plain CSS is `'normal'`, while a hand-written slot keeps
+  `word-break` from the computed style, so a slot it builds from plain CSS is `'normal'`, while a hand-written slot defaults to
   `'break-word'`.
 - **`check-labels` command** (`bin`, `npx pretext-kit check-labels [--config] [--json] [--strict] [--platform] [--help]`):
   exit 0, 1 on failures (or warnings with `--strict`), 2 on a usage or config error, including unusable `labels`, a
