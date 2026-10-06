@@ -122,7 +122,7 @@ function close(a: Issue, b: Issue): boolean {
 function worse(a: Issue, b: Issue): boolean {
   const px = a.missing?.px
   const other = b.missing?.px
-  return px !== undefined && other !== undefined ? px > other : a.measured.width > b.measured.width
+  return px !== undefined && other !== undefined && px !== other ? px > other : a.measured.width > b.measured.width
 }
 
 // Platforms measure the same label up to 1/64 px apart; those issues become one line with the worst platform's numbers.
@@ -130,7 +130,7 @@ export function mergeClose(issues: Issue[]): Issue[] {
   const order = (issue: Issue): number => PLATFORM_ORDER.indexOf(issue.platforms.slice().sort((a, b) => PLATFORM_ORDER.indexOf(a) - PLATFORM_ORDER.indexOf(b))[0]!)
   const groups = new Map<string, Issue[][]>()
   for (const issue of [...issues].sort((a, b) => order(a) - order(b))) {
-    const id = JSON.stringify([issue.kind, issue.slot, issue.condition, issue.locale, issue.key, issue.text, issue.detail, issue.missing?.px === undefined, issue.missing?.fitsAtPx === undefined, issue.missing === undefined])
+    const id = JSON.stringify([issue.kind, issue.slot, issue.condition, issue.locale, issue.key, issue.text, issue.detail, issue.missing === undefined ? null : Object.keys(issue.missing).sort()])
     const clusters = groups.get(id) ?? []
     const home = clusters.find((members) => members.every((m) => close(m, issue)))
     if (home === undefined) clusters.push([issue])

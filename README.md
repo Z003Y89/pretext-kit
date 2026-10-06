@@ -675,7 +675,9 @@ type Report = {
 ```
 
 An `Issue` has `kind`, `locale`, `key`, `slot`, `condition`, `platforms` (issues for different platforms are merged
-into one when their numbers differ by at most 1/64 px, showing the worst platform's numbers; larger differences stay separate), `text` (with samples filled in), `measured` (`width`, `box`, `lines`, `fontPx`, and `stage` for rows)
+into one when their numbers differ by at most 1/64 px, showing the worst platform's numbers; larger differences stay
+separate; the grouping is greedy in platform order, so a spread of 2/64 px across platforms can split into two issues),
+`text` (with samples filled in), `measured` (`width`, `box`, `lines`, `fontPx`, and `stage` for rows)
 and, where it applies, `missing: { px?, fitsAtPx? }` and a `detail`. The order is stable: by slot or row, condition,
 locale, key, platform; numbers are rounded to 1/64 px; there are no timestamps or paths. Two runs, before and after a
 font change, diff line by line.

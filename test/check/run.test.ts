@@ -368,20 +368,59 @@ test('different kinds stay separate', () => {
   assert.equal(mergeClose([a!, b!]).length, 2)
 })
 
-test('a tie keeps the first platform and the order of input does not matter', () => {
-  const [a, b] = pair(50, 50 + 1 / 64)
-  assert.deepEqual(mergeClose([a!, b!]), mergeClose([b!, a!]))
-  const [c, d] = pair(50, 50)
-  assert.equal(mergeClose([d!, c!])[0]!.measured.width, 50)
+const U = 1 / 64
+const at = (platform: Issue['platforms'][number], offset: number, extra: Partial<Issue> = {}): Issue => ({
+  kind: 'overflow', locale: 'en', key: 'k', slot: 's', condition: 'c', platforms: [platform], text: 't',
+  measured: { width: 50 + offset * U, box: 40, lines: 1, fontPx: 16 }, missing: { px: 10 + offset * U }, ...extra,
+})
+const permutations = <T>(items: T[]): T[][] =>
+  items.length < 2 ? [items] : items.flatMap((item, i) => permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest]))
+const stable = (issues: Issue[]): string[] => [...new Set(permutations(issues).map((p) => JSON.stringify(mergeClose(p))))]
+
+test('a tie keeps the first platform whatever the input order', () => {
+  const mac = at('macos', 0, { missing: { px: 10, fitsAtPx: 12 } })
+  const linux = at('linux', 0, { missing: { px: 10, fitsAtPx: 12 + U } })
+  for (const input of [[mac, linux], [linux, mac]]) {
+    const merged = mergeClose(input)
+    assert.equal(merged.length, 1)
+    assert.equal(merged[0]!.missing?.fitsAtPx, 12)
+    assert.deepEqual(merged[0]!.platforms, ['macos', 'linux'])
+  }
+})
+
+test('merging does not depend on input order', () => {
+  const same = stable([at('macos', 0), at('windows', 1), at('linux', 1)])
+  assert.equal(same.length, 1)
+  const [one] = JSON.parse(same[0]!) as Issue[]
+  assert.deepEqual(one!.platforms, ['macos', 'windows', 'linux'])
+  assert.equal(one!.measured.width, 50 + U)
+
+  const chain = stable([at('macos', 0), at('windows', 1), at('linux', 2), at('browser', 3)])
+  assert.equal(chain.length, 1)
+  assert.deepEqual((JSON.parse(chain[0]!) as Issue[]).map((i) => i.platforms), [['macos', 'windows'], ['linux', 'browser']])
+
+  const gap = stable([at('macos', 0), at('linux', 0, { missing: undefined })])
+  assert.equal(gap.length, 1)
+  assert.equal(JSON.parse(gap[0]!).length, 2)
 })
 
 test('platform order does not change a merged report', async () => {
+  await registerFont('Probe4', new Uint8Array(readFileSync(variablePath)))
+  const widthOf = (platform: 'macos' | 'linux') => {
+    install({ platform })
+    clearCache()
+    return Math.round(measureNaturalWidth(prepareWithSegments('Settings', '500 16px Probe4')) * 64)
+  }
+  assert.equal(Math.abs(widthOf('macos') - widthOf('linux')), 1, 'the probe label must sit exactly 1/64 px apart')
   const run = (platforms: ('macos' | 'linux')[]) =>
     checkLabels({
       fonts: [{ family: 'Inter V', path: variablePath, weight: [100, 900] }],
-      labels: [{ key: 'k', text: sample, slot: 's' }],
-      slots: { s: { width: 100, font: '500 16px Inter V', policy: 'as-is' } },
+      labels: [{ key: 'k', text: 'Settings', slot: 's' }],
+      slots: { s: { width: 20, font: '500 16px Inter V', policy: 'as-is' } },
       platforms,
     })
-  assert.equal(JSON.stringify(await run(['macos', 'linux'])), JSON.stringify(await run(['linux', 'macos'])))
+  const forward = await run(['macos', 'linux'])
+  assert.equal(JSON.stringify(forward), JSON.stringify(await run(['linux', 'macos'])))
+  assert.equal(forward.failures.length, 1)
+  assert.deepEqual(forward.failures[0]!.platforms, ['macos', 'linux'])
 })
