@@ -5,6 +5,8 @@ name: CI
 
 on:
   push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
 
 permissions:
@@ -22,6 +24,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node: [22, 24]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -56,6 +59,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -79,6 +83,8 @@ jobs:
         run: npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
+      # The checkout holds the committed macOS results; removed so a run that crashes uploads nothing stale.
+      - run: rm -f verify/HEADLESS_RESULTS.md
       # Headed, as on macOS: Linux has no display, so the headed Chromium runs under a virtual X server.
       - name: verify:headless (Linux, headed under xvfb)
         if: runner.os == 'Linux'
@@ -105,6 +111,7 @@ jobs:
       matrix:
         node: [22, 24]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
@@ -135,4 +142,6 @@ jobs:
         if: matrix.node == 24
         with:
           name: release-tarballs
-          path: pretext-kit/dist-release/*.tgz
+          path: |
+            pretext-kit/dist-release/*.tgz
+            pretext-kit/dist-release/*.sbom.cdx.json
