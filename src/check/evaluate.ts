@@ -1,6 +1,6 @@
 import { measureLineStats, measureNaturalWidth, prepareWithSegments, setLocale } from '@chenglou/pretext'
 import type { PrepareOptions, PreparedTextWithSegments } from '@chenglou/pretext'
-import { clamp, fitFontSize, prepareLabel, prepareSizes, truncateMiddle } from '../index.ts'
+import { clamp, fitFontSize, prepareLabel, prepareSizes } from '../index.ts'
 import type { ResolvedSlot } from './conditions.ts'
 import { localeTag, transformText } from './labels.ts'
 import type { Issue } from './types.ts'
@@ -41,8 +41,17 @@ function measured(slot: ResolvedSlot, width: number, lines: number, fontPx: numb
   return { width: round64(width), box: round64(slot.box), lines, fontPx: round64(fontPx) }
 }
 
+// setLocale clears Pretext's caches, so it runs only when the locale changes.
+let lastLocale: string | undefined | null = null
+function useLocale(locale: string): void {
+  const tag = localeTag(locale)
+  if (tag === lastLocale) return
+  setLocale(tag)
+  lastLocale = tag
+}
+
 export function naturalWidth(text: string, slot: ResolvedSlot, locale: string): number {
-  setLocale(localeTag(locale))
+  useLocale(locale)
   return measureNaturalWidth(prepareAt(transformText(text, slot.textTransform, locale), slot, slot.sizePx))
 }
 
@@ -69,10 +78,15 @@ function shrink(text: string, slot: ResolvedSlot, shrinkTo: number): Verdict {
   const width = measureNaturalWidth(prepareAt(text, slot, min))
   const below = Math.ceil(min) - 1
   const fitsAtPx = below >= 1 ? largestFit(text, slot, 1, below) : null
+  const short = round64(width - slot.box)
+  const missing: NonNullable<Issue['missing']> = {
+    ...(short > 0 ? { px: short } : {}),
+    ...(fitsAtPx === null ? {} : { fitsAtPx }),
+  }
   return {
     kind: 'below-min-size',
     measured: measured(slot, width, measureLineStats(prepareAt(text, slot, min), slot.box).lineCount, min),
-    missing: { px: round64(width - slot.box), ...(fitsAtPx === null ? {} : { fitsAtPx }) },
+    ...(missing.px === undefined && missing.fitsAtPx === undefined ? {} : { missing }),
   }
 }
 
@@ -108,12 +122,14 @@ function truncateEnd(text: string, slot: ResolvedSlot, max: number): Verdict {
   }
 }
 
-// prepareLabel and truncateMiddle collapse white space themselves, so the text goes in as it is.
+// prepareLabel collapses white space as truncateMiddle does but takes no prepare options, so the
+// collapsed text it returns is measured again with the slot's letterSpacing and whiteSpace and
+// judged by the same fit test as the other policies.
 function truncateCenter(text: string, slot: ResolvedSlot): Verdict {
-  const label = prepareLabel(text, slot.fontAt(slot.sizePx))
-  const width = measureNaturalWidth(label.prepared)
-  const cut = truncateMiddle(label, slot.box)
-  return { kind: cut === label.text ? 'pass' : 'truncated', measured: measured(slot, width, 1, slot.sizePx) }
+  const collapsed = prepareLabel(text, slot.fontAt(slot.sizePx)).text
+  const width = measureNaturalWidth(prepareAt(collapsed, slot, slot.sizePx))
+  const fits = fitsAt(collapsed, slot, slot.sizePx, slot.box, 1)
+  return { kind: fits ? 'pass' : 'truncated', measured: measured(slot, width, 1, slot.sizePx) }
 }
 
 function judge(text: string, slot: ResolvedSlot): Verdict {
@@ -127,7 +143,7 @@ function judge(text: string, slot: ResolvedSlot): Verdict {
 export function evaluateLabel(text: string, slot: ResolvedSlot, locale: string): Verdict {
   const transformed = transformText(text, slot.textTransform, locale)
   if (transformed.trim() === '') return { kind: 'pass', measured: measured(slot, 0, 0, slot.sizePx) }
-  setLocale(localeTag(locale))
+  useLocale(locale)
   try {
     return judge(transformed, slot)
   } catch (error) {

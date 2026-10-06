@@ -180,3 +180,87 @@ test('truncate end with lines 2 clamps at two lines', () => {
   assert.equal(evaluateLabel(text, slotOf(w, { truncate: 'end', lines: 2 }), 'en').kind, 'pass')
   assert.equal(evaluateLabel(text, slotOf(w - 1, { truncate: 'end', lines: 2 }), 'en').kind, 'truncated')
 })
+
+test('letterSpacing changes an as-is verdict and middle truncation does not pass it falsely', () => {
+  const n = natural(TEXT)
+  assert.equal(evaluateLabel(TEXT, slotOf(n + 1, 'as-is'), 'de').kind, 'pass')
+  const spaced = { letterSpacing: 2 }
+  const asIs = evaluateLabel(TEXT, slotOf(n + 1, 'as-is', spaced), 'de')
+  assert.equal(asIs.kind, 'overflow')
+  assert.ok(asIs.measured.width > n + 10)
+  const middle = evaluateLabel(TEXT, slotOf(n + 1, { truncate: 'middle' }, spaced), 'de')
+  assert.equal(middle.kind, 'truncated')
+  assert.equal(middle.measured.width, asIs.measured.width)
+})
+
+test('middle truncation under pre-wrap judges the collapsed text with the slot options', () => {
+  const raw = 'Speichern   unter\nJetzt'
+  const n = natural('Speichern unter Jetzt')
+  const keep = { whiteSpace: 'pre-wrap' as const }
+  assert.equal(evaluateLabel(raw, slotOf(n + 1, { truncate: 'middle' }, keep), 'de').kind, 'pass')
+  const cut = evaluateLabel(raw, slotOf(n - 1, { truncate: 'middle' }, keep), 'de')
+  assert.equal(cut.kind, 'truncated')
+  near(cut.measured.width, n)
+})
+
+test('below-min-size omits missing.px when the text is not too wide', () => {
+  const v = evaluateLabel('a\nb', slotOf(500, { shrinkTo: 10 }, { whiteSpace: 'pre-wrap' }), 'en')
+  assert.equal(v.kind, 'below-min-size')
+  assert.equal(v.missing, undefined)
+})
+
+test('fitsAtPx is the largest whole size below shrinkTo that fits', () => {
+  const n10 = natural(TEXT, '10px Inter')
+  const width = n10 - 1
+  let expected = 0
+  for (let px = 9; px >= 1; px--) {
+    if (direct(TEXT, (p) => `${p}px Inter`, px, px, width) !== null) {
+      expected = px
+      break
+    }
+  }
+  assert.ok(expected > 0)
+  assert.equal(evaluateLabel(TEXT, slotOf(width, { shrinkTo: 10 }), 'de').missing?.fitsAtPx, expected)
+})
+
+test('a verdict at the 102.4 box agrees with fitFontSize', () => {
+  const s = slotOf((vw) => vw / 10, 'as-is', {}, { name: 'v', viewport: 1024 })
+  const v = evaluateLabel(TEXT, s, 'de')
+  assert.equal(v.kind === 'pass', direct(TEXT, (px) => `${px}px Inter`, 16, 16, 102.4) !== null)
+  assert.equal(v.measured.box, 102.40625)
+})
+
+test('shrinkTo scales with textScale and zoom', () => {
+  const n13 = natural(TEXT, '13px Inter')
+  const scaled = (condition: Condition, width: number) => slotOf(width, { shrinkTo: 10 }, {}, condition)
+  const text = scaled({ name: 't', textScale: 1.3 }, n13)
+  assert.deepEqual(text.policy, { shrinkTo: 13 })
+  assert.equal(evaluateLabel(TEXT, text, 'de').measured.fontPx, 13)
+  const tight = evaluateLabel(TEXT, scaled({ name: 't', textScale: 1.3 }, n13 - 1), 'de')
+  assert.equal(tight.kind, 'below-min-size')
+  assert.ok(tight.missing?.fitsAtPx !== undefined && tight.missing.fitsAtPx < 13)
+  const zoomed = evaluateLabel(TEXT, scaled({ name: 'z', zoom: 1.3 }, n13 / 1.3), 'de')
+  assert.equal(zoomed.kind, 'pass')
+  assert.equal(zoomed.measured.fontPx, 13)
+})
+
+test('shrinkTo must be positive, finite and not above the font size', () => {
+  for (const shrinkTo of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 17]) {
+    assert.throws(() => slotOf(100, { shrinkTo }), /slot "s".*shrinkTo/, String(shrinkTo))
+  }
+  slotOf(100, { shrinkTo: 16 })
+})
+
+test('conditionGrid omits an empty axis and keeps names distinct', () => {
+  assert.deepEqual(conditionGrid({ textScale: [] }), [{ name: 'default' }])
+  assert.equal(conditionGrid({ textScale: [], zoom: [1.5] }).length, 1)
+  const close = conditionGrid({ textScale: [1.125, 1.13] })
+  assert.equal(new Set(close.map((c) => c.name)).size, 2)
+  assert.equal(conditionGrid({ textScale: [1.3] })[0]!.name, 'text 130%')
+})
+
+test('a font size written as .5px reads as 0.5px', () => {
+  const s = resolveSlot('s', { width: 100, font: '.5px Inter', policy: 'as-is' }, { name: 'c' })
+  assert.equal(s.sizePx, 0.5)
+  assert.equal(s.fontAt(12), '12px Inter')
+})

@@ -15,7 +15,7 @@ export type ResolvedSlot = {
 
 export const DEFAULT_CONDITION: Condition = { name: 'default' }
 
-const PX = /(\d+(?:\.\d+)?)px/
+const PX = /(\d*\.?\d+)px/
 
 function positive(value: number, what: string, slot: string, condition: string): number {
   if (!(value > 0) || !Number.isFinite(value)) {
@@ -43,6 +43,10 @@ export function resolveSlot(name: string, slot: Slot, condition: Condition): Res
   }
   const lines = typeof policy === 'object' && ('lines' in policy || 'truncate' in policy) ? policy.lines : undefined
   if (lines !== undefined && (!Number.isInteger(lines) || lines < 1)) throw new RangeError(where(`lines must be an integer of at least 1, not ${lines}`))
+  if (typeof policy === 'object' && 'shrinkTo' in policy) {
+    if (!(policy.shrinkTo > 0) || !Number.isFinite(policy.shrinkTo)) throw new RangeError(where(`shrinkTo must be a positive number, not ${policy.shrinkTo}`))
+    if (policy.shrinkTo > Number(found[1])) throw new RangeError(where(`shrinkTo ${policy.shrinkTo} is above the font size ${found[1]}px`))
+  }
   return {
     name,
     box,
@@ -57,14 +61,22 @@ export function resolveSlot(name: string, slot: Slot, condition: Condition): Res
   }
 }
 
+function percents(values: number[]): string[] {
+  const whole = values.map((v) => `${Math.round(v * 100)}%`)
+  if (new Set(whole).size === new Set(values).size) return whole
+  return values.map((v) => `${+(v * 100).toFixed(1)}%`)
+}
+
 export function conditionGrid(axes: { textScale?: number[]; zoom?: number[]; viewport?: number[] }): Condition[] {
   let grid: Condition[] = [{ name: '' }]
-  const cross = (values: number[] | undefined, key: 'textScale' | 'zoom' | 'viewport', label: (v: number) => string) => {
-    if (values === undefined) return
-    grid = grid.flatMap((c) => values.map((v) => ({ ...c, [key]: v, name: c.name === '' ? label(v) : `${c.name} · ${label(v)}` })))
+  const cross = (values: number[] | undefined, key: 'textScale' | 'zoom' | 'viewport', labels: string[]) => {
+    if (values === undefined || values.length === 0) return
+    grid = grid.flatMap((c) => values.map((v, i) => ({ ...c, [key]: v, name: c.name === '' ? labels[i]! : `${c.name} · ${labels[i]}` })))
   }
-  cross(axes.textScale, 'textScale', (v) => `text ${Math.round(v * 100)}%`)
-  cross(axes.zoom, 'zoom', (v) => `zoom ${Math.round(v * 100)}%`)
-  cross(axes.viewport, 'viewport', (v) => `${v}px`)
+  const scale = axes.textScale ?? []
+  const zoom = axes.zoom ?? []
+  cross(axes.textScale, 'textScale', percents(scale).map((p) => `text ${p}`))
+  cross(axes.zoom, 'zoom', percents(zoom).map((p) => `zoom ${p}`))
+  cross(axes.viewport, 'viewport', (axes.viewport ?? []).map((v) => `${v}px`))
   return grid[0]!.name === '' ? [DEFAULT_CONDITION] : grid
 }
