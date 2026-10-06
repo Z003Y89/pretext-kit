@@ -840,8 +840,9 @@ note and is neither a failure nor a warning (so it is not in the counts).
 - **Near-miss slack is Pretext's.** The slack `nearMiss` is compared with is Pretext's width, so it carries the same
   gaps: in the sweep's near-miss family (98,172 cases, `nearMiss: 2`) the checker's decision equals the reference's in
   every case, and Chromium's free space falls on the other side of the margin in 1,565: 1,230 with soft-hyphenated
-  text (Chromium's slack −1.26 to +2.58px from Pretext's), the others mostly at text 130% · zoom 130% or where Chromium
-  breaks a line differently (−2.27 to +2.77px). Choose a margin wider than the gap you want to absorb.
+  text (Chromium's slack −1.26 to +2.58px from Pretext's), the others a hyphen-minus compound Chromium sets up to 2.1px
+  narrower, one-line text and rows at text 130% · zoom 130% (up to 0.66px), and lines Chromium breaks differently
+  (−2.27 to +2.77px). Choose a margin wider than the gap you want to absorb.
 - **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
   size between two whole pixels, so a design that shrinks continuously fits at sizes the checker does not try.
 - **`truncate: 'end'`** passes a single character (grapheme) wider than the box (an `W` in an 8px box): `clamp` flags
