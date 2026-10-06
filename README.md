@@ -905,7 +905,7 @@ note and is neither a failure nor a warning (so it is not in the counts).
   [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670): 0 check-mismatch, 12,424
   pretext-gap). On macOS (CI runner, Chromium 149, run [37505556735](https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735)) it
   ran before the macOS fractional-size model: 472 check-mismatch, 12,380 pretext-gap, the first Windows run's tallies;
-  the run with the model is pending. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
+  with the model (run [37508951442](https://github.com/Z003Y89/pretext-kit/actions/runs/37508951442)) 0 check-mismatch, 12,424 pretext-gap. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
 
 ## Not in v1
 

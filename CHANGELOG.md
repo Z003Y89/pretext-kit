@@ -4,9 +4,9 @@
 
 The label checker, and fractional-size models for the headless Linux, Windows and macOS profiles.
 
-Release assets: to be recorded after the maintainer's pack (RELEASING.md step 3): the SHA-256 of `chenglou-pretext-0.0.10-main.f10d888.tgz` and `pretext-kit-0.2.0.tgz`, with the Node and npm versions that packed them. `pretext-kit-0.2.0.sbom.cdx.json` has no fixed sum, because the SBOM records a timestamp and a random serial number.
+Release assets: the GitHub release for v0.2.0 carries `chenglou-pretext-0.0.10-main.f10d888.tgz`, `pretext-kit-0.2.0.tgz`, the SBOM and `SHA256SUMS`, packed by `.github/workflows/release.yml` on Node 24.4.1 with npm 11.4.2 (the sums and versions are in the release notes). `pretext-kit-0.2.0.sbom.cdx.json` has no fixed sum, because the SBOM records a timestamp and a random serial number.
 
-macOS (release gate rows 2 and 6), from the `macos-parity` workflow on a `macos-latest` runner, Chromium 149.0.7827.55 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735): `verify:headless` 0 headless-mismatch; `verify:check` before the macOS fractional-size model 472 check-mismatch, 12,380 pretext-gap; **pending:** `verify:check` with the model.
+macOS (release gate rows 2 and 6), from the `macos-parity` workflow on a `macos-latest` runner, Chromium 149.0.7827.55 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735): `verify:headless` 0 headless-mismatch; `verify:check` before the macOS fractional-size model 472 check-mismatch, 12,380 pretext-gap; with the model (run https://github.com/Z003Y89/pretext-kit/actions/runs/37508951442, PR #8 at 0531c70) 0 check-mismatch, 12,424 pretext-gap, 8 of 8 planted bugs caught, and `verify:fractional` 488 of 488 sizes for the `'macos'` profile.
 
 - **`pretext-kit/check` and `pretext-kit/check/browser`.** `checkLabels` checks every UI label against the slot it is
   shown in, per language, text scale, zoom and platform, with each slot's own policy (as-is, `shrinkTo`, `lines`,
@@ -17,7 +17,7 @@ macOS (release gate rows 2 and 6), from the `macos-parity` workflow on a `macos-
   verdict cases and 98,172 near-miss cases), 0 check-mismatch, 10,255 pretext-gap (7,292 and 2,963), 8 of 8 planted bugs
   caught (verify/CHECK_RESULTS.md); the same tallies on Linux in CI with Chromium 149 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37493529824); on Windows in CI (Chromium
   149.0.7827.55, run https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670) 0 check-mismatch, 12,424
-  pretext-gap, 8 of 8 caught. On macOS see above (with the macOS model: pending).
+  pretext-gap, 8 of 8 caught. On macOS in CI with the macOS model (run https://github.com/Z003Y89/pretext-kit/actions/runs/37508951442) 0 check-mismatch, 12,424 pretext-gap, 8 of 8 caught.
   `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and
   `pretext-kit/check/browser` do not. Placeholders are `{name}` and `{{name}}`. README "Label checker" lists the limits,
   among them one call at a time (a call wipes fonts registered through `pretext-kit/headless`) and the gap at a box

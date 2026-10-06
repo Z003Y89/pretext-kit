@@ -11,8 +11,7 @@ smoke-tests the local tarballs on Node 24.4.1 and Node 22, writes the release no
 with the Node and npm versions, and the unofficial-snapshot sentence of step 5), creates the release (it fails, and
 overwrites nothing, if one exists for the tag), then downloads the three assets, checks their sums against the ones
 recorded before upload, smoke-tests the downloads and runs README's install line in an empty project. The run's
-summary lists the sums; recording them in the CHANGELOG.md entry (step 3) is a commit after the run, since the
-workflow packs only once the tag is pushed. Its `workflow_dispatch` (input `tag`) re-runs it for a pushed tag. The macOS rows of the
+summary lists the sums, and the release notes carry them, so the CHANGELOG.md entry needs no later commit. Its `workflow_dispatch` (input `tag`) re-runs it for a pushed tag. The macOS rows of the
 release gate (PROTOCOL.md §8 rows 2 and 6) come from `.github/workflows/macos-parity.yml` on a `macos-latest` runner
 (artifact `macos-parity-results`; the job log carries every summary). The steps below are what the workflow does, and
 remain the manual fallback when it cannot run.
