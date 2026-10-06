@@ -386,11 +386,14 @@ The headless sweep plants its own mutants on every run (`verify/headless.ts`, HE
 |---|---:|---:|---|
 | drop kerning (`kern` off always) | 4332 | 2283 | yes |
 | ignore weight (always the 400 face) | 848 | 2988 | yes |
+| round variable-font advances (HarfBuzz's own, HVAR delta rounded to whole units) | 232 | 11 | yes |
 | drop the U+0020 word cut | 192 | 0 | yes (widths only) |
 
 (0.1.2 counts, with Inter Variable in the sweep. "Ignore weight" picks the face, not the instance, so the variable
-face is unaffected by it; the unrounded variable-font advances are guarded by the pinned Chromium widths in
-test/headless/variable.test.ts instead.)
+face is unaffected by it. "Round variable-font advances", added in 0.1.2, undoes 0.1.2's fix (no sub font with the
+unrounded advances) and gives back exactly the pre-fix numbers, 232 widths beyond 0.02px and 11 line-count
+headless-mismatches, so the sweep checks 0.1.2's main change on every run; the pinned Chromium widths in
+test/headless/variable.test.ts guard it in `npm test` as well.)
 
 Dropping the U+0020 word cut cannot change a Pretext line count (Pretext never hands Canvas a space beside other
 text: 0 of 2,254 measured strings), so only the width sweep sees it (Ruling H-8 in the headless ledger).
@@ -496,7 +499,8 @@ fonts are macOS fonts), Node 24 and network access. The comparison reads the com
 (`git show HEAD:verify/RESULTS.md`, saved before the sweep), since a full sweep rewrites the working copy. Expected:
 every step passes; every compared tally equals the committed RESULTS.md; `widths: 7344 cases, 6126 exact`,
 `lines: 141226 cases, 0 headless-mismatch, 288 pretext-gap` (0.1.1, without Inter Variable: `widths: 4992 cases,
-3842 exact`, `lines: 71818 cases, 0 headless-mismatch, 176 pretext-gap`); all three headless mutants caught. After a full run,
+3842 exact`, `lines: 71818 cases, 0 headless-mismatch, 176 pretext-gap`); all four headless mutants caught (three
+in 0.1.1). After a full run,
 `git diff` in the clone should show in RESULTS.md only timings and the run date, and in HEADLESS_RESULTS.md the date
 and Pretext's abbreviated hash, whose length git chooses per repository (the recorded run below showed exactly that
 hash difference). Not checked by a full run: that claim, since only the Chromium factor-1 mode was run from a fresh

@@ -477,7 +477,7 @@ text × width cases.
 
 Each mutant is a copy of src/headless under verify/dist/mutants with one edit (src itself is never edited), run as the
 Node side of the same sweep against the same Chromium data. A mutant is caught when it produces widths beyond the bar
-or line-count headless-mismatches; the first two must produce line-count headless-mismatches. Dropping the U+0020
+or line-count headless-mismatches; all but the U+0020 cut must produce line-count headless-mismatches. Dropping the U+0020
 cut cannot change a Pretext line count: Pretext measures each space as a segment of its own and never hands Canvas a
 U+0020 beside other text (0 of the 2254 distinct strings it measured for the line cases here),
 so only the width sweep sees it, through Roboto, which kerns with the space glyph.
@@ -486,10 +486,12 @@ so only the width sweep sees it, through Roboto, which kerns with the space glyp
 |---|---|---:|---:|---:|---|
 | drop kerning | `if (fontKerning === 'none') features.push(new Feature('kern', 0))` → `features.push(new Feature('kern', 0))` | 4332 | 14.700104 | 2283 | yes |
 | ignore weight | `findFaces(parsed.families[i]!, parsed.weight, style)` → `findFaces(parsed.families[i]!, 400, style)` | 848 | 34.3797 | 2988 | yes |
+| round variable-font advances | `withVariedAdvances(font, face, parsed.sizePx, design)` → `({ font, varied: null })` | 232 | 0.055115 | 11 | yes |
 | drop the U+0020 word cut | `return codePoint === 0x20 \|\| codePoint === ZWSP \|\|` → `return codePoint === ZWSP \|\|` | 192 | 2.58284 | 0 | yes |
 
 - drop kerning, e.g. Inter 400 / latin "Latin update" @ 136px: Node 9, Chromium-Pretext 8
 - ignore weight, e.g. Shantell Sans 700 / latin "Latin update" @ 128px: Node 10, Chromium-Pretext 11
+- round variable-font advances, e.g. Inter Variable 300 / latin "Latin caching" @ 176px: Node 7, Chromium-Pretext 6
 
 ## Variable-font advances against fontTools
 

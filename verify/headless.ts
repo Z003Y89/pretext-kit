@@ -295,6 +295,14 @@ const MUTANTS: Mutant[] = [
     lines: true,
   },
   {
+    // 0.1.2's fix: a varied instance shaped with HarfBuzz's own advances (HVAR delta rounded to whole font units).
+    name: 'round variable-font advances',
+    file: 'canvas.ts',
+    from: 'withVariedAdvances(font, face, parsed.sizePx, design)',
+    to: '({ font, varied: null })',
+    lines: true,
+  },
+  {
     name: 'drop the U+0020 word cut',
     file: 'canvas.ts',
     from: 'return codePoint === 0x20 || codePoint === ZWSP ||',
@@ -652,7 +660,7 @@ const md: string[] = [
   '',
   'Each mutant is a copy of src/headless under verify/dist/mutants with one edit (src itself is never edited), run as the',
   'Node side of the same sweep against the same Chromium data. A mutant is caught when it produces widths beyond the bar',
-  'or line-count headless-mismatches; the first two must produce line-count headless-mismatches. Dropping the U+0020',
+  'or line-count headless-mismatches; all but the U+0020 cut must produce line-count headless-mismatches. Dropping the U+0020',
   'cut cannot change a Pretext line count: Pretext measures each space as a segment of its own and never hands Canvas a',
   `U+0020 beside other text (${node.spaced.length} of the ${node.measured} distinct strings it measured for the line cases here),`,
   'so only the width sweep sees it, through Roboto, which kerns with the space glyph.',

@@ -33,6 +33,8 @@ Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; 
 - **`verify:hvar`** (verify/hvar-fonttools.py, verify/hvar-fonttools.ts): the HVAR advances against fontTools 4.62.1
   (`pip install fonttools==4.62.1 brotli`), on the Inter Variable files from the `@fontsource-variable/inter` 5.3.0
   devDependency, plus any font paths given on the command line.
+- **Parity sweep** plants a fourth mutant, "round variable-font advances" (0.1.2's fix undone): caught, 232 widths
+  beyond 0.02px and 11 line-count headless-mismatches, the pre-fix numbers.
 - **Parity sweep** now includes Inter Variable at 300-800: 7,344 widths (6,126 bit-exact, max 0.000427px) and
   141,226 line counts, 0 headless-mismatch (verify/HEADLESS_RESULTS.md). `node verify/stats.ts` counts a variable file
   once in its clustered units (instances share the file, HVAR store and code path): 310 string × face units, Wilson
