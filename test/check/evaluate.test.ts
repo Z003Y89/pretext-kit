@@ -63,6 +63,13 @@ test('truncate end is a truncated warning, middle with lines 2 is a RangeError',
   assert.throws(() => slotOf(n, { truncate: 'middle', lines: 2 }), RangeError)
 })
 
+test('resolveSlot exposes the reserve scaled by textScale and zoom', () => {
+  const s = slotOf(300, 'as-is', { reserve: 20 }, { name: 'c', textScale: 1.5, zoom: 2 })
+  assert.equal(s.reserve, 60)
+  assert.equal(s.box, 540)
+  assert.equal(slotOf(300, 'as-is').reserve, 0)
+})
+
 test('reserve subtracts from the box', () => {
   const n = natural(TEXT)
   assert.equal(evaluateLabel(TEXT, slotOf(n + 24, 'as-is', { reserve: 24 }), 'de').kind, 'pass')

@@ -3,6 +3,7 @@ import type { Condition, Slot } from './types.ts'
 export type ResolvedSlot = {
   name: string
   box: number
+  reserve: number
   fontAt: (px: number) => string
   sizePx: number
   letterSpacing: number
@@ -50,6 +51,7 @@ export function resolveSlot(name: string, slot: Slot, condition: Condition): Res
   return {
     name,
     box,
+    reserve: (merged.reserve ?? 0) * scale,
     fontAt: (px) => merged.font.replace(PX, `${px}px`),
     sizePx: Number(found[1]) * scale,
     letterSpacing: (merged.letterSpacing ?? 0) * scale,
