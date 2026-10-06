@@ -51,6 +51,8 @@ type Slot = {
   letterSpacing?: number              // px at scale 1
   lineHeight?: number                 // px at scale 1; needed for lines policies
   whiteSpace?: 'normal' | 'pre-wrap'
+  overflowWrap?: 'normal' | 'break-word'  // default 'break-word'; under 'normal' a word wider than the box fails lines
+                                      // (overflow, missing.px) and truncates truncate 'end'; slotFromStyle reads it
   numeric?: 'proportional' | 'tabular'  // 'tabular' = font-variant-numeric: tabular-nums
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'   // applied with the label's locale
   policy: 'as-is' | { shrinkTo: number } | { lines: number } | { truncate: 'end' | 'middle', lines?: number }
@@ -102,8 +104,10 @@ type Issue = {
 ```
 
 `slotFromStyle(style: CSSStyleDeclaration-like, rect: { width: number }, policy): Slot` builds a slot from a
-computed style, using the kit's `fontFromStyle` (font, letter spacing, line height) plus `font-variant-numeric` and
-`text-transform` (uppercase tabs are much wider than their source text). Apps that
+computed style, using the kit's `fontFromStyle` (font, letter spacing, line height) plus `font-variant-numeric`,
+`text-transform` (uppercase tabs are much wider than their source text) and `overflow-wrap`/`word-break`
+(`break-word` or `anywhere`, or `break-all` or `break-word` → `'break-word'`, else `'normal'`, the computed value; a slot
+written by hand defaults to `'break-word'`). Apps that
 define widths and fonts in CSS run it once in a browser test (Playwright, or the app's own) over the real elements and
 save the slots as JSON, or call it from the async `slots` hook; either way slots follow the design instead of
 drifting from it. The CLI does not parse CSS itself.
@@ -116,8 +120,11 @@ warning, not checked. Then by policy, with `width − reserve` as the box:
 - `'as-is'`: `shrinkwrap` at the slot size; one line wide enough, else `overflow` with `missing.px`.
 - `{ shrinkTo }`: `fitFontSize` between `shrinkTo` and the slot size, one line; below `shrinkTo` → `below-min-size`
   with `missing.px` at `shrinkTo`.
-- `{ lines }`: line count at the slot size ≤ `lines`, else `too-many-lines`.
-- `{ truncate }`: `clamp` / `truncateMiddle`; cut → `truncated` (a warning).
+- `{ lines }`: line count at the slot size ≤ `lines`, else `too-many-lines`. With `overflowWrap: 'normal'`, first: a
+  word (text between two break opportunities, Pretext's segments; before a soft hyphen with the hyphen it paints) that
+  does not fit the box on one line → `overflow` with `missing.px` (the widest such word less the box).
+- `{ truncate }`: `clamp` / `truncateMiddle`; cut → `truncated` (a warning). With `overflowWrap: 'normal'`, a word
+  that does not fit the box also → `truncated` under `'end'` (Chromium cuts it with an ellipsis on its line).
 An uncovered code point → `uncovered` (a failure: the app's font can't draw it), never a thrown error. Issues for
 different platforms are merged into one with the platforms listed when their numbers differ by at most 1/64 px, showing
 the worst platform's numbers; larger differences stay separate.

@@ -612,12 +612,21 @@ if (report.failures.length > 0) throw new Error(JSON.stringify(report.failures, 
 `labels` is parsed i18n files (`{ locale: { key: text } }`, nested objects flatten to dotted keys), a list of
 `{ key, text, slot, locale? }`, or a function returning one. A slot says where a label is shown: `width` (content box
 px at zoom 1, or a function of the window width), `reserve` (an icon and its gap, which scale with the text), `font`
-(CSS shorthand at scale 1), `letterSpacing`, `lineHeight` (optional; no verdict uses it, `slotFromStyle` records it), `whiteSpace`, `numeric`
-(`'tabular'` for `font-variant-numeric: tabular-nums`), `textTransform` (applied with the label's locale: uppercase tabs
-are much wider than their source text), `policy`, and `uses` (key patterns such as `'toolbar.*'` that bind i18n keys
-to the slot). Slots that live in CSS come from `slotFromStyle(getComputedStyle(el), el.getBoundingClientRect(), policy, { reserve, uses }?)`,
-run once in a browser test (or from the async `slots` hook), so they follow the design instead of drifting from it;
-the checker does not parse CSS.
+(CSS shorthand at scale 1), `letterSpacing`, `lineHeight` (optional; no verdict uses it, `slotFromStyle` records it), `whiteSpace`,
+`overflowWrap` (`'break-word'`, the default, or `'normal'`: whether a word wider than the box may break inside, see
+[Policies](#policies)), `numeric` (`'tabular'` for `font-variant-numeric: tabular-nums`), `textTransform` (applied with
+the label's locale: uppercase tabs are much wider than their source text), `policy`, and `uses` (key patterns such as
+`'toolbar.*'` that bind i18n keys to the slot). Slots that live in CSS come from
+`slotFromStyle(getComputedStyle(el), el.getBoundingClientRect(), policy, { reserve, uses }?)`, run once in a browser
+test (or from the async `slots` hook), so they follow the design instead of drifting from it; the checker does not
+parse CSS.
+
+`overflowWrap` defaults differ by where the slot comes from. A slot written by hand defaults to `'break-word'`, the
+checker's behaviour before 0.2.0, so existing configs keep their verdicts. `slotFromStyle` returns what the element's
+computed style does: `'break-word'` for `overflow-wrap: break-word` or `anywhere` (Tailwind's `break-words`) or
+`word-break: break-all` or `break-word`, and otherwise `'normal'`, CSS's initial value. So a slot taken from an element
+with plain CSS is `'normal'`, and a long word in a `{ lines: 2 }` slot now fails where it used to pass by breaking
+mid-word, as the browser would overflow it.
 
 ### Policies
 
@@ -627,9 +636,19 @@ Each slot declares what its design does with a label that is too long. The box i
 |---|---|---|
 | `'as-is'` | the label is one line wide enough at the slot's size | failure `overflow`, with `missing.px` |
 | `{ shrinkTo: 12 }` | the label fits on one line at some size from 12px to the slot's size (the minimum scales with text scale and zoom: 15.6px at text 130%) | failure `below-min-size`, with `missing.px` at the minimum and `missing.fitsAtPx` |
-| `{ lines: 2 }` | at most 2 lines at the slot's size | failure `too-many-lines` |
-| `{ truncate: 'end', lines?: 1 }` | `clamp` does not cut it | warning `truncated` |
+| `{ lines: 2 }` | at most 2 lines at the slot's size; with `overflowWrap: 'normal'`, also every word fits the box | failure `too-many-lines`; a word wider than the box under `'normal'`: failure `overflow`, with `missing.px` |
+| `{ truncate: 'end', lines?: 1 }` | `clamp` does not cut it; with `overflowWrap: 'normal'`, also every word fits the box | warning `truncated` |
 | `{ truncate: 'middle' }` | the white-space-collapsed text fits on one line | warning `truncated` |
+
+A "word" under `overflowWrap: 'normal'` is the text between two of the browser's break opportunities (spaces, the break
+after a hyphen-minus, soft hyphens, CJK breaks; Pretext's own segmentation): it fits when an `'as-is'` label of it
+would, and a word ending at a soft hyphen fits only with the hyphen it paints when the line breaks there. The issue's
+`missing.px` is the widest failing word's width less the box, and its `detail` names that word. Under `'break-word'`
+(as Pretext lays text out) such a word breaks between letters, which is how a `{ lines: 2 }` slot with `break-words`
+holds „Benachrichtigungen“ in two lines. Under truncate end, Chromium cuts an unbreakable word at the box with an
+ellipsis on whichever line of the clamp it sits (`text-overflow` applies to every line), so the label is `truncated`
+even when it takes no more lines than allowed. `'as-is'`, `shrinkTo` and middle truncation are one line already and
+ignore `overflowWrap`.
 
 Truncation is a warning because cutting is what the design asked for; `--strict` turns warnings into a failing exit.
 A code point the registered font does not cover is the failure `uncovered`, never a thrown error. `shrinkTo` tries the
@@ -768,18 +787,23 @@ note and is neither a failure nor a warning (so it is not in the counts).
   size in a page; Chromium reuses the glyph metrics of a nearby fractional size measured earlier in the same page,
   which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart can differ by
   one 1/64 px step. The model was derived on Chromium 141, not 149; `opsz` on Linux is unmeasured.
-- **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 5,176 of the
-  5,260 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it and 12 are rows. Mostly, not only, soft-hyphenated
-  text: 3,835 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle, shrinkTo), where Chromium's text
+- **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 6,298 of the
+  6,382 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it and 12 are rows. Mostly, not only, soft-hyphenated
+  text: 4,951 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle, shrinkTo), where Chromium's text
   is wider than Pretext's natural width (for as-is at text 100% and zoom 100%, 0.125 to 0.828px, most often 0.25px; up
-  to 1.23 zoomed px over all conditions), and 1,390 line-break cases (lines, truncate end), where Chromium breaks
-  differently); the other 1,425 have none (English "Just tried": DOM 3 lines, Pretext 2). At a box exactly as wide as
+  to 1.23 zoomed px over all conditions), and 2,506 line-break cases (lines and truncate end, with either
+  `overflowWrap`), where Chromium breaks differently); the other 1,431 have none (English "Just tried": DOM 3 lines,
+  Pretext 2). At a box exactly as wide as
   Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on boxes sized
   from a measured width, most of all for soft-hyphenated German and French.
 - **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
   size between two whole pixels, so a design that shrinks continuously fits at sizes the checker does not try.
 - **`truncate: 'end'`** passes a single character (grapheme) wider than the box (an `W` in an 8px box): `clamp` flags
-  that case and the checker does not turn the flag into a verdict. A long word wider than the box is reported `truncated`.
+  that case and the checker does not turn the flag into a verdict. Under `overflowWrap: 'break-word'` a long word breaks
+  and is `truncated` only when that makes too many lines; under `'normal'` a word wider than the box is `truncated`.
+- **`overflowWrap` has two values.** `overflow-wrap: anywhere` and `word-break: break-all` map to `'break-word'`, which
+  breaks a word only where it does not fit; `break-all` breaks between any two letters to fill each line, so its line
+  counts can be lower than the checker's. `word-break: keep-all` (CJK) is not modelled.
 - **`truncate: 'middle'`** collapses white space as `truncateMiddle` does, then measures the collapsed text with the slot's
   `letterSpacing` and `whiteSpace` and applies the same fit test as the other policies; `truncateMiddle`'s own result can
   disagree with it within 1/64 px above the box width, which the checker's fit test (the kit's, 1/64 px) allows.
