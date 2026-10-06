@@ -424,3 +424,16 @@ test('platform order does not change a merged report', async () => {
   assert.equal(forward.failures.length, 1)
   assert.deepEqual(forward.failures[0]!.platforms, ['macos', 'linux'])
 })
+
+// The repro from review: 20.8px is 16px at 130%, measured on the linux profile as Chromium on Linux does; the word's
+// natural width is within 1/64 px past the box, where Chromium shows it whole on one line.
+test('linux, 20.8px: a word within the tolerance past the box passes lines 1 under overflowWrap normal', async () => {
+  const report = await checkLabels({
+    fonts: [inter],
+    labels: [{ key: 'k', text: 'improvements', slot: 's', locale: 'en' }],
+    slots: { s: { width: 139.140625, font: '20.8px Inter', policy: { lines: 1 }, overflowWrap: 'normal' } },
+    platforms: ['linux'],
+  })
+  assert.deepEqual(report.failures, [])
+  assert.equal(report.checked, 1)
+})

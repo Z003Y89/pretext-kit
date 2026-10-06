@@ -309,6 +309,19 @@ test('a word that cannot break is judged by its natural width, not by where Pret
   assert.equal(evaluateLabel(word, slotOf(w - 0.25, { truncate: 'end', lines: 2 }, normal), 'de').kind, 'truncated')
 })
 
+test('a word within 1/64 px past the box stays whole: the line count and the clamp agree with the word rule', () => {
+  const word = 'improvements'
+  const w = natural(word)
+  const box = w - 1 / 128
+  assert.equal(measureLineStats(prepareWithSegments(word, FONT), box).lineCount, 2)
+  const one = evaluateLabel(word, slotOf(box, { lines: 1 }, normal), 'en')
+  assert.equal(one.kind, 'pass')
+  assert.equal(one.measured.lines, 1)
+  assert.equal(evaluateLabel(word, slotOf(box, { truncate: 'end', lines: 1 }, normal), 'en').kind, 'pass')
+  assert.equal(evaluateLabel(`${word} ${word}`, slotOf(box, { lines: 2 }, normal), 'en').kind, 'pass')
+  assert.equal(evaluateLabel(word, slotOf(box, { lines: 1 }), 'en').kind, 'too-many-lines')
+})
+
 test('break-word, the default, still passes a long word in lines 2 by breaking it, as before', () => {
   const w = natural(WORD)
   for (const more of [{}, { overflowWrap: 'break-word' as const }]) {

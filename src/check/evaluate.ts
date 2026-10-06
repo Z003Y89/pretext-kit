@@ -117,9 +117,13 @@ type Piece = { piece: string; px: number; width: number }
 // before a soft hyphen, when the line Pretext lays out from it at the box ends at that hyphen wider than the box:
 // the browser breaks there and paints the hyphen past the box, where break-word would split the piece. The widest
 // failing piece is reported, by its width less the box. Under break-word, null.
-function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Piece | null {
-  if (slot.overflowWrap === 'break-word') return null
+// width: what lines are laid out at. A word that passes within FIT_TOLERANCE past the box stays whole in the browser,
+// so when one does, lines are counted and clamped at the box plus FIT_TOLERANCE, where Pretext does not split it.
+type Unbreakable = { worst: Piece | null; width: number }
+function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Unbreakable {
+  if (slot.overflowWrap === 'break-word') return { worst: null, width: slot.box }
   let worst: Piece | null = null
+  let widest = 0
   const fail = (piece: string, width: number): void => {
     if (worst === null || width > worst.width) worst = { piece, px: round64(width - slot.box), width }
   }
@@ -129,6 +133,7 @@ function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Pi
     if (piece === '') return
     // A word that cannot break paints at its natural width, whatever width Pretext's layout keeps it on one line at.
     const width = measureNaturalWidth(prepareAt(piece, slot, slot.sizePx))
+    widest = Math.max(widest, width)
     if (!(width <= slot.box + FIT_TOLERANCE)) fail(piece, width)
     else if (prepared.kinds[end] === 'soft-hyphen') {
       const line = layoutNextLineRange(prepared, { segmentIndex: start, graphemeIndex: 0 }, slot.box)
@@ -145,14 +150,14 @@ function unbreakable(prepared: PreparedTextWithSegments, slot: ResolvedSlot): Pi
     } else close(i)
   })
   close(prepared.kinds.length)
-  return worst
+  return { worst, width: widest > slot.box ? slot.box + FIT_TOLERANCE : slot.box }
 }
 
 const unbroken = (piece: string): string => `${JSON.stringify(piece)} does not break (overflow-wrap: normal)`
 
 function lines(text: string, slot: ResolvedSlot, max: number): Verdict {
   const prepared = prepareAt(text, slot, slot.sizePx)
-  const wide = unbreakable(prepared, slot)
+  const { worst: wide, width: at } = unbreakable(prepared, slot)
   if (wide !== null) {
     const lineCount = measureLineStats(prepared, slot.box).lineCount
     const missing = wide.px > 0 ? { missing: { px: wide.px } } : {}
@@ -160,8 +165,8 @@ function lines(text: string, slot: ResolvedSlot, max: number): Verdict {
   }
   const sizes = prepareSizes(text, () => slot.fontAt(slot.sizePx), { min: 1, max: 1 }, options(slot))
   const fits = (width: number): boolean => fitFontSize(sizes, { width, maxLines: max }, noHeight) !== null
-  const stats = measureLineStats(prepared, slot.box)
-  if (fits(slot.box)) return { kind: 'pass', measured: measured(slot, stats.maxLineWidth, stats.lineCount, slot.sizePx) }
+  const stats = measureLineStats(prepared, at)
+  if (fits(at)) return { kind: 'pass', measured: measured(slot, stats.maxLineWidth, stats.lineCount, slot.sizePx) }
   const out: Verdict = { kind: 'too-many-lines', measured: measured(slot, stats.maxLineWidth, stats.lineCount, slot.sizePx) }
   // The narrowest width that holds the text in max lines lies between the box and the natural width;
   // search it on a 1/64 px grid from the box.
@@ -181,10 +186,10 @@ function lines(text: string, slot: ResolvedSlot, max: number): Verdict {
 
 function truncateEnd(text: string, slot: ResolvedSlot, max: number): Verdict {
   const prepared = prepareAt(text, slot, slot.sizePx)
-  const cut = clamp(prepared, slot.box, max)
   // A piece too wide to break is cut at the box with the ellipsis on its own line, as Chromium's text-overflow
   // does on any line of a clamp, so the label is truncated however few lines it takes.
-  const wide = unbreakable(prepared, slot)
+  const { worst: wide, width: at } = unbreakable(prepared, slot)
+  const cut = clamp(prepared, at, max)
   return {
     kind: cut.truncated || wide !== null ? 'truncated' : 'pass',
     measured: measured(slot, measureNaturalWidth(prepared), cut.lineCount, slot.sizePx),
