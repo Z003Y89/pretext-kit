@@ -39,6 +39,27 @@ export function normalizeLabels(
   return { labels, unchecked: [...unchecked].sort() }
 }
 
+// Every text by locale and key, whether or not a slot uses it (rows look their items up by key).
+export function localeTexts(source: Exclude<LabelSource, () => unknown>): Map<string, Map<string, string>> {
+  const out = new Map<string, Map<string, string>>()
+  const into = (locale: string): Map<string, string> => {
+    let found = out.get(locale)
+    if (found === undefined) out.set(locale, (found = new Map()))
+    return found
+  }
+  if (Array.isArray(source)) {
+    for (const label of source) into(label.locale ?? 'und').set(label.key, label.text)
+    return out
+  }
+  for (const [locale, messages] of Object.entries(source)) {
+    const flat: [string, string][] = []
+    flatten(messages, '', flat)
+    const map = into(locale)
+    for (const [key, text] of flat) map.set(key, text)
+  }
+  return out
+}
+
 // Any brace group with a comma is an ICU argument ({n, plural, …}, {n, number}, {d, date, short}).
 const ICU = /\{[^{}]*,/
 const PLACEHOLDER = /\{\s*([^{},\s]+)\s*\}/g

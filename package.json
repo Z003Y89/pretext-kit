@@ -23,6 +23,14 @@
     "./headless": {
       "types": "./dist/headless/index.d.ts",
       "default": "./dist/headless/index.js"
+    },
+    "./check": {
+      "types": "./dist/check/index.d.ts",
+      "default": "./dist/check/index.js"
+    },
+    "./check/browser": {
+      "types": "./dist/check/browser.d.ts",
+      "default": "./dist/check/browser.js"
     }
   },
   "files": [
