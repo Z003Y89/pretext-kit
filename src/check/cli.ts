@@ -24,7 +24,7 @@ function platformList(value: string): Platform[] {
 // Plain decimals only: Number() would also take 0x10, 1e1 and +3.
 function margin(value: string): number {
   const px = /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : Number.NaN
-  if (!(px > 0) || !Number.isFinite(px)) throw new RangeError(`--near-miss must be a finite number of px above 0, not "${value}"`)
+  if (!(px > 0) || !Number.isFinite(px)) throw new RangeError(`--near-miss takes px above 0 as digits with an optional decimal part (0.5, not .5, 1e1 or +2), not "${value}"`)
   return px
 }
 

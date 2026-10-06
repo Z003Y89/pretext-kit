@@ -774,7 +774,8 @@ grouped by slot and condition, one line each with the locale, key, text and what
 `--json` prints the Report. Exit codes: 0 no failures (and, with `--strict`, no warnings), 1 failures (or warnings with
 `--strict`), 2 a usage or config error (bad flag, unreadable config, no file matches, `labels` of the wrong type, harfbuzzjs not installed, or nothing checked because no key matched a slot or row). The line `N keys matched no slot or row` follows the count when N is not 0. `--help` prints the usage. `--platform` limits the run;
 `--config` defaults to `labels.config.mjs`. `--near-miss <px>` (or `--near-miss=<px>`) sets the config's `nearMiss` or
-overrides it; a value that is not a finite number above 0 is exit 2. A near-miss prints as `near-miss: 0.09375px to
+overrides it. The value is px above 0 written as digits with an optional decimal part: `0.5`, not `.5`, `1e1` or `+2`;
+anything else is exit 2. A near-miss prints as `near-miss: 0.09375px to
 spare` and counts as a warning, so it exits 0, and 1 with `--strict`. A value that starts with `--` needs the `=` form (`--config=--x.mjs`).
 The repository's own fixture, `test/check/fixtures/labels.config.mjs` with its two locale files:
 
@@ -846,15 +847,17 @@ note and is neither a failure nor a warning (so it is not in the counts).
   from a measured width, most of all for soft-hyphenated German and French.
 - **Near-miss slack is Pretext's.** The slack `nearMiss` is compared with is Pretext's width, so it carries Pretext's
   gaps. In the sweep's near-miss family (98,172 cases, `nearMiss: 2`) the checker's decision and slack equal the
-  reference's in every case; for one-line text without soft hyphens at zoom 100% Chromium's slack is 0 to 1/64px less
-  than Pretext's, but for the compound below. Chromium's free space falls on the other side of the margin in 1,565 cases. The largest cause is
+  reference's in every case. Chromium's free space falls on the other side of the margin in 1,565 cases. The largest cause is
   Pretext's width for the pieces of a word: a word broken mid-word (`overflowWrap: 'break-word'`) or at a soft hyphen
   is measured as the sum of its pieces, without the kerning and ligatures between them („d’offres.“ breaks as „d’off“ /
   „res.“ in Chromium too, and Pretext's „d’off“ is 1.6px wider: the `ff` ligature), and a hyphen-minus compound as its
   two halves („Nebenrollen-Takes“ loses the `-T` kerning, 1.2px at 16px, 0.27 to 2.12px over the sweep). That makes
-  Pretext's line wider and its slack smaller, so the label is flagged sooner: the safe direction. The others:
-  soft-hyphenated one-line text (Chromium's slack −1.26 to +2.17px from Pretext's), soft-hyphenated lines Chromium
-  places differently, one-line text and rows under zoom (text 130% · zoom 130%: +0.26 to +0.66px; one shrinkTo case at
+  Pretext's line wider and its slack smaller in plain text and in the compound, so the label is flagged sooner: the
+  safe direction. At a soft hyphen the sign is mixed (Chromium's slack −0.77 to +0.91px from Pretext's, smaller in most
+  cases), so such a label can be flagged later. Apart from the compound, one-line text without soft hyphens at zoom
+  100% has 0 to 1/64px less room in Chromium than in Pretext. The other gaps: soft-hyphenated one-line text (−1.26 to
+  +2.17px), soft-hyphenated lines that do not match even measured whole (a different break, or at text 130% · zoom
+  130% the zoomed size), one-line text and rows under zoom (text 130% · zoom 130%: +0.26 to +0.66px; one shrinkTo case at
   text 115% · zoom 130%, 1/32px less room), and 8 cases where Chromium breaks a line at another place („of library. If
   you can't“ with a line 1/64px past the box, „unequally at birth.“). The comparison resolves 1/4px: the sweep's boxes
   sit that far from the margin (CHECK_RESULTS.md, "Resolution"). Choose a margin wider than the gap you want to absorb.

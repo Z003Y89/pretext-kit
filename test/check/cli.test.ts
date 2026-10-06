@@ -278,6 +278,8 @@ test('--near-miss and a config nearMiss must be a finite number above 0, else ex
     assert.equal(r.stdout, '')
     assert.match(r.stderr, /--near-miss/, argv.join(' '))
   }
+  const dot = await run('check-labels', '--config', 'near-miss.config.mjs', '--near-miss', '.5')
+  assert.match(dot.stderr, /^--near-miss takes px above 0 as digits with an optional decimal part \(0\.5, not \.5, 1e1 or \+2\), not "\.5"\n/)
   const bad = await run('check-labels', '--config', 'bad/bad-near-miss.config.mjs')
   assert.equal(bad.code, 2)
   assert.match(bad.stderr, /nearMiss must be a finite number of px above 0, not "2px"/)
