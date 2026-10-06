@@ -1,4 +1,4 @@
-# pretext-kit: evaluation protocol
+# pretext-kit: evaluation protocol, to MIT and Cheng Lou standards
 
 The standard a change must meet before pretext-kit claims anything about it, and before a release is tagged.
 [EVALUATION.md](EVALUATION.md) records what the protocol found for the current release; this file says what it
