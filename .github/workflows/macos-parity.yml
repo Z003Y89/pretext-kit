@@ -1,0 +1,137 @@
+# macOS evidence for the release gate (PROTOCOL.md §8 rows 2 and 6): verify:headless, verify:check and
+# verify:fractional on a macos-latest runner, laid out as ci.yml's parity job (this repository in pretext-kit/, chenglou/
+# pretext at the pinned commit in pretext/). Since macOS minutes cost 10x, it runs on a pull request only when this
+# file, the headless stand-in (src/headless) or the sweeps (verify) change, or by hand. A headless-mismatch or
+# check-mismatch is the measurement, not a failure: the sweep steps may fail without failing the job, and every result
+# is printed to the job log and uploaded as the artifact macos-parity-results.
+name: macOS parity
+
+on:
+  pull_request:
+    paths: ['.github/workflows/macos-parity.yml', 'src/headless/**', 'verify/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRETEXT_COMMIT: f10d888c0f3dfc5877fbca5e4570ee04111e7001
+
+jobs:
+  macos-parity:
+    name: parity (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: pretext-kit
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: pretext-kit
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: chenglou/pretext
+          ref: ${{ env.PRETEXT_COMMIT }}
+          path: pretext
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Build Pretext (pinned tsc)
+        working-directory: pretext
+        run: npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install chromium
+      - name: Versions
+        continue-on-error: true
+        run: |
+          echo "node $(node --version), npm $(npm --version)"
+          sw_vers
+          node --input-type=module -e "
+            const { chromium } = await import('playwright')
+            const browser = await chromium.launch()
+            console.log('Chromium ' + browser.version())
+            await browser.close()"
+      # Results are copied to $RUNNER_TEMP/macos-parity as each sweep finishes. The committed HEADLESS_RESULTS.md is then restored, so the
+      # checkout stays clean for verify:check (which records whether the tree differs from the commit) and a run that
+      # crashes uploads nothing stale.
+      - run: mkdir -p "$RUNNER_TEMP/macos-parity"
+      # Headed: the macOS runner has a display.
+      - name: verify:headless (macOS, headed)
+        id: headless
+        continue-on-error: true
+        run: npm run verify:headless 2>&1 | tee verify/headless-run.log
+      - name: Keep HEADLESS_RESULTS.md
+        if: always()
+        run: |
+          out="$RUNNER_TEMP/macos-parity"
+          cp verify/headless-run.log "$out/" || true
+          if ! git diff --quiet -- verify/HEADLESS_RESULTS.md; then
+            cp verify/HEADLESS_RESULTS.md "$out/"
+          else
+            echo "verify:headless did not rewrite verify/HEADLESS_RESULTS.md; nothing to keep"
+          fi
+          git checkout -- verify/HEADLESS_RESULTS.md
+      - run: rm -f verify/CHECK_RESULTS.md
+      - name: verify:check (macOS, headed)
+        id: check
+        continue-on-error: true
+        run: npm run verify:check 2>&1 | tee verify/check-run.log
+      - name: verify:fractional (macOS, headed)
+        id: fractional
+        continue-on-error: true
+        run: npm run verify:fractional 2>&1 | tee verify/fractional-run.log
+      - name: Collect results
+        if: always()
+        run: |
+          out="$RUNNER_TEMP/macos-parity"
+          for f in verify/CHECK_RESULTS.md verify/check-run.log verify/dist/check-cases.md \
+                   verify/fractional-run.log verify/dist/fractional.jsonl; do
+            if [ -f "$f" ]; then cp "$f" "$out/"; else echo "missing: $f"; fi
+          done
+          ls -l "$out"
+      # The job log is what can be read without downloading the artifact: every summary goes into it again here.
+      - name: Print results
+        if: always()
+        env:
+          HEADLESS_OUTCOME: ${{ steps.headless.outcome }}
+          CHECK_OUTCOME: ${{ steps.check.outcome }}
+          FRACTIONAL_OUTCOME: ${{ steps.fractional.outcome }}
+        run: |
+          out="$RUNNER_TEMP/macos-parity"
+          echo "verify:headless $HEADLESS_OUTCOME; verify:check $CHECK_OUTCOME; verify:fractional $FRACTIONAL_OUTCOME"
+          for f in HEADLESS_RESULTS.md CHECK_RESULTS.md; do
+            echo
+            echo "======== $f ========"
+            if [ -f "$out/$f" ]; then cat "$out/$f"; else echo "(not written)"; fi
+          done
+          # Each sweep's summary: the log from the line that starts it to the end, or the last 100 lines of a run that
+          # did not get there.
+          summary() {
+            echo
+            echo "======== $1 summary ========"
+            if [ ! -f "$out/$2" ]; then echo "(no log)"
+            elif grep -q -F "$3" "$out/$2"; then awk -v s="$3" 'f || index($0, s) == 1 { f = 1; print }' "$out/$2"
+            else echo "(no summary line; last 100 lines)"; tail -n 100 "$out/$2"; fi
+          }
+          summary verify:headless headless-run.log 'wrote verify/HEADLESS_RESULTS.md'
+          summary verify:check check-run.log 'wrote verify/CHECK_RESULTS.md'
+          summary verify:fractional fractional-run.log 'Summary:'
+          {
+            echo "### macOS parity"
+            echo
+            echo "| sweep | outcome |"
+            echo "|---|---|"
+            echo "| verify:headless | $HEADLESS_OUTCOME |"
+            echo "| verify:check | $CHECK_OUTCOME |"
+            echo "| verify:fractional | $FRACTIONAL_OUTCOME |"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: macos-parity-results
+          path: ${{ runner.temp }}/macos-parity/
+          if-no-files-found: warn

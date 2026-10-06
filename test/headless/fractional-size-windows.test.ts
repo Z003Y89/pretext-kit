@@ -4,7 +4,8 @@
 // Regular from test/fonts by @font-face, each size in a fresh browser context, so each value is the first use of its
 // size in a document. The fixture is a sample of 57 of that run's 488 sizes: integer sizes, the label checker sweep's
 // text-scale sizes, the sizes where the stand-in had been off most (10.15, 10.265625, 10.53125px) and least, and every
-// 25th size. Its linux and macos columns are pinned so the Windows model leaves those profiles alone. Unmeasured on
+// 25th size. Its linux column is pinned so the Windows model leaves that profile alone; its macos column is the
+// 'macos' profile's output before macOS Chromium was found to measure like Windows (fractional-size-macos.test.ts). Unmeasured on
 // Windows: variable fonts at fractional sizes, and Chromium's in-page metric sharing between nearby sizes.
 // WINDOWS_FRACTIONAL_JSONL=<path to the run's fractional.jsonl> also checks every recorded size.
 import assert from 'node:assert/strict'
@@ -44,9 +45,8 @@ test('the windows profile measures fractional sizes as Chromium on Windows does'
   check('windows', 'chromium', fixture.sizes)
 })
 
-test('the linux and macos profiles are unchanged', () => {
+test('the linux profile is unchanged', () => {
   check('linux', 'linux', fixture.sizes)
-  check('macos', 'macos', fixture.sizes)
 })
 
 test('every size the Windows run recorded', { skip: process.env.WINDOWS_FRACTIONAL_JSONL === undefined }, () => {
@@ -62,5 +62,5 @@ test('every size the Windows run recorded', { skip: process.env.WINDOWS_FRACTION
   })
   check('windows', 'chromium', rows)
   check('linux', 'linux', rows)
-  check('macos', 'macos', rows)
+  check('macos', 'chromium', rows)
 })

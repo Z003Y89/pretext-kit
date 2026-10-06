@@ -1,0 +1,219 @@
+# Cuts the GitHub release for a pushed tag v<version>: verify/RELEASING.md steps 2-4 (pack, record the sums, smoke-test
+# the local tarballs on Node 22 and 24), step 5's `gh release create`, and step 6 (download the uploaded assets, check
+# their sums, smoke-test them and README's install line). Laid out as ci.yml (this repository in pretext-kit/,
+# chenglou/pretext at the pinned commit in pretext/). The tarballs are packed with Node 24.4.1 and npm 11.4.2, the
+# versions README and RELEASING.md name, so their sums are reproducible. workflow_dispatch re-runs it for an existing
+# tag; an existing release is never overwritten.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (v<version>, already pushed)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  PRETEXT_COMMIT: f10d888c0f3dfc5877fbca5e4570ee04111e7001
+  PRETEXT_TGZ: chenglou-pretext-0.0.10-main.f10d888.tgz
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+        working-directory: pretext-kit
+    steps:
+      - name: Check the tag name
+        working-directory: .
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$TAG' is not a release tag v<major>.<minor>.<patch>"
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          path: pretext-kit
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: chenglou/pretext
+          ref: ${{ env.PRETEXT_COMMIT }}
+          path: pretext
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.4.1
+      - name: npm 11.4.2
+        run: |
+          npm install -g npm@11.4.2
+          echo "node $(node --version), npm $(npm --version)"
+          [ "$(node --version)" = v24.4.1 ] && [ "$(npm --version)" = 11.4.2 ]
+          { echo "PACK_NODE=$(node --version | sed 's/^v//')"; echo "PACK_NPM=$(npm --version)"; } >> "$GITHUB_ENV"
+      - name: Build Pretext (pinned tsc)
+        working-directory: pretext
+        run: npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json
+      - run: npm ci --no-audit --no-fund
+      - name: Check the tag against package.json and CHANGELOG.md
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::tag $TAG does not match package.json version $VERSION (expected v$VERSION)"
+            exit 1
+          fi
+          # The dated heading `## <version> — <yyyy-mm-dd>` (the version's dots taken literally).
+          if ! grep -qE "^## ${VERSION//./\\.} — [0-9]{4}-[0-9]{2}-[0-9]{2}\$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no dated heading '## $VERSION — <yyyy-mm-dd>'"
+            exit 1
+          fi
+          {
+            echo "VERSION=$VERSION"
+            echo "KIT_TGZ=pretext-kit-$VERSION.tgz"
+            echo "SBOM=pretext-kit-$VERSION.sbom.cdx.json"
+            echo "WORK=$RUNNER_TEMP/release"
+          } >> "$GITHUB_ENV"
+      - run: npm test
+      - run: npm run check
+      - run: npm run build
+      # RELEASING.md step 2.
+      - name: Pack
+        run: |
+          npm run pack:release -- --pretext=../pretext
+          for f in "$PRETEXT_TGZ" "$KIT_TGZ" "$SBOM"; do
+            [ -f "dist-release/$f" ] || { echo "::error::pack:release did not write dist-release/$f"; exit 1; }
+          done
+      # RELEASING.md step 3: the tarballs' sums for the notes; all three assets' sums for the check after upload.
+      - name: Record the sums
+        run: |
+          mkdir -p "$WORK"
+          (cd dist-release && shasum -a 256 "$PRETEXT_TGZ" "$KIT_TGZ") > "$WORK/SHA256SUMS"
+          (cd dist-release && shasum -a 256 "$PRETEXT_TGZ" "$KIT_TGZ" "$SBOM") > "$WORK/uploaded.sha256"
+          cat "$WORK/SHA256SUMS"
+      # RELEASING.md step 4, on Node 24.4.1 and then Node 22.
+      - name: Consumer smoke (Node 24.4.1)
+        run: node verify/consumer-smoke.mjs "dist-release/$PRETEXT_TGZ" "dist-release/$KIT_TGZ"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Consumer smoke (Node 22)
+        run: |
+          node --version
+          node verify/consumer-smoke.mjs "dist-release/$PRETEXT_TGZ" "dist-release/$KIT_TGZ"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.4.1
+      - name: Release notes
+        run: |
+          notes="$WORK/notes.md"
+          # The CHANGELOG.md entry: from the line after its heading to the next `## ` heading.
+          awk -v h="## $VERSION " 'index($0, h) == 1 { f = 1; next } f && /^## / { exit } f' CHANGELOG.md > "$WORK/entry.md"
+          if ! grep -q '[^[:space:]]' "$WORK/entry.md"; then
+            echo "::error::the CHANGELOG.md entry for $VERSION is empty"
+            exit 1
+          fi
+          {
+            echo "## What this release contains"
+            echo
+            echo "From [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/CHANGELOG.md):"
+            cat "$WORK/entry.md"
+            echo
+            echo "## SHA-256"
+            echo
+            echo "Packed by \`npm run pack:release\` in the release workflow with Node $PACK_NODE and npm $PACK_NPM:"
+            echo
+            echo '```'
+            cat "$WORK/SHA256SUMS"
+            echo '```'
+            echo
+            echo "\`$SBOM\` (the CycloneDX SBOM of the kit's runtime tree) has no fixed sum, because it records a timestamp and a random serial number."
+            echo
+            echo "**The Pretext tarball (\`$PRETEXT_TGZ\`) is an unofficial, labelled snapshot of chenglou/pretext main at f10d888, built for pretext-kit; it is not a release by Pretext's authors.**"
+            echo
+            echo "Install (README, Install):"
+            echo
+            echo '```sh'
+            echo "npm install https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${PRETEXT_TGZ} https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${KIT_TGZ}"
+            echo '```'
+          } > "$notes"
+          cat "$notes"
+      # RELEASING.md step 5 (the tag is already pushed).
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::error::a release for $TAG already exists; it is not overwritten (delete it first to re-run)"
+            exit 1
+          fi
+          gh release create "$TAG" --verify-tag --title "pretext-kit ${VERSION}" --notes-file "$WORK/notes.md" \
+            "dist-release/$PRETEXT_TGZ" "dist-release/$KIT_TGZ" "dist-release/$SBOM"
+      # RELEASING.md step 6: the uploaded assets, as a user downloads them.
+      - name: Download the assets and check their sums
+        run: |
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          mkdir "$WORK/download"
+          cd "$WORK/download"
+          for f in "$PRETEXT_TGZ" "$KIT_TGZ" "$SBOM"; do
+            curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "$f" "$base/$f"
+          done
+          shasum -a 256 "$PRETEXT_TGZ" "$KIT_TGZ" "$SBOM" | tee downloaded.sha256
+          if ! diff -u "$WORK/uploaded.sha256" downloaded.sha256; then
+            echo "::error::the downloaded assets' sums differ from the sums recorded before upload"
+            exit 1
+          fi
+      - name: Consumer smoke on the downloads
+        run: node verify/consumer-smoke.mjs "$WORK/download/$PRETEXT_TGZ" "$WORK/download/$KIT_TGZ"
+      - name: README's install line in an empty project
+        run: |
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          line="$(grep -m1 '^npm install https://github.com/' README.md)"
+          read -ra words <<< "$line"
+          expected=(npm install "$base/$PRETEXT_TGZ" "$base/$KIT_TGZ")
+          if [ "${words[*]}" != "${expected[*]}" ]; then
+            echo "::error::README's install line does not name this release's assets"
+            echo "README:   $line"
+            echo "expected: ${expected[*]}"
+            exit 1
+          fi
+          mkdir "$WORK/readme-install"
+          cd "$WORK/readme-install"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "${words[@]:2}"
+          node --input-type=module -e "await import('pretext-kit/check'); await import('pretext-kit/check/browser'); console.log('pretext-kit/check and pretext-kit/check/browser import')"
+          npx --no-install pretext-kit check-labels --help
+      - name: Summary
+        if: always()
+        working-directory: .
+        run: |
+          {
+            echo "### pretext-kit ${VERSION:-?} ($TAG)"
+            echo
+            if [ -f "${WORK:-/nonexistent}/uploaded.sha256" ]; then
+              echo "| asset | SHA-256 (packed with Node ${PACK_NODE:-?}, npm ${PACK_NPM:-?}) | download matches |"
+              echo "|---|---|---|"
+              while read -r sum name; do
+                match="not checked"
+                if [ -f "$WORK/download/downloaded.sha256" ]; then
+                  if grep -qx "$sum  $name" "$WORK/download/downloaded.sha256"; then match=yes; else match=NO; fi
+                fi
+                echo "| \`$name\` | \`$sum\` | $match |"
+              done < "$WORK/uploaded.sha256"
+            else
+              echo "No sums recorded (the job stopped before packing)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -192,8 +192,9 @@ function withAdvancesAt(font: Font, face: FontFace, px: number, rounding: Parsed
 
 // A registered weight picks the face; on a variable face the weight, optical size (Chrome
 // applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes. Only Chrome
-// on macOS keeps HVAR's fractions; on Windows and Linux a varied instance keeps HarfBuzz's HVAR
-// rounding, and at a fractional size gets the advance sub font of sizedFor's rule on top of it.
+// on macOS keeps HVAR's fractions (at a fractional size, at sizedFor's size, by the same float32 rule); on Windows and
+// Linux a varied instance keeps HarfBuzz's HVAR rounding, and at a fractional size gets the advance sub font of
+// sizedFor's rule on top of it.
 function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
   const unrounded = platform === 'macos'
   const wght = instanceWeight(face, parsed.weight)
@@ -221,9 +222,10 @@ function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
     if (wdth !== null) design.set('wdth', wdth)
     for (const [tag, value] of design) variations.push(new Variation(tag, value))
     if (variations.length > 0) font.setVariations(variations)
-    shaping = variations.length > 0 && unrounded
-      ? withVariedAdvances(font, face, parsed.sizePx, design)
-      : advancePx !== parsed.sizePx || rounding !== undefined ? withAdvancesAt(font, face, advancePx, rounding, variations) : { font, varied: null }
+    shaping = variations.length > 0 && unrounded ? withVariedAdvances(font, face, parsed.sizePx, design) : { font, varied: null }
+    if (shaping.varied === null && (advancePx !== parsed.sizePx || rounding !== undefined)) {
+      shaping = withAdvancesAt(font, face, advancePx, rounding, variations)
+    }
     bySize.set(key, shaping)
   }
   // The sub font is alive (this cache holds it), so its pointer is its own: its entry is put back
@@ -550,9 +552,12 @@ export type HeadlessContext = {
 // on Windows. Whole sizes keep HarfBuzz's rounding so integer sizes are unchanged; that rounding is known inexact for
 // upem-1000 fonts on Windows (Shantell Sans, EVALUATION §7), so a upem-1000 font switches rule between 16.004px
 // (cut to 16) and 16.01px.
-const platformSizes = { linux: new WeakMap<ParsedFont, ParsedFont>(), windows: new WeakMap<ParsedFont, ParsedFont>() }
+// Chromium on macOS (Chromium 149, a macos-latest runner) measured all 1,464 of those widths exactly as on Windows, so
+// 'macos' takes the same rule (test/headless/fractional-size-macos.test.ts). A varied instance of a variable font
+// keeps its unrounded HVAR advances (variedAdvanceFunc, the same float32 rule) at the cut size; variable fonts at
+// fractional sizes on macOS are unmeasured.
+const platformSizes: Record<Platform, WeakMap<ParsedFont, ParsedFont>> = { macos: new WeakMap(), windows: new WeakMap(), linux: new WeakMap() }
 function sizedFor(parsed: ParsedFont, platform: Platform): ParsedFont {
-  if (platform === 'macos') return parsed
   let out = platformSizes[platform].get(parsed)
   if (out === undefined) {
     const sizePx = Math.fround(Math.trunc(Math.fround(Math.fround(parsed.sizePx) * 100)) / 100)
@@ -560,7 +565,7 @@ function sizedFor(parsed: ParsedFont, platform: Platform): ParsedFont {
       const advancePx = Math.floor(sizePx * 64) / 64
       out = sizePx === parsed.sizePx && advancePx === sizePx ? parsed : { ...parsed, sizePx, advancePx }
     } else if (Number.isInteger(sizePx)) {
-      // Unchanged from before the Windows model, HarfBuzz rounding included (see above).
+      // Unchanged from before the Windows and macOS models, HarfBuzz rounding included (see above).
       out = sizePx === parsed.sizePx ? parsed : { ...parsed, sizePx }
     } else {
       out = { ...parsed, sizePx, advanceRounding: 'float32-trunc' }
