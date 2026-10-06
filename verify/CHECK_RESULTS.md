@@ -1,12 +1,12 @@
 # Label checker oracle sweep results
 
-Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit 390ab3b.
+Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit 1c43ee5.
 
 - Chromium 141.0.7390.37 (Playwright 1.61.0, headed on X display :99, executable /opt/pw-browsers/chromium from PW_CHROMIUM), `<html lang="en">`, each slot `lang` its label's locale
 - Pretext 0.0.9 (../pretext f10d888); harfbuzzjs 1.6.2
 - Node v22.22.0, Linux 6.18.44-fc-v70, x64
 - checker: `checkLabels` in Node, `platforms: ['linux']` (this OS's), font Inter-Regular.ttf from test/fonts registered as "CK Inter"
-- Chromium 131s; checker runs (control and 7 mutants, 4 at a time) 102s
+- Chromium 156s; checker runs (control and 7 mutants, 4 at a time) 100s
 
 ## Method
 
@@ -23,8 +23,9 @@ zoom then everything; the box is the slot width less the icon. as-is and truncat
 (`fitFontSize` at the one size, so with FIT_TOLERANCE; middle after `prepareLabel`'s white-space collapse); lines:
 the same with 2 lines; truncate end: `clamp(…, 2).truncated`; the "(normal)" policies, a slot with `overflowWrap: 'normal'`:
 first, each piece between two of Pretext's break opportunities (its segments; zero-width glue and controls join the
-text around them) by the one-line test, a piece that fails making lines (normal) `overflow` and truncate end (normal)
-`truncated`, then the rule without the suffix; shrinkTo: the largest of the slot size, every whole px
+text around them), a piece that fails making lines (normal) `overflow` and truncate end (normal)
+`truncated` (a piece fails when its natural width, which an unbroken word paints, or its line ending at its soft hyphen,
+is past the box by more than FIT_TOLERANCE), then the rule without the suffix; shrinkTo: the largest of the slot size, every whole px
 below it and the minimum that fits one line; rows: each stage's natural widths, icon reserves, icons and gaps, the
 first stage within the row (plus FIT_TOLERANCE). **DOM:** a flex box of the slot width holding the icon and the text
 element: as-is, shrinkTo and truncate middle `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`;
@@ -39,7 +40,7 @@ row-overflow), and at the stage before, which must not. Text scale is a font-siz
 CSS `zoom` on the container. Overflow (nowrap policies, a line wider than the box, rows) is judged on fractional
 widths: the bounding width of a range over the content past the element's box by more than 1/64 px (zoomed px).
 `scrollWidth > clientWidth`, which Chromium snaps to whole pixels, is a cross-check: it disagrees in
-3602 of 292152 cases (1646 of them pretext-gaps).
+46189 of 375564 cases (1788 of them pretext-gaps).
 
 Outcome, in this order (EVALUATION §2): `excluded` when the checker cannot judge the text (`uncovered`); `check-mismatch`
 when the checker's verdict (kind, shrinkTo size to 1/64 px, row stage) differs from the reference; `excluded` as
@@ -70,12 +71,13 @@ Slots: each text in 7 policies (as-is; shrinkTo the size less 4px; lines 2; trun
 truncate middle; lines and truncate end again with overflow-wrap: normal), and each text scale (1/1.15/1.3) its own slots, at 0.9/1/1.1 × the box where the policy changes its
 verdict at that text scale (one line at the scaled size and letter spacing; one line at the scaled shrinkTo size; the
 narrowest width in 2 lines; for the "(normal)" policies that or the widest unbreakable piece's natural width,
-whichever is wider), plus the reserve grown with the text, rounded up to 1/64 px; measured by the kit on Pretext
+whichever is wider), and for the "(normal)" policies also at the widest unbreakable piece's own boundary w: w, w less
+1/64 px and a hair rounded down to 1/64 px, and w less 0.25px, where the checker's word rule decides; plus the reserve grown with the text, rounded up to 1/64 px; measured by the kit on Pretext
 in the page. A slot runs in its text scale's conditions, zoom 1 and 1.3 (zoom grows the box too, so the boundary
-stays): 145968 slots run (3 not run, below). Line height 1.5 × the size. Conditions: text 100% · zoom 100%, text 115% · zoom 100%, text 130% · zoom 100%, text 100% · zoom 130%, text 115% · zoom 130%, text 130% · zoom 130%.
+stays): 187674 slots run (3 not run, below). Line height 1.5 × the size. Conditions: text 100% · zoom 100%, text 115% · zoom 100%, text 130% · zoom 100%, text 100% · zoom 130%, text 115% · zoom 130%, text 130% · zoom 130%.
 Rows: a five-item toolbar per locale (en, de, fr) and text scale, gap 8px, icon reserve 20px, collapsed icon
 24px, 5 collapse stages, at each stage's total at that text scale, halfway to the next and 0.9 of the last:
-108 rows. **292152 cases** (291936 slot, 216 row).
+108 rows. **375564 cases** (375348 slot, 216 row).
 
 The checker's verdicts (control run) per policy and condition kind; the run fails if a cell has one verdict only:
 
@@ -101,14 +103,14 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 | truncate middle · text scale | 9268 | 4634 | truncated 4634 |
 | truncate middle · zoom | 4634 | 2317 | truncated 2317 |
 | truncate middle · text scale + zoom | 9243 | 4659 | truncated 4659 |
-| lines (normal) · none | 4634 | 2317 | overflow 758, too-many-lines 1559 |
-| lines (normal) · text scale | 9268 | 4634 | overflow 1516, too-many-lines 3118 |
-| lines (normal) · zoom | 4634 | 2317 | overflow 758, too-many-lines 1559 |
-| lines (normal) · text scale + zoom | 9243 | 4659 | overflow 1541, too-many-lines 3118 |
-| truncate end (normal) · none | 4634 | 2317 | truncated 2317 |
-| truncate end (normal) · text scale | 9268 | 4634 | truncated 4634 |
-| truncate end (normal) · zoom | 4634 | 2317 | truncated 2317 |
-| truncate end (normal) · text scale + zoom | 9243 | 4659 | truncated 4659 |
+| lines (normal) · none | 5353 | 8549 | overflow 5392, too-many-lines 3157 |
+| lines (normal) · text scale | 10706 | 17098 | overflow 10784, too-many-lines 6314 |
+| lines (normal) · zoom | 5414 | 8488 | overflow 5218, too-many-lines 3270 |
+| lines (normal) · text scale + zoom | 10974 | 16830 | overflow 9595, too-many-lines 7235 |
+| truncate end (normal) · none | 5353 | 8549 | truncated 8549 |
+| truncate end (normal) · text scale | 10706 | 17098 | truncated 17098 |
+| truncate end (normal) · zoom | 5414 | 8488 | truncated 8488 |
+| truncate end (normal) · text scale + zoom | 10974 | 16830 | truncated 16830 |
 | row · none | 3 | 33 | row-collapsed 30, row-overflow 3 |
 | row · text scale | 6 | 66 | row-collapsed 60, row-overflow 6 |
 | row · zoom | 3 | 33 | row-collapsed 30, row-overflow 3 |
@@ -116,7 +118,7 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 
 ## Agreement
 
-**292152 cases: 0 check-mismatch, 6382 pretext-gap, 0 excluded, 285770 pass.**
+**375564 cases: 0 check-mismatch, 7434 pretext-gap, 0 excluded, 368130 pass.**
 
 | policy · condition kind | cases | pass | check-mismatch | pretext-gap | excluded |
 |---|---:|---:|---:|---:|---:|
@@ -140,14 +142,14 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 | truncate middle · text scale | 13902 | 13640 | 0 | 262 | 0 |
 | truncate middle · zoom | 6951 | 6820 | 0 | 131 | 0 |
 | truncate middle · text scale + zoom | 13902 | 13645 | 0 | 257 | 0 |
-| lines (normal) · none | 6951 | 6868 | 0 | 83 | 0 |
-| lines (normal) · text scale | 13902 | 13693 | 0 | 209 | 0 |
-| lines (normal) · zoom | 6951 | 6855 | 0 | 96 | 0 |
-| lines (normal) · text scale + zoom | 13902 | 13729 | 0 | 173 | 0 |
-| truncate end (normal) · none | 6951 | 6868 | 0 | 83 | 0 |
-| truncate end (normal) · text scale | 13902 | 13693 | 0 | 209 | 0 |
-| truncate end (normal) · zoom | 6951 | 6855 | 0 | 96 | 0 |
-| truncate end (normal) · text scale + zoom | 13902 | 13729 | 0 | 173 | 0 |
+| lines (normal) · none | 13902 | 13819 | 0 | 83 | 0 |
+| lines (normal) · text scale | 27804 | 27595 | 0 | 209 | 0 |
+| lines (normal) · zoom | 13902 | 13760 | 0 | 142 | 0 |
+| lines (normal) · text scale + zoom | 27804 | 27151 | 0 | 653 | 0 |
+| truncate end (normal) · none | 13902 | 13819 | 0 | 83 | 0 |
+| truncate end (normal) · text scale | 27804 | 27595 | 0 | 209 | 0 |
+| truncate end (normal) · zoom | 13902 | 13760 | 0 | 142 | 0 |
+| truncate end (normal) · text scale + zoom | 27804 | 27151 | 0 | 653 | 0 |
 | row · none | 36 | 33 | 0 | 3 | 0 |
 | row · text scale | 72 | 63 | 0 | 9 | 0 |
 | row · zoom | 36 | 36 | 0 | 0 | 0 |
@@ -155,7 +157,7 @@ The checker's verdicts (control run) per policy and condition kind; the run fail
 
 Statistics (PROTOCOL §4), one unit per label text (a text's slots, widths and conditions are one unit; each locale's
 row is one): 2320 units, 0 with a check-mismatch, 95% upper bound on the rate Wilson 0.165%, Clopper-Pearson 0.159%
-(quoted). Per case, naive: 292152 judged cases, 0 check-mismatch, Wilson 0.0013%, Clopper-Pearson 0.0013%.
+(quoted). Per case, naive: 375564 judged cases, 0 check-mismatch, Wilson 0.0010%, Clopper-Pearson 0.0010%.
 
 ### check-mismatch cases
 
@@ -164,7 +166,9 @@ None.
 ### pretext-gap cases, by cause
 
 Each is the reference (the kit on Pretext in Chromium) against Chromium's painting with the checker agreeing with the
-reference, so each is attributed to Pretext vs the DOM, not to the checker.
+reference, so each is attributed to Pretext vs the DOM, not to the checker; for the "(normal)" policies the word model
+(which text is one unbreakable piece, measured how) is the kit's, shared by checker and reference, so a gap there can
+also be that model against the DOM.
 
 Every case is listed in verify/dist/check-cases.md (not committed; CI uploads it with this file); below,
 up to 10 per cause.
@@ -281,6 +285,118 @@ up to 10 per cause.
 - text 100% · zoom 100%: t1623.truncate-end-normal.1.1 "Haft­pflicht­ver­si­che­rungs­be­din­gun­gen" (de, corpus + icon) @ 168.8125px (DOM text 147.8438 in 148.8125, zoomed px; scrollWidth 149, clientWidth 149)
 - … and 541 more in verify/dist/check-cases.md
 
+**truncate end (normal): DOM does not cut where Pretext cuts** (458):
+
+- text 100% · zoom 130%: t72.truncate-end-normal.1.word-tol "performance improvements" (en, corpus) @ 107.03125px (DOM text 139.1563 in 139.1406, zoomed px; scrollWidth 107, clientWidth 107)
+- text 115% · zoom 130%: t81.truncate-end-normal.1.15.word-tol "are really noticeable," (en, corpus + icon) @ 118.8125px (DOM text 124.5781 in 124.5625, zoomed px; scrollWidth 96, clientWidth 96)
+- text 115% · zoom 130%: t85.truncate-end-normal.1.15.word-tol "really noticeable," (en, corpus + icon) @ 118.8125px (DOM text 124.5781 in 124.5625, zoomed px; scrollWidth 96, clientWidth 96)
+- text 115% · zoom 130%: t89.truncate-end-normal.1.15.word-tol "noticeable," (en, corpus + icon) @ 118.8125px (DOM text 124.5781 in 124.5625, zoomed px; scrollWidth 96, clientWidth 96)
+- text 115% · zoom 130%: t119.truncate-end-normal.1.15.word-tol "know" (en, corpus + icon) @ 69.6875px (DOM text 60.7188 in 60.7031, zoomed px; scrollWidth 47, clientWidth 47)
+- text 115% · zoom 130%: t147.truncate-end-normal.1.15.word-tol "with" (en, corpus + icon) @ 59.375px (DOM text 47.3125 in 47.2969, zoomed px; scrollWidth 36, clientWidth 36)
+- text 115% · zoom 130%: t190.truncate-end-normal.1.15.word-tol "some issues" (en, corpus) @ 55.15625px (DOM text 71.7188 in 71.7031, zoomed px; scrollWidth 55, clientWidth 55)
+- text 115% · zoom 130%: t195.truncate-end-normal.1.15.word-tol "issues since" (en, corpus + icon) @ 78.15625px (DOM text 71.7188 in 71.7031, zoomed px; scrollWidth 55, clientWidth 55)
+- text 115% · zoom 130%: t351.truncate-end-normal.1.15.word-tol "can cache" (en, corpus + icon) @ 76.09375px (DOM text 69.0469 in 69.0313, zoomed px; scrollWidth 53, clientWidth 53)
+- text 115% · zoom 130%: t355.truncate-end-normal.1.15.word-tol "cache" (en, corpus + icon) @ 76.09375px (DOM text 69.0469 in 69.0313, zoomed px; scrollWidth 53, clientWidth 53)
+- … and 448 more in verify/dist/check-cases.md
+
+**lines (normal): DOM 2 lines, Pretext 3 (and a line past the box, or more than 2)** (225):
+
+- text 100% · zoom 130%: t72.lines-normal.1.word-tol "performance improvements" (en, corpus) @ 107.03125px (DOM text 139.1563 in 139.1406, zoomed px; scrollWidth 107, clientWidth 107)
+- text 115% · zoom 130%: t190.lines-normal.1.15.word-tol "some issues" (en, corpus) @ 55.15625px (DOM text 71.7188 in 71.7031, zoomed px; scrollWidth 55, clientWidth 55)
+- text 115% · zoom 130%: t195.lines-normal.1.15.word-tol "issues since" (en, corpus + icon) @ 78.15625px (DOM text 71.7188 in 71.7031, zoomed px; scrollWidth 55, clientWidth 55)
+- text 115% · zoom 130%: t357.lines-normal.1.15.word-tol "cache word measurements" (en, corpus + icon) @ 151.484375px (DOM text 167.0469 in 167.0313, zoomed px; scrollWidth 128, clientWidth 128)
+- text 115% · zoom 130%: t361.lines-normal.1.15.word-tol "word measurements" (en, corpus + icon) @ 151.484375px (DOM text 167.0469 in 167.0313, zoomed px; scrollWidth 128, clientWidth 128)
+- text 115% · zoom 130%: t415.lines-normal.1.15.word-tol "the best" (en, corpus + icon) @ 60.6875px (DOM text 49.0156 in 49, zoomed px; scrollWidth 38, clientWidth 38)
+- text 115% · zoom 130%: t669.lines-normal.1.15.word-tol "and more vulnerable" (en, corpus + icon) @ 113.921875px (DOM text 118.2188 in 118.2031, zoomed px; scrollWidth 91, clientWidth 91)
+- text 115% · zoom 130%: t675.lines-normal.1.15.word-tol "more vulnerable" (en, corpus + icon) @ 113.921875px (DOM text 118.2188 in 118.2031, zoomed px; scrollWidth 91, clientWidth 91)
+- text 115% · zoom 130%: t683.lines-normal.1.15.word-tol "vulnerable years my" (en, corpus + icon) @ 113.921875px (DOM text 118.2188 in 118.2031, zoomed px; scrollWidth 91, clientWidth 91)
+- text 115% · zoom 130%: t785.lines-normal.1.15.word-tol "ever since." (en, corpus + icon) @ 74.53125px (DOM text 67.0156 in 67, zoomed px; scrollWidth 52, clientWidth 52)
+- … and 215 more in verify/dist/check-cases.md
+
+**lines (normal): DOM 1 lines, Pretext 2 (and a line past the box, or more than 2)** (128):
+
+- text 115% · zoom 130%: t119.lines-normal.1.15.word-tol "know" (en, corpus + icon) @ 69.6875px (DOM text 60.7188 in 60.7031, zoomed px; scrollWidth 47, clientWidth 47)
+- text 115% · zoom 130%: t147.lines-normal.1.15.word-tol "with" (en, corpus + icon) @ 59.375px (DOM text 47.3125 in 47.2969, zoomed px; scrollWidth 36, clientWidth 36)
+- text 115% · zoom 130%: t419.lines-normal.1.15.word-tol "best" (en, corpus + icon) @ 60.6875px (DOM text 49.0156 in 49, zoomed px; scrollWidth 38, clientWidth 38)
+- text 115% · zoom 130%: t551.lines-normal.1.15.word-tol "not" (en, corpus + icon) @ 50.890625px (DOM text 36.2813 in 36.2656, zoomed px; scrollWidth 28, clientWidth 28)
+- text 115% · zoom 130%: t631.lines-normal.1.15.word-tol "hyphenation." (en, corpus + icon) @ 135.625px (DOM text 146.4375 in 146.4219, zoomed px; scrollWidth 113, clientWidth 113)
+- text 115% · zoom 130%: t951.lines-normal.1.15.word-tol "to" (en, corpus + icon) @ 39.84375px (DOM text 21.9219 in 21.9063, zoomed px; scrollWidth 17, clientWidth 17)
+- text 115% · zoom 130%: t971.lines-normal.1.15.word-tol "judgements," (en, corpus + icon) @ 130.109375px (DOM text 139.2656 in 139.25, zoomed px; scrollWidth 107, clientWidth 107)
+- text 115% · zoom 130%: t1125.lines-normal.1.15.word-tol "few" (en, corpus + icon) @ 54.6875px (DOM text 41.2188 in 41.2031, zoomed px; scrollWidth 32, clientWidth 32)
+- text 115% · zoom 130%: t1173.lines-normal.1.15.word-tol "confidences" (en, corpus + icon) @ 130.421875px (DOM text 139.6719 in 139.6563, zoomed px; scrollWidth 107, clientWidth 107)
+- text 115% · zoom 130%: t1207.lines-normal.1.15.word-tol "preoccupation," (en, corpus + icon) @ 153.921875px (DOM text 170.2188 in 170.2031, zoomed px; scrollWidth 131, clientWidth 131)
+- … and 118 more in verify/dist/check-cases.md
+
+**lines (normal): DOM 2 lines, Pretext 2 (and a line past the box, or more than 2)** (88):
+
+- text 115% · zoom 130%: t81.lines-normal.1.15.word-tol "are really noticeable," (en, corpus + icon) @ 118.8125px (DOM text 124.5781 in 124.5625, zoomed px; scrollWidth 96, clientWidth 96)
+- text 115% · zoom 130%: t85.lines-normal.1.15.word-tol "really noticeable," (en, corpus + icon) @ 118.8125px (DOM text 124.5781 in 124.5625, zoomed px; scrollWidth 96, clientWidth 96)
+- text 115% · zoom 130%: t351.lines-normal.1.15.word-tol "can cache" (en, corpus + icon) @ 76.09375px (DOM text 69.0469 in 69.0313, zoomed px; scrollWidth 53, clientWidth 53)
+- text 115% · zoom 130%: t389.lines-normal.1.15.word-tol "results. This" (en, corpus + icon) @ 86.46875px (DOM text 82.5313 in 82.5156, zoomed px; scrollWidth 63, clientWidth 63)
+- text 115% · zoom 130%: t557.lines-normal.1.15.word-tol "useful for" (en, corpus + icon) @ 76.421875px (DOM text 69.4688 in 69.4531, zoomed px; scrollWidth 53, clientWidth 53)
+- text 115% · zoom 130%: t633.lines-normal.1.15.word-tol "hyphenation. Is that" (en, corpus + icon) @ 135.625px (DOM text 146.4375 in 146.4219, zoomed px; scrollWidth 113, clientWidth 113)
+- text 115% · zoom 130%: t753.lines-normal.1.15.word-tol "been turning" (en, corpus + icon) @ 84.546875px (DOM text 80.0313 in 80.0156, zoomed px; scrollWidth 62, clientWidth 62)
+- text 115% · zoom 130%: t761.lines-normal.1.15.word-tol "turning over" (en, corpus + icon) @ 84.546875px (DOM text 80.0313 in 80.0156, zoomed px; scrollWidth 62, clientWidth 62)
+- text 115% · zoom 130%: t911.lines-normal.1.15.word-tol "had the advantages" (en, corpus + icon) @ 124.234375px (DOM text 131.625 in 131.6094, zoomed px; scrollWidth 101, clientWidth 101)
+- text 115% · zoom 130%: t915.lines-normal.1.15.word-tol "the advantages" (en, corpus + icon) @ 124.234375px (DOM text 131.625 in 131.6094, zoomed px; scrollWidth 101, clientWidth 101)
+- … and 78 more in verify/dist/check-cases.md
+
+**truncate end (normal): DOM cuts a line at the box where Pretext does not** (78):
+
+- text 100% · zoom 130%: t369.truncate-end-normal.1.word-tol "separately" (en, corpus + icon) @ 99.046875px (DOM text 102.7813 in 102.75, zoomed px; scrollWidth 79, clientWidth 79)
+- text 100% · zoom 130%: t370.truncate-end-normal.1.word-tol "separately from" (en, corpus) @ 79.046875px (DOM text 102.7813 in 102.75, zoomed px; scrollWidth 79, clientWidth 79)
+- text 100% · zoom 130%: t429.truncate-end-normal.1.word-tol "Performance" (en, corpus + icon) @ 117.953125px (DOM text 127.3594 in 127.3281, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t430.truncate-end-normal.1.word-tol "Performance is" (en, corpus) @ 97.953125px (DOM text 127.3594 in 127.3281, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t431.truncate-end-normal.1.word-tol "Performance is critical" (en, corpus + icon) @ 117.953125px (DOM text 127.3594 in 127.3281, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t561.truncate-end-normal.1.word-tol "for real applications." (en, corpus + icon) @ 115.796875px (DOM text 124.5625 in 124.5313, zoomed px; scrollWidth 96, clientWidth 96)
+- text 100% · zoom 130%: t563.truncate-end-normal.1.word-tol "real applications." (en, corpus + icon) @ 115.796875px (DOM text 124.5625 in 124.5313, zoomed px; scrollWidth 96, clientWidth 96)
+- text 100% · zoom 130%: t564.truncate-end-normal.1.word-tol "applications." (en, corpus) @ 95.796875px (DOM text 124.5625 in 124.5313, zoomed px; scrollWidth 96, clientWidth 96)
+- text 100% · zoom 130%: t631.truncate-end-normal.1.word-tol "hyphenation." (en, corpus + icon) @ 117.984375px (DOM text 127.4063 in 127.375, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t632.truncate-end-normal.1.word-tol "hyphenation. Is" (en, corpus) @ 97.984375px (DOM text 127.4063 in 127.375, zoomed px; scrollWidth 98, clientWidth 98)
+- … and 68 more in verify/dist/check-cases.md
+
+**lines (normal): DOM 2 lines, one wider than the box, Pretext 2** (50):
+
+- text 100% · zoom 130%: t370.lines-normal.1.word-tol "separately from" (en, corpus) @ 79.046875px (DOM text 102.7813 in 102.75, zoomed px; scrollWidth 79, clientWidth 79)
+- text 100% · zoom 130%: t430.lines-normal.1.word-tol "Performance is" (en, corpus) @ 97.953125px (DOM text 127.3594 in 127.3281, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t431.lines-normal.1.word-tol "Performance is critical" (en, corpus + icon) @ 117.953125px (DOM text 127.3594 in 127.3281, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t561.lines-normal.1.word-tol "for real applications." (en, corpus + icon) @ 115.796875px (DOM text 124.5625 in 124.5313, zoomed px; scrollWidth 96, clientWidth 96)
+- text 100% · zoom 130%: t563.lines-normal.1.word-tol "real applications." (en, corpus + icon) @ 115.796875px (DOM text 124.5625 in 124.5313, zoomed px; scrollWidth 96, clientWidth 96)
+- text 100% · zoom 130%: t632.lines-normal.1.word-tol "hyphenation. Is" (en, corpus) @ 97.984375px (DOM text 127.4063 in 127.375, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t633.lines-normal.1.word-tol "hyphenation. Is that" (en, corpus + icon) @ 117.984375px (DOM text 127.4063 in 127.375, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t634.lines-normal.1.word-tol "hyphenation. Is that on" (en, corpus) @ 97.984375px (DOM text 127.4063 in 127.375, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t682.lines-normal.1.word-tol "vulnerable years" (en, corpus) @ 79.09375px (DOM text 102.8438 in 102.8125, zoomed px; scrollWidth 79, clientWidth 79)
+- text 100% · zoom 130%: t788.lines-normal.1.word-tol "“Whenever you" (en, corpus) @ 84.078125px (DOM text 109.3281 in 109.2969, zoomed px; scrollWidth 84, clientWidth 84)
+- … and 40 more in verify/dist/check-cases.md
+
+**lines (normal): DOM 1 lines, one wider than the box, Pretext 2** (23):
+
+- text 100% · zoom 130%: t429.lines-normal.1.word-tol "Performance" (en, corpus + icon) @ 117.953125px (DOM text 127.3594 in 127.3281, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t631.lines-normal.1.word-tol "hyphenation." (en, corpus + icon) @ 117.984375px (DOM text 127.4063 in 127.375, zoomed px; scrollWidth 98, clientWidth 98)
+- text 100% · zoom 130%: t681.lines-normal.1.word-tol "vulnerable" (en, corpus + icon) @ 99.09375px (DOM text 102.8438 in 102.8125, zoomed px; scrollWidth 79, clientWidth 79)
+- text 100% · zoom 130%: t787.lines-normal.1.word-tol "“Whenever" (en, corpus + icon) @ 104.078125px (DOM text 109.3281 in 109.2969, zoomed px; scrollWidth 84, clientWidth 84)
+- text 100% · zoom 130%: t1173.lines-normal.1.word-tol "confidences" (en, corpus + icon) @ 113.453125px (DOM text 121.5156 in 121.4844, zoomed px; scrollWidth 93, clientWidth 93)
+- text 100% · zoom 130%: t1418.lines-normal.1.word-tol "suggested," (en, corpus) @ 84.09375px (DOM text 109.3438 in 109.3125, zoomed px; scrollWidth 84, clientWidth 84)
+- text 100% · zoom 130%: t2266.lines-normal.1.word-tol "Freigabeeinstellungen" (de, button + icon) @ 186.59375px (DOM text 216.5938 in 216.5625, zoomed px; scrollWidth 167, clientWidth 167)
+- text 100% · zoom 130%: t2267.lines-normal.1.word-tol "Projektübersicht" (de, button + icon) @ 143.53125px (DOM text 160.6094 in 160.5781, zoomed px; scrollWidth 124, clientWidth 124)
+- text 100% · zoom 130%: t2272.lines-normal.1.word-tol "Enregistrer" (fr, button + icon) @ 102.609375px (DOM text 107.4219 in 107.3906, zoomed px; scrollWidth 83, clientWidth 83)
+- text 100% · zoom 130%: t2279.lines-normal.1.word-tol "Télécharger" (fr, button + icon) @ 110.09375px (DOM text 117.1406 in 117.1094, zoomed px; scrollWidth 90, clientWidth 90)
+- … and 13 more in verify/dist/check-cases.md
+
+**lines (normal): DOM 1 lines, Pretext 1 (and a line past the box, or more than 2)** (16):
+
+- text 115% · zoom 130%: t89.lines-normal.1.15.word-tol "noticeable," (en, corpus + icon) @ 118.8125px (DOM text 124.5781 in 124.5625, zoomed px; scrollWidth 96, clientWidth 96)
+- text 115% · zoom 130%: t355.lines-normal.1.15.word-tol "cache" (en, corpus + icon) @ 76.09375px (DOM text 69.0469 in 69.0313, zoomed px; scrollWidth 53, clientWidth 53)
+- text 115% · zoom 130%: t919.lines-normal.1.15.word-tol "advantages" (en, corpus + icon) @ 124.234375px (DOM text 131.625 in 131.6094, zoomed px; scrollWidth 101, clientWidth 101)
+- text 115% · zoom 130%: t1131.lines-normal.1.15.word-tol "Reserving" (en, corpus + icon) @ 109.84375px (DOM text 112.9219 in 112.9063, zoomed px; scrollWidth 87, clientWidth 87)
+- text 130% · zoom 130%: t8.lines-normal.1.3.word-tol "tried" (en, corpus) @ 44.703125px (DOM text 58.1094 in 58.1094, zoomed px; scrollWidth 45, clientWidth 45)
+- text 130% · zoom 130%: t265.lines-normal.1.3.word-tol "clean," (en, corpus + icon) @ 85.171875px (DOM text 76.9063 in 76.9219, zoomed px; scrollWidth 59, clientWidth 59)
+- text 130% · zoom 130%: t443.lines-normal.1.3.word-tol "critical" (en, corpus + icon) @ 91.5625px (DOM text 85.2031 in 85.2188, zoomed px; scrollWidth 66, clientWidth 66)
+- text 130% · zoom 130%: t494.lines-normal.1.3.word-tol "can't" (en, corpus) @ 49.0625px (DOM text 63.7813 in 63.7656, zoomed px; scrollWidth 49, clientWidth 49)
+- text 130% · zoom 130%: t614.lines-normal.1.3.word-tol "algorithm" (en, corpus) @ 92.296875px (DOM text 119.9375 in 119.9844, zoomed px; scrollWidth 92, clientWidth 92)
+- text 130% · zoom 130%: t730.lines-normal.1.3.word-tol "advice" (en, corpus) @ 65.21875px (DOM text 84.7656 in 84.7813, zoomed px; scrollWidth 65, clientWidth 65)
+- … and 6 more in verify/dist/check-cases.md
+
 **shrinkTo: DOM also fits at the next size** (10):
 
 - text 115% · zoom 130%: t1533.shrinkTo.1.15.1 "Bit­te die Ne­ben­rol­len-Ta­kes" (de, corpus + icon) @ 203.6875px (DOM text 233.5781 in 234.8906, next size 234.3906, zoomed px; scrollWidth 181, clientWidth 181)
@@ -294,16 +410,6 @@ up to 10 per cause.
 - text 115% · zoom 130%: t2162.shrinkTo.1.15.1 "en­voyé." (fr, corpus + icon) @ 74.1875px (DOM text 66.2969 in 66.5469, next size 66.5156, zoomed px; scrollWidth 51, clientWidth 51)
 - text 115% · zoom 130%: t2268.shrinkTo.1.15.1 "Nebenrollen-Takes" (de, button + icon) @ 146.78125px (DOM text 159.6094 in 160.9219, next size 160.1563, zoomed px; scrollWidth 124, clientWidth 124)
 
-**lines (normal): DOM 2 lines, one wider than the box, Pretext 2** (7):
-
-- text 100% · zoom 130%: t1531.lines-normal.1.1 "Bit­te" (de, corpus + icon) @ 45.3125px (DOM text 32.9219 in 32.8906, zoomed px; scrollWidth 25, clientWidth 25)
-- text 100% · zoom 130%: t1668.lines-normal.1.1 "wer­den." (de, corpus) @ 33.890625px (DOM text 44.0781 in 44.0469, zoomed px; scrollWidth 34, clientWidth 34)
-- text 100% · zoom 130%: t1677.lines-normal.1.1 "gel­ten" (de, corpus + icon) @ 48.75px (DOM text 37.3906 in 37.3594, zoomed px; scrollWidth 29, clientWidth 29)
-- text 100% · zoom 130%: t1743.lines-normal.1.1 "Frei­tag" (de, corpus + icon) @ 53.671875px (DOM text 43.7969 in 43.7656, zoomed px; scrollWidth 34, clientWidth 34)
-- text 100% · zoom 130%: t1927.lines-normal.1.1 "d’ac­cès" (fr, corpus) @ 36.921875px (DOM text 48.0156 in 47.9844, zoomed px; scrollWidth 37, clientWidth 37)
-- text 100% · zoom 130%: t2054.lines-normal.1.1 "Condi­tions" (fr, corpus + icon) @ 70.140625px (DOM text 65.2031 in 65.1719, zoomed px; scrollWidth 50, clientWidth 50)
-- text 100% · zoom 130%: t2173.lines-normal.1.1 "ma­tin," (fr, corpus) @ 28.734375px (DOM text 37.375 in 37.3438, zoomed px; scrollWidth 29, clientWidth 29)
-
 **row: DOM overflows at stage 0** (7):
 
 - text 100% · zoom 100%: row.en.1.0 @ 614.953125px (DOM content 614.9844 in 614.9531, zoomed px)
@@ -314,16 +420,6 @@ up to 10 per cause.
 - text 130% · zoom 100%: row.en.1.3.0 @ 789.75px (DOM content 789.7813 in 789.75, zoomed px)
 - text 130% · zoom 100%: row.de.1.3.0 @ 1039.046875px (DOM content 1039.0781 in 1039.0469, zoomed px)
 
-**truncate end (normal): DOM cuts a line at the box where Pretext does not** (7):
-
-- text 100% · zoom 130%: t1531.truncate-end-normal.1.1 "Bit­te" (de, corpus + icon) @ 45.3125px (DOM text 32.9219 in 32.8906, zoomed px; scrollWidth 25, clientWidth 25)
-- text 100% · zoom 130%: t1668.truncate-end-normal.1.1 "wer­den." (de, corpus) @ 33.890625px (DOM text 44.0781 in 44.0469, zoomed px; scrollWidth 34, clientWidth 34)
-- text 100% · zoom 130%: t1677.truncate-end-normal.1.1 "gel­ten" (de, corpus + icon) @ 48.75px (DOM text 37.3906 in 37.3594, zoomed px; scrollWidth 29, clientWidth 29)
-- text 100% · zoom 130%: t1743.truncate-end-normal.1.1 "Frei­tag" (de, corpus + icon) @ 53.671875px (DOM text 43.7969 in 43.7656, zoomed px; scrollWidth 34, clientWidth 34)
-- text 100% · zoom 130%: t1927.truncate-end-normal.1.1 "d’ac­cès" (fr, corpus) @ 36.921875px (DOM text 48.0156 in 47.9844, zoomed px; scrollWidth 37, clientWidth 37)
-- text 100% · zoom 130%: t2054.truncate-end-normal.1.1 "Condi­tions" (fr, corpus + icon) @ 70.140625px (DOM text 65.2031 in 65.1719, zoomed px; scrollWidth 50, clientWidth 50)
-- text 100% · zoom 130%: t2173.truncate-end-normal.1.1 "ma­tin," (fr, corpus) @ 28.734375px (DOM text 37.375 in 37.3438, zoomed px; scrollWidth 29, clientWidth 29)
-
 **lines: DOM 4 lines, Pretext 2** (6):
 
 - text 100% · zoom 100%: t1521.lines.1.1 "ges­tern" (de, corpus + icon) @ 50.046875px (DOM text 20.4375 in 30.0469, zoomed px; scrollWidth 30, clientWidth 30)
@@ -332,6 +428,14 @@ up to 10 per cause.
 - text 100% · zoom 130%: t1521.lines.1.1 "ges­tern" (de, corpus + icon) @ 50.046875px (DOM text 26.5625 in 39.0469, zoomed px; scrollWidth 30, clientWidth 30)
 - text 115% · zoom 130%: t1521.lines.1.15.1 "ges­tern" (de, corpus + icon) @ 57.53125px (DOM text 30.5313 in 44.8906, zoomed px; scrollWidth 35, clientWidth 35)
 - text 130% · zoom 130%: t1521.lines.1.3.1 "ges­tern" (de, corpus + icon) @ 65.046875px (DOM text 34.5 in 50.75, zoomed px; scrollWidth 39, clientWidth 39)
+
+**lines (normal): DOM 1 lines, one wider than the box, Pretext 1** (5):
+
+- text 100% · zoom 130%: t369.lines-normal.1.word-tol "separately" (en, corpus + icon) @ 99.046875px (DOM text 102.7813 in 102.75, zoomed px; scrollWidth 79, clientWidth 79)
+- text 100% · zoom 130%: t564.lines-normal.1.word-tol "applications." (en, corpus) @ 95.796875px (DOM text 124.5625 in 124.5313, zoomed px; scrollWidth 96, clientWidth 96)
+- text 100% · zoom 130%: t1467.lines-normal.1.word-tol "fundamental" (en, corpus + icon) @ 114.5625px (DOM text 122.9531 in 122.9219, zoomed px; scrollWidth 95, clientWidth 95)
+- text 100% · zoom 130%: t2263.lines-normal.1.word-tol "Wiederherstellen" (de, button + icon) @ 148.53125px (DOM text 167.1094 in 167.0781, zoomed px; scrollWidth 129, clientWidth 129)
+- text 115% · zoom 130%: t94.lines-normal.1.15.word-tol "especially" (en, corpus) @ 87.015625px (DOM text 113.1406 in 113.1094, zoomed px; scrollWidth 87, clientWidth 87)
 
 **lines: DOM 2 lines, Pretext 3 (and a line past the box, or more than 2)** (4):
 
@@ -353,23 +457,11 @@ up to 10 per cause.
 - text 115% · zoom 130%: t2290.as-is.1.15.1 "Größe" (de, uppercase tab) @ 63.78125px (DOM text 82.9219 in 82.9063, zoomed px; scrollWidth 64, clientWidth 64)
 - text 115% · zoom 130%: t2296.as-is.1.15.1 "Équipe" (fr, uppercase tab) @ 57.5px (DOM text 74.7656 in 74.75, zoomed px; scrollWidth 58, clientWidth 58)
 
-**lines (normal): DOM 1 lines, Pretext 2 (and a line past the box, or more than 2)** (3):
-
-- text 115% · zoom 130%: t2288.lines-normal.1.15.1 "Straße" (de, uppercase tab) @ 71.25px (DOM text 92.6406 in 92.625, zoomed px; scrollWidth 71, clientWidth 71)
-- text 115% · zoom 130%: t2290.lines-normal.1.15.1 "Größe" (de, uppercase tab) @ 63.78125px (DOM text 82.9219 in 82.9063, zoomed px; scrollWidth 64, clientWidth 64)
-- text 115% · zoom 130%: t2296.lines-normal.1.15.1 "Équipe" (fr, uppercase tab) @ 57.5px (DOM text 74.7656 in 74.75, zoomed px; scrollWidth 58, clientWidth 58)
-
 **row: DOM overflows at stage 1** (3):
 
 - text 115% · zoom 100%: row.en.1.15.2 @ 635.859375px (DOM content 635.8906 in 635.8594, zoomed px)
 - text 115% · zoom 100%: row.de.1.15.2 @ 811.015625px (DOM content 811.0469 in 811.0156, zoomed px)
 - text 115% · zoom 100%: row.fr.1.15.2 @ 730.8125px (DOM content 730.8438 in 730.8125, zoomed px)
-
-**truncate end (normal): DOM does not cut where Pretext cuts** (3):
-
-- text 115% · zoom 130%: t2288.truncate-end-normal.1.15.1 "Straße" (de, uppercase tab) @ 71.25px (DOM text 92.6406 in 92.625, zoomed px; scrollWidth 71, clientWidth 71)
-- text 115% · zoom 130%: t2290.truncate-end-normal.1.15.1 "Größe" (de, uppercase tab) @ 63.78125px (DOM text 82.9219 in 82.9063, zoomed px; scrollWidth 64, clientWidth 64)
-- text 115% · zoom 130%: t2296.truncate-end-normal.1.15.1 "Équipe" (fr, uppercase tab) @ 57.5px (DOM text 74.7656 in 74.75, zoomed px; scrollWidth 58, clientWidth 58)
 
 **truncate middle: DOM fits where Pretext overflows** (3):
 
@@ -381,6 +473,10 @@ up to 10 per cause.
 
 - text 100% · zoom 100%: row.fr.1.4 @ 580.921875px (DOM content 580.9531 in 580.9219, zoomed px)
 - text 115% · zoom 100%: row.fr.1.15.4 @ 663px (DOM content 663.0313 in 663, zoomed px)
+
+**lines (normal): DOM 2 lines, Pretext 4 (and a line past the box, or more than 2)** (1):
+
+- text 130% · zoom 130%: t1400.lines-normal.1.3.word-tol "as my father" (en, corpus) @ 58.078125px (DOM text 75.4844 in 75.5, zoomed px; scrollWidth 58, clientWidth 58)
 
 ### Excluded cases, by cause
 
@@ -401,13 +497,13 @@ check-mismatch of its own (a case the control does not already mismatch; the cou
 
 | mutant | edits | check-mismatch | by policy | caught |
 |---|---|---:|---|---|
-| ignore reserve | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width * zoom`; check/conditions.ts: `reserve: (merged.reserve ?? 0) * scale,` → `reserve: 0,` | 56896 | as-is 4578, shrinkTo 19962, lines 6944, truncate end 6842, truncate middle 4578, lines (normal) 6936, truncate end (normal) 6936, row 120 | yes |
-| treat zoom as textScale | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width - (merged.reserve ?? 0) * scale`; check/rows.ts: `const box = rowWidth * zoom` → `const box = rowWidth`; check/rows.ts: `const gap = row.gap * zoom` → `const gap = row.gap` | 96866 | as-is 13877, shrinkTo 12737, lines 13877, truncate end 13658, truncate middle 13877, lines (normal) 14867, truncate end (normal) 13877, row 96 | yes |
-| ignore textTransform | check/evaluate.ts: `const transformed = transformText(text, slot.textTransform, locale)` → `const transformed = text` | 922 | as-is 109, shrinkTo 264, lines 111, truncate end 111, truncate middle 109, lines (normal) 109, truncate end (normal) 109 | yes |
-| lines off by one (< for <=) | check/evaluate.ts: `fitFontSize(sizes, { width, maxLines: max }, noHeight)` → `fitFontSize(sizes, { width, maxLines: max - 1 }, noHeight)` | 52007 | lines 27719, lines (normal) 24288 | yes |
+| ignore reserve | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width * zoom`; check/conditions.ts: `reserve: (merged.reserve ?? 0) * scale,` → `reserve: 0,` | 77202 | as-is 4578, shrinkTo 19962, lines 6944, truncate end 6842, truncate middle 4578, lines (normal) 20982, truncate end (normal) 13196, row 120 | yes |
+| treat zoom as textScale | check/conditions.ts: `const box = width * zoom - (merged.reserve ?? 0) * scale` → `const box = width - (merged.reserve ?? 0) * scale`; check/rows.ts: `const box = rowWidth * zoom` → `const box = rowWidth`; check/rows.ts: `const gap = row.gap * zoom` → `const gap = row.gap` | 107718 | as-is 13877, shrinkTo 12737, lines 13877, truncate end 13658, truncate middle 13877, lines (normal) 23208, truncate end (normal) 16388, row 96 | yes |
+| ignore textTransform | check/evaluate.ts: `const transformed = transformText(text, slot.textTransform, locale)` → `const transformed = text` | 1274 | as-is 109, shrinkTo 264, lines 111, truncate end 111, truncate middle 109, lines (normal) 285, truncate end (normal) 285 | yes |
+| lines off by one (< for <=) | check/evaluate.ts: `fitFontSize(sizes, { width, maxLines: max }, noHeight)` → `fitFontSize(sizes, { width, maxLines: max - 1 }, noHeight)` | 54873 | lines 27719, lines (normal) 27154 | yes |
 | skip the last collapse stage | check/rows.ts: `for (let k = 0; k < steps.length; k++) {` → `for (let k = 0; k < steps.length - 1; k++) {` | 36 | row 36 | yes |
-| tabular ignored (alias not used) | check/run.ts: `else merged.font = font` → `` | 224 | as-is 24, shrinkTo 26, lines 30, truncate end 30, truncate middle 24, lines (normal) 48, truncate end (normal) 42 | yes |
-| ignore overflowWrap | check/conditions.ts: `overflowWrap: merged.overflowWrap ?? 'break-word',` → `overflowWrap: 'break-word',` | 6986 | lines (normal) 4573, truncate end (normal) 2413 | yes |
+| tabular ignored (alias not used) | check/run.ts: `else merged.font = font` → `` | 500 | as-is 24, shrinkTo 26, lines 30, truncate end 30, truncate middle 24, lines (normal) 198, truncate end (normal) 168 | yes |
+| ignore overflowWrap | check/conditions.ts: `overflowWrap: merged.overflowWrap ?? 'break-word',` → `overflowWrap: 'break-word',` | 38584 | lines (normal) 30989, truncate end (normal) 7595 | yes |
 
 - ignore reserve, e.g. text 100% · zoom 100%: t1.as-is.1.0.9 "Just tried" (en, corpus + icon) @ 84.078125px: checker pass, reference overflow
 - treat zoom as textScale, e.g. text 100% · zoom 130%: t0.as-is.1.1 "Just" (en, corpus) @ 32.28125px: checker overflow, reference pass
