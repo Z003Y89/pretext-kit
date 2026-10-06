@@ -120,8 +120,10 @@ let variedFuncs: FontFuncs | undefined
 // 1/65536 px off.
 function variedAdvanceFunc(font: Font, glyph: number): number {
   const varied = variedFonts.get(font.ptr)
-  // fontFor registers a sub font's entry before every use, so it is always there while shaping;
-  // were it not, the glyph would get no advance rather than throw out of HarfBuzz's callback.
+  // Unreachable: fontFor puts a sub font's entry back into variedFonts before every return, shaping
+  // is synchronous so no FinalizationRegistry callback can run in between, and the sub font cannot
+  // be collected while it is being shaped. The guard only keeps a missing entry from throwing out
+  // of HarfBuzz's callback (the glyph would get no advance).
   if (varied === undefined) return 0
   let advance = varied.byGlyph.get(glyph)
   if (advance === undefined) {

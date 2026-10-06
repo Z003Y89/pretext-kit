@@ -44,8 +44,10 @@ export type AdvanceVariations = {
   regions: Region[]
   varData: (VarData | null)[]
   hvar: DataView
-  // DeltaSetIndexMap as [outer, inner] per glyph; null maps glyph g to (0, g).
-  map: { outer: Uint16Array; inner: Uint16Array } | null
+  // DeltaSetIndexMap as [outer, inner] per glyph; null maps glyph g to (0, g). outer is 32-bit:
+  // an entry can name an outer index past 65535, which matches no subtable (no delta, as in
+  // HarfBuzz) rather than wrapping onto one.
+  map: { outer: Uint32Array; inner: Uint16Array } | null
 }
 
 class Malformed extends Error {}
@@ -184,6 +186,13 @@ function readStore(hvar: DataView, storeOffset: number, axisCount: number): { re
     }
   }
 
+  // Several offsets may name one subtable; it is parsed once. Copying region indexes is bounded
+  // by the table: in a well-formed store the distinct subtables do not overlap, so their region
+  // index lists together hold at most length / 2 entries. A store that asks for more (subtables
+  // overlapping each other to multiply the work) is malformed, and the face keeps HarfBuzz's
+  // advances.
+  const byOffset = new Map<number, VarData>()
+  let regionIndexBudget = Math.floor(length / 2)
   const varData: (VarData | null)[] = []
   for (let d = 0; d < dataCount; d++) {
     const relative = hvar.getUint32(storeOffset + 8 + 4 * d, false)
@@ -193,6 +202,11 @@ function readStore(hvar: DataView, storeOffset: number, axisCount: number): { re
       continue
     }
     const at = storeOffset + relative
+    const parsed = byOffset.get(at)
+    if (parsed !== undefined) {
+      varData.push(parsed)
+      continue
+    }
     check(at + 6 <= length)
     const itemCount = hvar.getUint16(at, false)
     const wordDeltaCount = hvar.getUint16(at + 2, false)
@@ -204,9 +218,13 @@ function readStore(hvar: DataView, storeOffset: number, axisCount: number): { re
     const wordSize = longWords ? 4 : 2
     const rowSize = wordCount * wordSize + (regionIndexCount - wordCount) * (wordSize / 2)
     check(rowsAt + itemCount * rowSize <= length)
+    regionIndexBudget -= regionIndexCount
+    check(regionIndexBudget >= 0)
     const regionIndexes = new Uint16Array(regionIndexCount)
     for (let i = 0; i < regionIndexCount; i++) regionIndexes[i] = hvar.getUint16(at + 6 + 2 * i, false)
-    varData.push({ regionIndexes, itemCount, rowsAt, rowSize, wordCount, longWords })
+    const data = { regionIndexes, itemCount, rowsAt, rowSize, wordCount, longWords }
+    byOffset.set(at, data)
+    varData.push(data)
   }
   return { regions, varData }
 }
@@ -226,7 +244,7 @@ function readMap(hvar: DataView, at: number, numGlyphs: number): AdvanceVariatio
   const innerBits = (entryFormat & 0x0f) + 1
   const entrySize = ((entryFormat & 0x30) >> 4) + 1
   check(entriesAt + mapCount * entrySize <= length)
-  const outer = new Uint16Array(numGlyphs)
+  const outer = new Uint32Array(numGlyphs)
   const inner = new Uint16Array(numGlyphs)
   for (let g = 0; g < numGlyphs; g++) {
     // Glyphs past the map use its last entry.
