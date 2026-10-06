@@ -207,7 +207,8 @@ jobs:
           mkdir "$WORK/readme-install"
           cd "$WORK/readme-install"
           npm init -y > /dev/null
-          npm install --no-audit --no-fund "${words[@]:2}"
+          # harfbuzzjs is the optional peer pretext-kit/check needs (README, Install); the install line does not name it.
+          npm install --no-audit --no-fund "${words[@]:2}" harfbuzzjs@1.6.2
           node --input-type=module -e "await import('pretext-kit/check'); await import('pretext-kit/check/browser'); console.log('pretext-kit/check and pretext-kit/check/browser import')"
           npx --no-install pretext-kit check-labels --help
       - name: Summary
