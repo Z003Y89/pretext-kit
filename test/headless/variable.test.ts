@@ -112,3 +112,64 @@ test('a malformed HVAR measures with HarfBuzz\'s own advances rather than throw'
   // At 700 that is HarfBuzz's whole-unit rounding, not the unrounded width of the intact font.
   assert.notEqual(width('700 16px "Broken 1"', 'abonnieren'), width('700 16px "Inter Variable"', 'abonnieren'))
 })
+
+// Chromium 149.0.7827.55 on Linux (ubuntu-latest) and Windows (windows-latest), CI run 37410732972,
+// sentence widths from verify:headless (same file as "HX Inter Variable"): HarfBuzz's whole-unit
+// HVAR rounding, where macOS keeps the fraction.
+const chromiumLinuxWindows: [string, string, number][] = [
+  ['500 16px "Inter Variable"', 'Zahlungspflichtig abonnieren', 223.5359344482422],
+  ['500 20px "Inter Variable"', 'Zahlungspflichtig abonnieren', 279.419921875],
+  ['700 20px "Inter Variable"', 'Zahlungspflichtig abonnieren', 287.986328125],
+  ['500 14px "Inter Variable"', '„Zahlungspflichtig abonnieren“', 207.8986358642578],
+]
+
+for (const platform of ['linux', 'windows'] as const) {
+  test(`platform '${platform}' measures a varied instance with HarfBuzz's whole-unit advances`, () => {
+    install({ platform })
+    try {
+      // The space at wght 500 is 546/2048 em, not 545.7613/2048 em.
+      assert.equal(width('500 16px "Inter Variable"', ' '), 4.265625)
+      assert.equal(width('500 16px "Inter Variable"', 'a'), 9.0859375)
+      assert.equal(width('700 16px "Inter Variable"', 'W'), 16.6015625)
+      assert.equal(width('300 16px "Inter Variable"', 'a'), 8.7890625)
+      assert.equal(width('500 1000px "Inter Variable"', 'abonnieren'), 5388.96484375)
+      assert.equal(width('500 1000px "Inter Variable"', 'AV'), 1346.0938720703125)
+      assert.equal(width('700 1000px "Inter Variable"', 'To'), 1202.63671875)
+      for (const weight of [300, 500, 700]) {
+        assert.equal(width(`${weight} 16px "Inter Variable"`, 'abonnieren'), harfBuzzWidth(sfnt, weight, 16, 'abonnieren'), `wght ${weight}`)
+      }
+      for (const [font, text, expected] of chromiumLinuxWindows) assert.equal(width(font, text), expected, `${font} ${text}`)
+      // The default instance and the axis ends are the same on every platform.
+      assert.equal(width('400 1000px "Inter Variable"', ' '), 281.25)
+      assert.equal(width('100 1000px "Inter Variable"', 'AV'), 1210.9375)
+      assert.equal(width('900 1000px "Inter Variable"', 'abonnieren'), 5726.5625)
+    } finally {
+      install()
+    }
+  })
+}
+
+test("platform 'macos' is the default, and a later install() switches back and forth", () => {
+  install({ platform: 'macos' })
+  assert.equal(width('500 16px "Inter Variable"', ' '), 4.2637481689453125)
+  install({ platform: 'linux' })
+  assert.equal(width('500 16px "Inter Variable"', ' '), 4.265625)
+  // install() without a platform resets it to 'macos', as with the other options.
+  install()
+  assert.equal(width('500 16px "Inter Variable"', ' '), 4.2637481689453125)
+  for (const [font, text, expected] of chromiumLinuxWindows) assert.notEqual(width(font, text), expected, `${font} ${text}`)
+})
+
+test("platform is independent of rounding 'whole-px'", () => {
+  install({ platform: 'linux', rounding: 'whole-px' })
+  try {
+    // 16.6015625 rounds to 17 either way; at 1000px the whole-px advances differ by platform.
+    assert.equal(width('700 16px "Inter Variable"', 'W'), 17)
+    const linux = width('500 1000px "Inter Variable"', ' ')
+    install({ platform: 'macos', rounding: 'whole-px' })
+    assert.equal(linux, 267)
+    assert.equal(width('500 1000px "Inter Variable"', ' '), 266)
+  } finally {
+    install()
+  }
+})

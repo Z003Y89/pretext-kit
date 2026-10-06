@@ -1,7 +1,7 @@
 import { Buffer, Feature, Font, FontFuncs, Variation, shape } from 'harfbuzzjs'
 import { findFaces, hbFace, inUnicodeRange, type FontFace } from './fonts.ts'
 import { normalizedCoords, readAdvanceVariations, readAxisNormalization, variedAdvance, type AdvanceVariations, type AxisNormalization } from './hvar.ts'
-import { HEADLESS, sharedState } from './shared.ts'
+import { HEADLESS, sharedState, type Platform } from './shared.ts'
 import { parseFont, type ParsedFont } from './shorthand.ts'
 
 // Pretext picks its engine profile from the user agent; Node's and jsdom's pick Blink but not
@@ -17,6 +17,11 @@ export type InstallOptions = {
   // 'whole-px' rounds each glyph advance to a whole px before summing, as Linux Chrome
   // (FreeType without subpixel positioning) is expected to; 'none' (default) keeps them exact.
   rounding?: 'none' | 'whole-px'
+  // The desktop Chrome whose widths a variable font measures with away from its default instance.
+  // 'macos' (default): CoreText's unrounded HVAR advances. 'windows' and 'linux': HarfBuzz's own,
+  // with the HVAR delta rounded to whole font units, as Chromium on Linux and Windows measured in
+  // CI. Static fonts and a variable font's default instance measure the same on all three.
+  platform?: Platform
 }
 
 // A class so `instanceof` tells it from other errors; it carries what was missing.
@@ -162,12 +167,14 @@ function withVariedAdvances(font: Font, face: FontFace, sizePx: number, design: 
 type ShapingFont = { font: Font; varied: VariedAdvances | null }
 
 // A registered weight picks the face; on a variable face the weight, optical size (Chrome
-// applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes.
-function fontFor(face: FontFace, parsed: ParsedFont): Font {
+// applies font-optical-sizing: auto to Canvas) and stretch are also set on its axes. Only Chrome
+// on macOS keeps HVAR's fractions; on Windows and Linux a varied instance keeps HarfBuzz's font.
+function fontFor(face: FontFace, parsed: ParsedFont, platform: Platform): Font {
+  const unrounded = platform === 'macos'
   const wght = instanceWeight(face, parsed.weight)
   const opsz = axisValue(face, 'opsz', parsed.sizePx)
   const wdth = axisValue(face, 'wdth', parsed.stretch)
-  const key = `${parsed.sizePx}|${wght}|${opsz}|${wdth}`
+  const key = `${parsed.sizePx}|${wght}|${opsz}|${wdth}|${unrounded ? 'unrounded' : 'harfbuzz'}`
   let bySize = fonts.get(face)
   if (bySize === undefined) {
     bySize = new Map()
@@ -185,7 +192,7 @@ function fontFor(face: FontFace, parsed: ParsedFont): Font {
     if (wdth !== null) design.set('wdth', wdth)
     for (const [tag, value] of design) variations.push(new Variation(tag, value))
     if (variations.length > 0) font.setVariations(variations)
-    shaping = variations.length > 0 ? withVariedAdvances(font, face, parsed.sizePx, design) : { font, varied: null }
+    shaping = variations.length > 0 && unrounded ? withVariedAdvances(font, face, parsed.sizePx, design) : { font, varied: null }
     bySize.set(key, shaping)
   }
   // The sub font is alive (this cache holds it), so its pointer is its own: its entry is put back
@@ -245,6 +252,7 @@ type Shaping = {
   parsed: ParsedFont
   notdef: boolean // Measure what no face covers as .notdef instead of throwing
   rounding: 'none' | 'whole-px'
+  platform: Platform
   faces: FontFace[]
   features: Feature[]
   spacing: number
@@ -271,7 +279,7 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
   const spacingUnits = Math.round(shaping.spacing * 65536)
   const flush = (runEnd: number): void => {
     if (runFace === null || runEnd === runStart) return
-    const font = fontFor(runFace, shaping.parsed)
+    const font = fontFor(runFace, shaping.parsed, shaping.platform)
     // The whole word is the run's context, as Blink gives HarfBuzz.
     const context = codePoints.slice(start, end)
     for (let i = 0; i < context.length; i++) {
@@ -562,6 +570,7 @@ function createContext(): HeadlessContext {
         parsed,
         notdef: options.onMissingGlyph === 'notdef' || content === HYPHEN,
         rounding: options.rounding,
+        platform: options.platform ?? 'macos',
         faces,
         features,
         spacing,
@@ -622,11 +631,15 @@ function setUserAgent(): void {
 export function install(installOptions: InstallOptions = {}): void {
   const onMissingGlyph = installOptions.onMissingGlyph ?? 'throw'
   const rounding = installOptions.rounding ?? 'none'
+  const platform = installOptions.platform ?? 'macos'
   if (onMissingGlyph !== 'throw' && onMissingGlyph !== 'notdef') {
     throw new RangeError(`install: onMissingGlyph must be 'throw' or 'notdef', not ${JSON.stringify(onMissingGlyph)}`)
   }
   if (rounding !== 'none' && rounding !== 'whole-px') {
     throw new RangeError(`install: rounding must be 'none' or 'whole-px', not ${JSON.stringify(rounding)}`)
+  }
+  if (platform !== 'macos' && platform !== 'windows' && platform !== 'linux') {
+    throw new RangeError(`install: platform must be 'macos', 'windows' or 'linux', not ${JSON.stringify(platform)}`)
   }
   const existing: unknown = Reflect.get(globalThis, 'OffscreenCanvas')
   if (existing !== undefined && !isHeadless(existing)) {
@@ -638,6 +651,7 @@ export function install(installOptions: InstallOptions = {}): void {
   const { options } = sharedState()
   options.onMissingGlyph = onMissingGlyph
   options.rounding = rounding
+  options.platform = platform
   setUserAgent()
   if (existing === undefined) defineGlobal('OffscreenCanvas', HeadlessOffscreenCanvas)
 }

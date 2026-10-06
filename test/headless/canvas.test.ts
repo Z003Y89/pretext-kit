@@ -225,6 +225,10 @@ test('install() twice is idempotent', () => {
 test('install() rejects unknown options', () => {
   assert.throws(() => install({ onMissingGlyph: 'skip' as 'throw' }), RangeError)
   assert.throws(() => install({ rounding: 'half-px' as 'none' }), RangeError)
+  assert.throws(() => install({ platform: 'darwin' as 'macos' }), /platform must be 'macos', 'windows' or 'linux', not "darwin"/)
+  assert.throws(() => install({ platform: 'Linux' as 'linux' }), RangeError)
+  // A rejected call changes nothing.
+  assert.equal(width('Speichern'), 76.921875)
 })
 
 test('a variable face is shaped at its registered weight range, then its axis', () => {

@@ -6,9 +6,13 @@ import type { FontFace } from './fonts.ts'
 // options and one font registry.
 export const HEADLESS = Symbol.for('pretext-kit.headless')
 
+export type Platform = 'macos' | 'windows' | 'linux'
+
 export type HeadlessOptions = {
   onMissingGlyph: 'throw' | 'notdef'
   rounding: 'none' | 'whole-px'
+  // Absent when an older copy of the package (before 0.1.2) created the state: read as 'macos'.
+  platform?: Platform
 }
 
 export type SharedState = {
@@ -20,7 +24,7 @@ export type SharedState = {
 export function sharedState(): SharedState {
   let state = Reflect.get(globalThis, HEADLESS) as SharedState | undefined
   if (state === undefined) {
-    state = { options: { onMissingGlyph: 'throw', rounding: 'none' }, faces: [] }
+    state = { options: { onMissingGlyph: 'throw', rounding: 'none', platform: 'macos' }, faces: [] }
     Object.defineProperty(globalThis, HEADLESS, { value: state, configurable: true, enumerable: false, writable: false })
   }
   return state

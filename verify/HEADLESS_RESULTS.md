@@ -6,6 +6,7 @@ Run on 2026-10-06 by `npm run verify:headless` (verify/headless.ts).
 - harfbuzzjs 1.6.2 (HarfBuzz 14.5.0), wawoff2 2.0.1
 - Pretext 0.0.9 (../pretext f10d888), `setLocale('en')` on both sides
 - Node v24.4.1, macOS 14.6.1 (Darwin 23.6.0), arm64
+- `install({ platform: 'macos' })` (this OS's)
 
 Fonts: test/fonts, loaded in Chromium through `@font-face` from the same files the stand-in registers, each
 awaited with `document.fonts.load` and checked `loaded`: Inter-Regular.ttf as 400 "HX Inter", Inter-Regular.woff2 as 400 "HX Inter WOFF2", Roboto-Regular.ttf as 400 "HX Roboto", ShantellSans-Regular.ttf as 400 "HX Shantell Sans", ShantellSans-Bold.ttf as 700 "HX Shantell Sans", inter-latin-wght-normal.woff2 as 100 900 "HX Inter Variable".
@@ -38,6 +39,11 @@ computed by OpenType 1.9.1's precision rules (16.16 normalization and avar, then
 and HarfBuzz does not, and the px conversion Blink uses, and sums a run's advances in 1/65536 px as Blink does.
 Regression tests: test/headless/variable.test.ts (Chromium widths pinned at six weights: 300/399/401/500/700/899),
 which fail without the fix.
+
+**Per platform (0.1.2).** Chromium 149 on Linux and Windows does not keep the fraction: CI run 37410732972 measured it
+equal to HarfBuzz's whole-unit rounding (the fixed stand-in was off there by exactly the pre-fix macOS numbers above).
+So `install({ platform })` picks the behaviour: 'macos' (the default) unrounded HVAR advances, 'windows' and 'linux'
+HarfBuzz's own. This sweep installs the platform of the OS it runs on. The option's own CI confirmation on Linux and Windows: pending.
 
 ## Widths
 

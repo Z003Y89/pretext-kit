@@ -108,7 +108,10 @@ function uncovered(text: string, family: string, weight: number): string[] {
 for (const face of FACES) {
   await registerFont(face.family, new Uint8Array(readFileSync(facePath(face))), typeof face.weight === 'number' ? { weight: face.weight } : {})
 }
-install()
+// install()'s platform is the OS this sweep runs on, whose Chromium it is compared with.
+const platform = process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : process.platform === 'linux' ? 'linux' : null
+if (platform === null) throw new Error(`verify:headless: no install() platform for ${process.platform}; run it on macOS, Windows or Linux`)
+install({ platform })
 const scopeCtx = new OffscreenCanvas(1, 1).getContext('2d')!
 let scopeChecked = 0
 const scopeDisagreements: string[] = []
@@ -265,7 +268,7 @@ server.close()
 
 mkdirSync(dist, { recursive: true })
 const inputPath = join(dist, 'headless-input.json')
-const input: NodeInput = { root, faces: FACES, widthCases: plainWidthCases, lineCases: plainLineCases, widths }
+const input: NodeInput = { root, faces: FACES, widthCases: plainWidthCases, lineCases: plainLineCases, widths, platform }
 writeFileSync(inputPath, JSON.stringify(input))
 
 function runNode(modulePath: string, name: string): NodeOutput {
@@ -294,14 +297,24 @@ const MUTANTS: Mutant[] = [
     to: 'findFaces(parsed.families[i]!, 400, style)',
     lines: true,
   },
-  {
-    // 0.1.2's fix: a varied instance shaped with HarfBuzz's own advances (HVAR delta rounded to whole font units).
-    name: 'round variable-font advances',
-    file: 'canvas.ts',
-    from: 'withVariedAdvances(font, face, parsed.sizePx, design)',
-    to: '({ font, varied: null })',
-    lines: true,
-  },
+  // 0.1.2's per-platform variable-font advances, mutated the other way on each platform.
+  platform === 'macos'
+    ? {
+        // A varied instance shaped with HarfBuzz's own advances (HVAR delta rounded to whole font units).
+        name: 'round variable-font advances',
+        file: 'canvas.ts',
+        from: 'withVariedAdvances(font, face, parsed.sizePx, design)',
+        to: '({ font, varied: null })',
+        lines: true,
+      }
+    : {
+        // A varied instance shaped with CoreText's unrounded advances, as on macOS.
+        name: 'unround variable-font advances',
+        file: 'canvas.ts',
+        from: "const unrounded = platform === 'macos'",
+        to: 'const unrounded = true',
+        lines: true,
+      },
   {
     name: 'drop the U+0020 word cut',
     file: 'canvas.ts',
@@ -526,6 +539,7 @@ const md: string[] = [
   `- harfbuzzjs ${pkg('harfbuzzjs')} (HarfBuzz ${versionString()}), wawoff2 ${pkg('wawoff2')}`,
   `- Pretext ${pkg('@chenglou/pretext')} (../pretext ${pretextCommit}), \`setLocale('en')\` on both sides`,
   `- Node ${process.version}, ${osLabel}, ${process.arch}`,
+  `- \`install({ platform: '${platform}' })\` (this OS's)`,
   '',
   'Fonts: test/fonts, loaded in Chromium through `@font-face` from the same files the stand-in registers, each',
   'awaited with `document.fonts.load` and checked `loaded`: ' +
@@ -561,6 +575,13 @@ const md: string[] = [
   'and HarfBuzz does not, and the px conversion Blink uses, and sums a run\'s advances in 1/65536 px as Blink does.',
   'Regression tests: test/headless/variable.test.ts (Chromium widths pinned at six weights: 300/399/401/500/700/899),',
   'which fail without the fix.',
+  '',
+  '**Per platform (0.1.2).** Chromium 149 on Linux and Windows does not keep the fraction: CI run 37410732972 measured it',
+  'equal to HarfBuzz\'s whole-unit rounding (the fixed stand-in was off there by exactly the pre-fix macOS numbers above).',
+  'So `install({ platform })` picks the behaviour: \'macos\' (the default) unrounded HVAR advances, \'windows\' and \'linux\'',
+  'HarfBuzz\'s own. This sweep installs the platform of the OS it runs on' +
+    (platform === 'macos' ? '' : `, here '${platform}'; its variable-font mutant forces the unrounded macOS advances instead`) +
+    '. The option\'s own CI confirmation on Linux and Windows: pending.',
   '',
   '## Widths',
   '',
