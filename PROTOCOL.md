@@ -4,6 +4,22 @@ The standard a change must meet before pretext-kit claims anything about it, and
 [EVALUATION.md](EVALUATION.md) records what the protocol found for the current release; this file says what it
 requires. The rules come from what went wrong while building 0.1.0 to 0.1.2, and each names the failure it prevents.
 
+## The standard
+
+The user's brief for this project was an evaluation "to MIT and Cheng Lou standards". This protocol takes that to
+mean two concrete bars, and holds every release to both:
+
+- **Cheng Lou's bar, set by Pretext itself:** text layout is judged against what real browsers paint, per engine
+  (Chromium, WebKit, Gecko), over multilingual corpora, and a helper earns its place only by being exact where the
+  browser is the referee; Pretext's own disagreements with the browser are inherited and named, never hidden. In this
+  repository: §2, EVALUATION §2–3.
+- **The academic bar of a peer-reviewed systems evaluation**, as taught and reviewed at institutions such as MIT:
+  falsifiable claims with stated scope (§1), an independent oracle (§2), evidence that the checks can fail (§3),
+  honest statistics with clustered units and upper bounds (§4), threats to validity (EVALUATION §6), reproduction from
+  a fresh clone and on a second machine (§7), and limits stated where the claims are (§1, EVALUATION §8).
+
+The code is MIT-licensed, like Pretext (LICENSE).
+
 ## 1. Claims
 
 - **A claim names its scope and its evidence.** Every accuracy statement in README.md says which helper, which
