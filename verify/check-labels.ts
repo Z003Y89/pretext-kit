@@ -312,8 +312,8 @@ type Family = 'verdict' | 'near-miss'
 type Result = {
   what: string, policy: PolicyName | 'row', cond: SweepCondition, unit: string, outcome: Outcome, cause: string,
   checker: string, reference: string, verdict: string, cross: boolean, family: Family,
-  // Near-miss family, on a pass: the DOM's slack less the reference's, and the checker's missing.px less the
-  // reference's slack rounded to 1/64 px (on a near-miss).
+  // Near-miss family, on a pass the DOM agrees with: the DOM's slack less the reference's; on a near-miss: the
+  // checker's missing.px less the reference's slack rounded to 1/64 px.
   slackDiff?: number, pxDiff?: number,
 }
 
@@ -406,7 +406,7 @@ function nearResult(o: NodeOutput, judged: Result, key: string, ref: { kind: str
   const shown = (near: boolean, slack: number | undefined): string => (slack === undefined ? 'none' : `${near ? 'near-miss' : 'no near-miss'} (${fmt(slack)}px to spare)`)
   const r: Result = {
     ...judged, family: 'near-miss',
-    ...(fits(ref.kind) && ref.slack !== undefined && domSlack !== undefined ? { slackDiff: domSlack - ref.slack } : {}),
+    ...(judged.outcome === 'pass' && fits(ref.kind) && ref.slack !== undefined && domSlack !== undefined ? { slackDiff: domSlack - ref.slack } : {}),
     ...(checkerNear && ref.slack !== undefined ? { pxDiff: px - round64(ref.slack) } : {}),
     verdict: fits(judged.verdict) ? (checkerNear ? 'near-miss' : 'no near-miss') : judged.verdict,
     checker: `${judged.checker}, ${checkerNear ? `near-miss ${fmt(px)}px` : 'no near-miss'}`,
@@ -519,7 +519,8 @@ const spread = (xs: number[]): string => {
   const beyond = (t: number): number => v.filter(x => Math.abs(x) > t + 1e-9).length
   return `${v.length} cases, min ${fmt(v[0]!)}, median ${fmt(v[Math.floor(v.length / 2)]!)}, max ${fmt(v.at(-1)!)}; beyond ±1/64 px ${beyond(1 / 64)}, ±1/16 px ${beyond(1 / 16)}, ±1/4 px ${beyond(1 / 4)}`
 }
-const slackDiffs = near.flatMap(r => (r.slackDiff === undefined ? [] : [r.slackDiff]))
+const slackDiffs = (soft: boolean | null): number[] =>
+  near.flatMap(r => (r.slackDiff === undefined || (soft !== null && r.what.includes('\u00AD') !== soft) ? [] : [r.slackDiff]))
 const pxDiffs = near.flatMap(r => (r.pxDiff === undefined ? [] : [r.pxDiff]))
 
 const units = [...new Set(results.map(r => r.unit))]
@@ -685,8 +686,9 @@ const render = (limit: number): string[] => [
   '|---|---:|---:|---:|---:|---:|',
   ...nearAgreement,
   '',
-  `Resolution of the near-miss comparison. DOM slack less the reference's, over every pass of the family (the reference`,
-  `at least 0, the DOM's not clamped; zoomed px): ${spread(slackDiffs)}. Checker's \`missing.px\` less the reference's slack`,
+  `Resolution of the near-miss comparison. DOM slack less the reference's, over every pass of the family whose verdict the`,
+  `DOM agrees with (the reference at least 0, the DOM's not clamped; zoomed px): ${spread(slackDiffs(null))}; of them without a`,
+  `soft hyphen ${spread(slackDiffs(false))}; with one ${spread(slackDiffs(true))}. Checker's \`missing.px\` less the reference's slack`,
   `rounded to 1/64 px, over every near-miss: ${spread(pxDiffs)}. The boxes sit 1/4 px either side of the margin (and of the`,
   `margin ÷ ${MAX_ZOOM}), so a slack error smaller than that moves no decision across it: the DOM check shows such an`,
   'error only through the distribution above, not as a pretext-gap.',
