@@ -221,3 +221,17 @@ test('launch exits 2 with the hint when the CLI cannot be loaded, and runs main 
 test('the unmatched-keys line is singular for one key', () => {
   assert.equal(formatReport({ ...report([]), unchecked: ['de:a'] }, ALL), '7 checked, 0 failures, 0 warnings\n1 key matched no slot or row\n')
 })
+
+test('a config slot with overflowWrap normal reaches the checker as plain data, and a condition can override it', async () => {
+  const r = await run('check-labels', '--config', 'wrap.config.mjs', '--json', '--platform', 'linux')
+  assert.equal(r.code, 1)
+  const report: Report = JSON.parse(r.stdout)
+  assert.equal(report.failures.length, 1)
+  const [failure] = report.failures
+  assert.equal(failure!.kind, 'overflow')
+  assert.equal(failure!.key, 'menu.notifications')
+  assert.equal(failure!.condition, 'default')
+  assert.ok(failure!.missing?.px !== undefined && failure!.missing.px > 30)
+  assert.match(failure!.detail ?? '', /"Benachrichtigungen" does not break/)
+  assert.equal(report.warnings.length, 0)
+})

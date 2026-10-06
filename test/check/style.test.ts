@@ -23,6 +23,7 @@ test('a computed style becomes a slot', () => {
     letterSpacing: 0.5,
     lineHeight: 20,
     whiteSpace: 'normal',
+    overflowWrap: 'normal',
     numeric: 'proportional',
     textTransform: 'none',
     policy: 'as-is',
@@ -52,4 +53,13 @@ test('other white-space values and text-transform keywords the checker lacks fal
 
 test('a style the kit cannot turn into a font throws as fontFromStyle does', () => {
   assert.throws(() => slotFromStyle({ ...style, lineHeight: 'normal' }, { width: 50 }, 'as-is'), RangeError)
+})
+
+test('overflow-wrap and word-break give the computed overflowWrap, normal by default unlike a hand-built slot', () => {
+  const wrap = (more: { overflowWrap?: string; wordBreak?: string }) => slotFromStyle({ ...style, ...more }, { width: 50 }, { lines: 2 }).overflowWrap
+  assert.equal(wrap({}), 'normal')
+  assert.equal(wrap({ overflowWrap: 'normal', wordBreak: 'normal' }), 'normal')
+  assert.equal(wrap({ overflowWrap: 'normal', wordBreak: 'keep-all' }), 'normal')
+  for (const overflowWrap of ['break-word', 'anywhere']) assert.equal(wrap({ overflowWrap, wordBreak: 'normal' }), 'break-word', overflowWrap)
+  for (const wordBreak of ['break-all', 'break-word']) assert.equal(wrap({ overflowWrap: 'normal', wordBreak }), 'break-word', wordBreak)
 })

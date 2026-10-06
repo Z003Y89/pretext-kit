@@ -271,3 +271,83 @@ test('a font size written as .5px reads as 0.5px', () => {
   assert.equal(s.sizePx, 0.5)
   assert.equal(s.fontAt(12), '12px Inter')
 })
+
+// overflow-wrap: normal: a word fits as an as-is label of it would.
+const WORD = 'Benachrichtigungen'
+const normal = { overflowWrap: 'normal' as const }
+
+test('overflowWrap defaults to break-word, is overridable per condition and validated', () => {
+  assert.equal(slotOf(100, { lines: 2 }).overflowWrap, 'break-word')
+  assert.equal(slotOf(100, { lines: 2 }, normal).overflowWrap, 'normal')
+  const back = resolveSlot('s', { width: 100, font: FONT, policy: { lines: 2 }, ...normal }, { name: 'c', slots: { s: { overflowWrap: 'break-word' } } })
+  assert.equal(back.overflowWrap, 'break-word')
+  assert.throws(() => slotOf(100, { lines: 2 }, { overflowWrap: 'anywhere' as never }), /slot "s".*overflowWrap/)
+})
+
+test('lines with overflowWrap normal: a word exactly the box width or 1/64 over passes, 1px over overflows by 1px', () => {
+  const w = natural(WORD)
+  for (const box of [w, w - 1 / 64]) assert.equal(evaluateLabel(WORD, slotOf(box, { lines: 2 }, normal), 'de').kind, 'pass', String(box))
+  const over = evaluateLabel(WORD, slotOf(w - 1, { lines: 2 }, normal), 'de')
+  assert.equal(over.kind, 'overflow')
+  near(over.missing?.px, 1)
+  near(over.measured.width, w)
+  assert.match(over.detail ?? '', /"Benachrichtigungen" does not break \(overflow-wrap: normal\)/)
+})
+
+test('break-word, the default, still passes a long word in lines 2 by breaking it, as before', () => {
+  const w = natural(WORD)
+  for (const more of [{}, { overflowWrap: 'break-word' as const }]) {
+    const v = evaluateLabel(WORD, slotOf(w - 1, { lines: 2 }, more), 'de')
+    assert.equal(v.kind, 'pass')
+    assert.equal(v.measured.lines, 2)
+    assert.equal(v.detail, undefined)
+  }
+})
+
+test('only the longest of several words decides, and missing.px is its excess', () => {
+  const text = `Neue ${WORD} anzeigen`
+  const w = natural(WORD)
+  assert.equal(evaluateLabel(text, slotOf(w, { lines: 3 }, normal), 'de').kind, 'pass')
+  const v = evaluateLabel(text, slotOf(w - 2, { lines: 3 }, normal), 'de')
+  assert.equal(v.kind, 'overflow')
+  near(v.missing?.px, 2)
+  assert.match(v.detail ?? '', /"Benachrichtigungen"/)
+})
+
+test('a soft hyphen is a break opportunity: its halves are the pieces', () => {
+  const text = 'Benach­richtigungen'
+  const w = natural(WORD)
+  assert.ok(natural('Benach-') < w - 20 && natural('richtigungen') < w - 20)
+  assert.equal(evaluateLabel(text, slotOf(w - 20, { lines: 2 }, normal), 'de').kind, 'pass')
+  const v = evaluateLabel(text, slotOf(natural('richtigungen') - 1, { lines: 2 }, normal), 'de')
+  assert.equal(v.kind, 'overflow')
+  assert.match(v.detail ?? '', /"richtigungen"/)
+})
+
+test('a hyphen-minus compound breaks after its hyphen', () => {
+  const text = 'Nebenrollen-Takes'
+  const first = natural('Nebenrollen-')
+  assert.equal(evaluateLabel(text, slotOf(first, { lines: 2 }, normal), 'de').kind, 'pass')
+  const v = evaluateLabel(text, slotOf(first - 1, { lines: 2 }, normal), 'de')
+  assert.equal(v.kind, 'overflow')
+  near(v.missing?.px, 1)
+  assert.match(v.detail ?? '', /"Nebenrollen-"/)
+})
+
+test('truncate end with overflowWrap normal: a word too wide is cut, however few lines it takes', () => {
+  const w = natural(WORD)
+  assert.equal(evaluateLabel(WORD, slotOf(w, { truncate: 'end', lines: 2 }, normal), 'de').kind, 'pass')
+  const cut = evaluateLabel(WORD, slotOf(w - 1, { truncate: 'end', lines: 2 }, normal), 'de')
+  assert.equal(cut.kind, 'truncated')
+  assert.match(cut.detail ?? '', /"Benachrichtigungen"/)
+  assert.equal(evaluateLabel(WORD, slotOf(w - 1, { truncate: 'end', lines: 2 }), 'de').kind, 'pass')
+})
+
+test('one-line policies are unchanged by overflowWrap', () => {
+  const n = natural(WORD)
+  for (const policy of ['as-is', { shrinkTo: 10 }, { truncate: 'middle' }] as Slot['policy'][]) {
+    for (const width of [n + 1, n - 1, n - 30]) {
+      assert.deepEqual(evaluateLabel(WORD, slotOf(width, policy, normal), 'de'), evaluateLabel(WORD, slotOf(width, policy), 'de'), `${JSON.stringify(policy)} at ${width}`)
+    }
+  }
+})
