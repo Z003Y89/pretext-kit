@@ -13,8 +13,9 @@ claims, the confidence bounds, the threats to validity and the known limitations
   font files with HarfBuzz, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" becomes a unit test.
   Against Chromium on macOS, Linux and Windows with the same font files: every static Inter and Roboto width
   bit-exact, and of 71,818 line counts none differing from Pretext inside Chromium; on macOS also Inter Variable at
-  weights 300-800, widths within 0.0001px and none of 69,408 more line counts differing. Registered fonts and
-  Chromium's rules only ([the claim and its limits](#the-claim-and-its-limits)).
+  weights 300-800, widths within 0.0001px and none of 69,408 more line counts differing. Variable fonts measure per
+  target platform: `install({ platform })`, macOS by default. Registered fonts and Chromium's rules only
+  ([the claim and its limits](#the-claim-and-its-limits)).
 
 What it adds that CSS can't do:
 
@@ -404,7 +405,7 @@ import { registerFont, install } from 'pretext-kit/headless'
 // The same files your CSS @font-face loads, under the same family names. TTF/OTF/TTC, WOFF or WOFF2.
 // Register each weight you measure: '600 14px Inter' needs the 600 file, registered with { weight: 600 }.
 await registerFont('Inter', new Uint8Array(readFileSync('fonts/Inter-Regular.ttf')))
-install()
+install() // Chrome on macOS; install({ platform: 'linux' }) or 'windows' for their variable-font widths
 
 // Before the first prepare(): a static import of Pretext above is fine, as Pretext reads the engine only then.
 const { lineCount } = measureLineStats(prepareWithSegments('Speichern', '14px Inter'), 160)
@@ -446,9 +447,22 @@ The claim is scoped exactly so:
   set on the context: Canvas widths change with small capitals, and the stand-in does not model them.
 - **Weights.** A weight with no matching registered face (600 or 700 with only a Regular file) silently measures the
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
+- **Target platform: `install({ platform: 'macos' | 'windows' | 'linux' })`.** Chrome measures a variable font
+  differently per OS away from its default instance. On macOS (CoreText) it keeps the fractional HVAR advance
+  delta; Chromium 149 on Linux and Windows rounds it to whole font units, as HarfBuzz does (measured by CI run
+  [37410732972](https://github.com/Z003Y89/pretext-kit/actions/runs/37410732972) as equal to HarfBuzz's rounding:
+  the unrounded stand-in was off there by 232 widths beyond 0.02px, max 0.055115px, and 11 line counts). `'macos'`
+  (the default) measures with the unrounded advances, `'windows'` and `'linux'` with HarfBuzz's own. Pick the
+  platform whose Chrome your users run, not the one your tests run on: the default is fixed rather than read from
+  `process.platform`, so a test gives the same widths on a Mac laptop and a Linux CI runner, and it stays the macOS
+  profile the measurements below were first made for. Static fonts, and a variable font at its default instance,
+  measure the same under all three. The option is independent of `rounding`: `'whole-px'` rounds whatever advances
+  the platform gives. Like the other options, a later `install()` call sets it again (omitted, back to `'macos'`);
+  call Pretext's `clearCache()` if widths it already measured should follow. Anything else throws a `RangeError`.
+  The option's own CI confirmation on Linux and Windows: pending.
 - **Variable fonts and split families.** A variable font is shaped at the requested weight on its `wght` axis
-  (and `opsz`, `wdth`), with its advances unrounded, as Chrome on macOS keeps them. That is verified against Chromium
-  for Inter Variable's `wght` axis only, on macOS: at 300-800, 2,352 widths within 0.0001px and 0 of 69,408 line
+  (and `opsz`, `wdth`), with its advances unrounded under `platform: 'macos'`, as Chrome on macOS keeps them. That is
+  verified against Chromium for Inter Variable's `wght` axis only, on macOS: at 300-800, 2,352 widths within 0.0001px and 0 of 69,408 line
   counts differing (0.1.1 rounded the advances to whole font units: up to 0.055px off, 11 line counts differing).
   For other instances the unrounded advance is checked against fontTools 4.62.1, exact: Inter Variable's `wght`,
   `opsz`+`wght` and standard (`opsz`+`wght`) latin files, 326 instances, 50 of them distinct `wght` values in the
@@ -461,8 +475,8 @@ The claim is scoped exactly so:
   `registerFont` throw a `RangeError` rather than being dropped as CSS would; an end past U+10FFFF is clamped to
   U+10FFFF, as in CSS.
 - **Variable fonts the stand-in does not unround.** A variable font with avar version 2, or without an HVAR table
-  (or with one that fails its structural checks), keeps HarfBuzz's own advances, rounded to whole font units: away
-  from the default instance each glyph can be up to ½ font unit off Chrome on macOS. A malformed HVAR never makes
+  (or with one that fails its structural checks), keeps HarfBuzz's own advances, rounded to whole font units: under
+  `platform: 'macos'`, away from the default instance each glyph can be up to ½ font unit off Chrome on macOS. A malformed HVAR never makes
   `measureText` throw.
 - **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
   so Pretext uses its Blink rules. WebKit and Gecko profiles are not supported.
@@ -472,7 +486,11 @@ The claim is scoped exactly so:
   Linux: 3,720 of 4,992 widths bit-exact (every Inter and Roboto one), max |Δ| 0.001862px; 0 headless-mismatch in
   71,818 line counts (178 pretext-gap). Windows: 3,842 bit-exact, max |Δ| 0.000427px; 0 headless-mismatch (179
   pretext-gap). So `install({ rounding: 'whole-px' })` is not needed on either with Chromium 149. These CI numbers
-  are 0.1.1's sweep, without Inter Variable: variable fonts are measured against Chromium on macOS only. An earlier
+  are 0.1.1's sweep, without Inter Variable. With Inter Variable, CI run
+  [37410732972](https://github.com/Z003Y89/pretext-kit/actions/runs/37410732972) found Chromium on Linux and Windows
+  equal to HarfBuzz's whole-unit rounding (the default instance exact), which `platform: 'linux'`/`'windows'` now
+  uses; `verify:headless` installs the platform of the OS it runs on and prints it. The option's own CI confirmation
+  on Linux and Windows: pending. An earlier
   independent Linux run on Chromium 141 (raw data not in the repository) gave the same tallies (EVALUATION §3).
 
 ### Install order

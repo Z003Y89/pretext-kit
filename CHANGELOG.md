@@ -17,8 +17,18 @@ Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; 
   wght 300-800 measured up to 0.055px off before (232 of 2,352 widths beyond 0.02px), with 11 line-count mismatches
   in 69,408; now max 0.000092px, 0 beyond 0.02px, and 0 mismatches (verify/HEADLESS_RESULTS.md). Default instances
   and static fonts measure as before.
-- **Limits of the fix.** Verified against Chromium for Inter Variable's `wght` axis only, on macOS only (CI's Linux
-  and Windows parity numbers are from 0.1.1's sweep, without the variable font). Beyond that, the unrounded advance is
+- **Headless: `install({ platform: 'macos' | 'windows' | 'linux' })`, default `'macos'`.** Chromium 149 on Linux and
+  Windows rounds a variable font's HVAR advance delta to whole font units, as HarfBuzz does; macOS keeps the
+  fraction. CI run 37410732972 measured it: with the unrounded advances the stand-in was off on both by exactly the
+  pre-fix macOS numbers (232 widths beyond 0.02px, max 0.055115px, 11 line-count headless-mismatches; the default
+  instance exact), i.e. Chromium there equals HarfBuzz's rounding. `'macos'` keeps the unrounded advances above;
+  `'windows'` and `'linux'` shape with HarfBuzz's own. The default is fixed, not `process.platform`, so tests give the
+  same widths on any machine. Static fonts and default instances measure the same under all three; the option is
+  independent of `rounding`; a value outside the three throws a `RangeError`; like the other options, a later
+  `install()` sets it again. `verify:headless` installs the platform of the OS it runs on and prints it in
+  HEADLESS_RESULTS.md. The option's own CI confirmation on Linux and Windows: pending.
+- **Limits of the fix.** Unrounded advances verified against Chromium for Inter Variable's `wght` axis only, on macOS
+  only; Linux and Windows measured equal to HarfBuzz's rounding by CI run 37410732972. Beyond that, the unrounded advance is
   exact against fontTools 4.62.1 for what `npm run verify:hvar` covers: Inter Variable's latin `wght`, `opsz`+`wght`
   and standard files, 326 instances (50 distinct `wght` values in the `wght` file), 168,868 glyph × instance pairs; nothing committed covers `wdth`. A font with avar
   version 2, or without HVAR, keeps HarfBuzz's whole-unit advances: away from the default instance each glyph can be
@@ -34,11 +44,12 @@ Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; 
   (`pip install fonttools==4.62.1 brotli`), on the Inter Variable files from the `@fontsource-variable/inter` 5.3.0
   devDependency, plus any font paths given on the command line.
 - **Parity sweep** plants a fourth mutant, "round variable-font advances" (0.1.2's fix undone): caught, 232 widths
-  beyond 0.02px and 11 line-count headless-mismatches, the pre-fix numbers.
+  beyond 0.02px and 11 line-count headless-mismatches, the pre-fix numbers. On Linux and Windows, where the stand-in
+  rounds, the mutant is its inverse, "unround variable-font advances" (`platform: 'macos'`'s advances forced).
 - **Parity sweep** now includes Inter Variable at 300-800: 7,344 widths (6,126 bit-exact, max 0.000427px) and
   141,226 line counts, 0 headless-mismatch (verify/HEADLESS_RESULTS.md). `node verify/stats.ts` counts a variable file
   once in its clustered units (instances share the file, HVAR store and code path): 310 string × face units, Wilson
-  upper 1.22%; 346 text × font units, 1.10%. `npm test`: 190 tests (90 + 100).
+  upper 1.22%; 346 text × font units, 1.10%. `npm test`: 194 tests (90 + 104).
 
 ## 0.1.1 (2026-10-06)
 
