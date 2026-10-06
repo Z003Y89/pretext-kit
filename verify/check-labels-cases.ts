@@ -140,19 +140,21 @@ function basis(policy: PolicyName, m: Measured): number {
 }
 
 // The pieces of a prepared text no line breaks under overflow-wrap: normal: Pretext's segments run between break
-// opportunities, and zero-width glue and controls, which hold none, join the text around them.
-export function unbreakablePieces(segments: string[], kinds: string[]): string[] {
-  const out: string[] = []
-  let piece = ''
+// opportunities, and zero-width glue and controls, which hold none, join the text around them. start: the piece's
+// first segment; end: the segment after it (a soft hyphen there paints a hyphen when the line breaks at it).
+export type Piece = { text: string, start: number, end: number }
+export function unbreakablePieces(segments: string[], kinds: string[]): Piece[] {
+  const out: Piece[] = []
+  let piece: Piece | null = null
   kinds.forEach((kind, i) => {
     const joins = kind === 'text' || kind === 'zero-width-glue' || kind === 'control'
     if ((kind === 'text' && kinds[i - 1] === 'text') || !joins) {
-      if (piece !== '') out.push(piece)
-      piece = ''
+      if (piece !== null) out.push({ ...piece, end: i })
+      piece = null
     }
-    if (joins) piece += segments[i]
+    if (joins) piece = piece === null ? { text: segments[i]!, start: i, end: i + 1 } : { ...piece, text: piece.text + segments[i] }
   })
-  if (piece !== '') out.push(piece)
+  if (piece !== null) out.push({ ...(piece as Piece), end: kinds.length })
   return out
 }
 

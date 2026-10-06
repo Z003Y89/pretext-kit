@@ -124,10 +124,13 @@ test('every mutant applies to the current src exactly once per edit', () => {
 })
 
 test('unbreakable pieces: segments of text split at every break, glue and controls joined, other kinds dropped', () => {
-  assert.deepEqual(unbreakablePieces(['Die', ' ', 'Benach', '\u00AD', 'richtigungen'], ['text', 'space', 'text', 'soft-hyphen', 'text']), ['Die', 'Benach', 'richtigungen'])
-  assert.deepEqual(unbreakablePieces(['Nebenrollen-', 'Takes'], ['text', 'text']), ['Nebenrollen-', 'Takes'])
-  assert.deepEqual(unbreakablePieces(['a', '\u200B', 'b', '\u0001', 'c'], ['text', 'zero-width-glue', 'text', 'control', 'text']), ['a\u200Bb\u0001c'])
-  assert.deepEqual(unbreakablePieces(['a', '\u200B', 'b', '\n', 'c'], ['text', 'zero-width-break', 'text', 'hard-break', 'text']), ['a', 'b', 'c'])
+  const texts = (segments: string[], kinds: string[]) => unbreakablePieces(segments, kinds).map(p => p.text)
+  assert.deepEqual(unbreakablePieces(['Die', ' ', 'Benach', '\u00AD', 'richtigungen'], ['text', 'space', 'text', 'soft-hyphen', 'text']), [
+    { text: 'Die', start: 0, end: 1 }, { text: 'Benach', start: 2, end: 3 }, { text: 'richtigungen', start: 4, end: 5 },
+  ])
+  assert.deepEqual(texts(['Nebenrollen-', 'Takes'], ['text', 'text']), ['Nebenrollen-', 'Takes'])
+  assert.deepEqual(unbreakablePieces(['a', '\u200B', 'b', '\u0001', 'c'], ['text', 'zero-width-glue', 'text', 'control', 'text']), [{ text: 'a\u200Bb\u0001c', start: 0, end: 5 }])
+  assert.deepEqual(texts(['a', '\u200B', 'b', '\n', 'c'], ['text', 'zero-width-break', 'text', 'hard-break', 'text']), ['a', 'b', 'c'])
   assert.deepEqual(unbreakablePieces([], []), [])
   assert.equal(policyKey('truncate end (normal)'), 'truncate-end-normal')
   assert.equal(policyKey('as-is'), 'as-is')

@@ -2,11 +2,11 @@
 // verify/dist/check-labels-page.js and served with its generated page. Two things per case, both independent of
 // src/check: the reference verdict, recomputed from the spec with the kit's own helpers on Pretext in this page
 // (real canvas), and what Chromium's DOM does with a real element styled as the slot.
-import { measureLineStats, measureNaturalWidth, prepareWithSegments, setLocale } from '@chenglou/pretext'
+import { layoutNextLineRange, measureLineStats, measureNaturalWidth, prepareWithSegments, setLocale } from '@chenglou/pretext'
 import { clamp, fitFontSize, prepareLabel, prepareSizes } from '../src/index.ts'
 import { FIT_TOLERANCE } from '../src/fit.ts'
 import { FAMILY, LINE_HEIGHT_RATIO, LINES, SHRINK_BY, TNUM_FAMILY, unbreakablePieces } from './check-labels-cases.ts'
-import type { PolicyName, Style, SweepCondition } from './check-labels-cases.ts'
+import type { Piece, PolicyName, Style, SweepCondition } from './check-labels-cases.ts'
 import type { PreparedTextWithSegments } from '@chenglou/pretext'
 
 export type LoadedFace = { family: string, status: string }
@@ -83,9 +83,22 @@ function fits(text: string, style: Style, px: number, spacing: number, width: nu
   return fitFontSize(sizes, { width, maxLines }, () => 0) !== null
 }
 
-// overflow-wrap: normal: whether a piece no break opportunity splits fails the kit's one-line fit test.
+// The width Pretext gives the line laid out from a piece at `width` when that line ends at the soft hyphen after
+// the piece (so the hyphen is painted), else null.
+function hyphenLine(prepared: PreparedTextWithSegments, piece: Piece, width: number): number | null {
+  if (prepared.kinds[piece.end] !== 'soft-hyphen') return null
+  const line = layoutNextLineRange(prepared, { segmentIndex: piece.start, graphemeIndex: 0 }, width)
+  return line !== null && line.end.segmentIndex === piece.end + 1 && line.end.graphemeIndex === 0 ? line.width : null
+}
+
+// overflow-wrap: normal: whether a piece no break opportunity splits fails the kit's one-line fit test, or, before
+// a soft hyphen, its line at the box ends there wider than the box (plus FIT_TOLERANCE).
 function pieceTooWide(prepared: PreparedTextWithSegments, style: Style, px: number, spacing: number, width: number): boolean {
-  return unbreakablePieces(prepared.segments, prepared.kinds).some(piece => !fits(piece, style, px, spacing, width, 1))
+  return unbreakablePieces(prepared.segments, prepared.kinds).some(piece => {
+    if (!fits(piece.text, style, px, spacing, width, 1)) return true
+    const hyphen = hyphenLine(prepared, piece, width)
+    return hyphen !== null && hyphen > width + FIT_TOLERANCE
+  })
 }
 
 function reference(c: PageCase, cond: SweepCondition): Ref {
@@ -242,8 +255,11 @@ if (typeof window !== 'undefined') {
           if (measureLineStats(prepared, mid / 64).lineCount <= LINES) hi = mid
           else lo = mid
         }
-        const widestPiece = Math.max(0, ...unbreakablePieces(prepared.segments, prepared.kinds).map(piece =>
-          measureNaturalWidth(prepareWithSegments(piece, fontAt(style, style.size * scale), opts))))
+        // Each piece's natural width, or with the hyphen its soft hyphen paints when the line breaks there.
+        const widestPiece = Math.max(0, ...unbreakablePieces(prepared.segments, prepared.kinds).map(piece => {
+          const alone = measureNaturalWidth(prepareWithSegments(piece.text, fontAt(style, style.size * scale), opts))
+          return Math.max(alone, hyphenLine(prepared, piece, alone) ?? 0)
+        }))
         return { natural, naturalMin, twoLines: Math.max(hi / 64, measureLineStats(prepared, 0).maxLineWidth), widestPiece }
       })
     },
