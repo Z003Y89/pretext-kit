@@ -668,8 +668,8 @@ even when it takes no more lines than allowed. `'as-is'`, `shrinkTo` and middle 
 ignore `overflowWrap`.
 
 **Near-miss.** With `nearMiss` set (px), a label that passes with less than that much slack is the warning
-`near-miss`, so a label that fits with 0.1px to spare, and breaks with the next font or locale change, shows up before
-it breaks. The slack is taken in the box the verdict used (`width − reserve`, scaled by text scale and zoom as above),
+`near-miss`, so a label that fits with 0.1px to spare, and can break with the next font or locale change, shows up
+before it does. The slack is taken in the box the verdict used (`width − reserve`, scaled by text scale and zoom as above),
 rounded to 1/64 px as the report is, and compared in the report's px (zoomed px under `zoom`):
 
 | policy | slack |
@@ -679,9 +679,16 @@ rounded to 1/64 px as the report is, and compared in the report's px (zoomed px 
 | `{ lines }`, `{ truncate: 'end' }` (not cut) | the box less the widest line, laid out as the verdict lays it out; under `overflowWrap: 'normal'` no less than the widest word |
 | a row (passing, or collapsed) | the row's width less its items and gaps at the stage it fits at (0, or the collapse stage) |
 
-A pass only within the 1/64 px tolerance has 0px to spare, the most fragile case, so it is always a near-miss when
-`nearMiss` is set. A failing verdict is never a near-miss, a near-miss is never a failure, and the label is checked
-(and counted in `checked`) once either way. A collapsed row can carry both its `row-collapsed` note and a `near-miss`.
+A pass only within the fit tolerance (Pretext's 0.005 px on one line; 1/64 px for `overflowWrap` words and rows) has 0px to spare, the most fragile case, so it is always a near-miss when `nearMiss` is set. A
+failing verdict is never a near-miss, a near-miss is never a failure, and the label is checked (and counted in
+`checked`) once either way. A label checked with a placeholder left in (`missing-sample`) gets no near-miss: its text
+is not what the app shows. A collapsed row can carry both its `row-collapsed` note and a `near-miss`.
+
+For `lines` and `truncate: 'end'` the slack is how far the box can shrink before the layout changes (a line takes a
+word or a letter less), not how far before the label fails: a text that would wrap again and still fit is flagged.
+„Speichern unter“ in `{ lines: 2 }` at its natural width less 0.004px still takes one line and is a near-miss with
+0px; at 0.006px less it wraps into two lines with room to spare and is none. In Pretext's model that is conservative:
+a near-miss never misses a real failure, it can flag a label that would still fit.
 
 Truncation is a warning because cutting is what the design asked for; `--strict` turns warnings into a failing exit.
 A code point the registered font does not cover is the failure `uncovered`, never a thrown error. `shrinkTo` tries the
@@ -837,12 +844,22 @@ note and is neither a failure nor a warning (so it is not in the counts).
   DOM 3 lines, Pretext 2). At a box exactly as wide as
   Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on boxes sized
   from a measured width, most of all for soft-hyphenated German and French.
-- **Near-miss slack is Pretext's.** The slack `nearMiss` is compared with is Pretext's width, so it carries the same
-  gaps: in the sweep's near-miss family (98,172 cases, `nearMiss: 2`) the checker's decision equals the reference's in
-  every case, and Chromium's free space falls on the other side of the margin in 1,565: 1,230 with soft-hyphenated
-  text (Chromium's slack −1.26 to +2.58px from Pretext's), the others a hyphen-minus compound Chromium sets up to 2.1px
-  narrower, one-line text and rows at text 130% · zoom 130% (up to 0.66px), and lines Chromium breaks differently
-  (−2.27 to +2.77px). Choose a margin wider than the gap you want to absorb.
+- **Near-miss slack is Pretext's.** The slack `nearMiss` is compared with is Pretext's width, so it carries Pretext's
+  gaps. In the sweep's near-miss family (98,172 cases, `nearMiss: 2`) the checker's decision and slack equal the
+  reference's in every case; for one-line text without soft hyphens at zoom 100% Chromium's slack is 0 to 1/64px less
+  than Pretext's, but for the compound below. Chromium's free space falls on the other side of the margin in 1,565 cases. The largest cause is
+  Pretext's width for the pieces of a word: a word broken mid-word (`overflowWrap: 'break-word'`) or at a soft hyphen
+  is measured as the sum of its pieces, without the kerning and ligatures between them („d’offres.“ breaks as „d’off“ /
+  „res.“ in Chromium too, and Pretext's „d’off“ is 1.6px wider: the `ff` ligature), and a hyphen-minus compound as its
+  two halves („Nebenrollen-Takes“ loses the `-T` kerning, 1.2px at 16px, 0.27 to 2.12px over the sweep). That makes
+  Pretext's line wider and its slack smaller, so the label is flagged sooner: the safe direction. The others:
+  soft-hyphenated one-line text (Chromium's slack −1.26 to +2.17px from Pretext's), soft-hyphenated lines Chromium
+  places differently, one-line text and rows under zoom (text 130% · zoom 130%: +0.26 to +0.66px; one shrinkTo case at
+  text 115% · zoom 130%, 1/32px less room), and 8 cases where Chromium breaks a line at another place („of library. If
+  you can't“ with a line 1/64px past the box, „unequally at birth.“). The comparison resolves 1/4px: the sweep's boxes
+  sit that far from the margin (CHECK_RESULTS.md, "Resolution"). Choose a margin wider than the gap you want to absorb.
+- **Near-miss for `lines` and `truncate: 'end'`** means the layout would change, not that the label would fail (see
+  [Policies](#policies)), so it can flag a label that would wrap again and still fit.
 - **`shrinkTo` is whole pixels** (`fitFontSize`'s): the checker tries the slot's size, whole pixels and the minimum, never a
   size between two whole pixels, so a design that shrinks continuously fits at sizes the checker does not try.
 - **`truncate: 'end'`** passes a single character (grapheme) wider than the box (an `W` in an 8px box): `clamp` flags

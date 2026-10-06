@@ -22,11 +22,11 @@ The label checker, and a fractional-size model for the headless Linux profile. `
   `truncated`, as Chromium cuts it with an ellipsis on its line of the clamp. `slotFromStyle` reads `overflow-wrap` and
   `word-break` from the computed style, so a slot it builds from plain CSS is `'normal'`, while a hand-written slot defaults to
   `'break-word'`.
-- **`nearMiss` margin** (px, off by default; `--near-miss <px>` on the command line). A label or row that passes with
+- **`nearMiss` margin** (px, off by default; `--near-miss <px>` on the command line, a plain decimal). A label or row that passes with
   less slack than the margin is the warning `near-miss` (so `--strict` fails on it), with `missing.px` the slack to
   spare: the box less the natural width (as-is, truncate middle), the width at the fitted size (shrinkTo), the widest
   line and, under `overflowWrap: 'normal'`, the widest word (lines, truncate end when not cut), or the row's total at
-  the stage it fits at. A pass only within the 1/64 px tolerance has 0px to spare. Off, reports are unchanged. Asked
+  the stage it fits at. A pass only within the fit tolerance (Pretext's 0.005 px on one line; 1/64 px for `overflowWrap` words and rows) has 0px to spare; a label checked with a missing sample gets none. Off, reports are unchanged. Asked
   for by CueFlow ('Buchungen' fitting with 0.1px to spare).
 - **`check-labels` command** (`bin`, `npx pretext-kit check-labels [--config] [--json] [--strict] [--platform] [--near-miss] [--help]`):
   exit 0, 1 on failures (or warnings with `--strict`), 2 on a usage or config error, including unusable `labels`, a

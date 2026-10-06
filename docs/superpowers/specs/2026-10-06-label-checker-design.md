@@ -136,7 +136,7 @@ failure with `--strict`), `missing.px` the slack, `measured` as for the pass. Th
 used: as-is and truncate 'middle', the box less the natural width; shrinkTo, less the width at the size it fits at (the
 slot's size or the one it shrank to); lines and truncate 'end' when not cut, less the widest line where the verdict lays
 the lines out (under `overflowWrap: 'normal'` no less than the widest word); a row that passes or collapses, the row box
-less its total at that stage. It is at least 0: a pass only within the 1/64 px tolerance is a near-miss with 0px. The
+less its total at that stage. It is at least 0: a pass only within the fit tolerance (Pretext's 0.005 px on one line; 1/64 px for `overflowWrap` words and rows) is a near-miss with 0px. For lines and truncate 'end' it is how far the box can shrink before the greedy layout changes, not before the label fails. A text checked with a missing sample gets no near-miss. The
 verdict is evaluated and counted in `checked` once; a failing verdict is never a near-miss; across platforms near-misses
 merge like other issues, with the smallest slack shown.
 An uncovered code point → `uncovered` (a failure: the app's font can't draw it), never a thrown error. Issues for
