@@ -1,27 +1,34 @@
 # Changelog
 
-## 0.1.2 — unreleased
+## 0.1.2 (2026-10-06)
 
-Headless variable fonts and split families; the rest of the helpers are unchanged.
+Headless variable fonts and split families; the browser-side helpers are unchanged.
 
 - **Headless: variable fonts away from the default instance.** HarfBuzz rounds a variable font's HVAR advance
   delta to whole font units; Chrome on macOS keeps the fraction. The stand-in now computes the unrounded advance
   (fvar, avar, hmtx, HVAR; the normalized coordinate as CoreText computes it) and hands it to HarfBuzz, and sums a
-  run's advances in 1/65536 px as Blink does. Inter Variable at wght 300-800 measured up to 0.055px off before, with
-  11 line-count mismatches in the parity sweep; now max 0.000092px and none. Default instances and static fonts
-  measure as before.
-  Limits: verified against Chromium for Inter Variable's `wght` axis only. Beyond that, the unrounded advance is
-  checked against fontTools 4.62.1, exact, for Inter Variable's latin `wght`, `opsz`+`wght` and standard files, 58
-  instances, 30044 glyph x instance (`npm run verify:hvar`; verify/HEADLESS_RESULTS.md); nothing committed covers
-  `wdth`, and a larger local check on a macOS system font is labelled local-only there. A font with avar version 2, without HVAR, or whose HVAR
-  is malformed keeps HarfBuzz's whole-unit advances (up to ½ font unit per glyph off), and a malformed HVAR never
-  makes `measureText` throw.
+  run's advances in 1/65536 px as Blink does. In the headless parity sweep on macOS (Chromium 149), Inter Variable at
+  wght 300-800 measured up to 0.055px off before (232 of 2,352 widths beyond 0.02px), with 11 line-count mismatches
+  in 69,408; now max 0.000092px, 0 beyond 0.02px, and 0 mismatches (verify/HEADLESS_RESULTS.md). Default instances
+  and static fonts measure as before.
+- **Limits of the fix.** Verified against Chromium for Inter Variable's `wght` axis only, on macOS only (CI's Linux
+  and Windows parity numbers are from 0.1.1's sweep, without the variable font). Beyond that, the unrounded advance is
+  exact against fontTools 4.62.1 for what `npm run verify:hvar` covers: Inter Variable's latin `wght`, `opsz`+`wght`
+  and standard files, 58 instances, 30,044 glyph × instance pairs; nothing committed covers `wdth`. A font with avar
+  version 2, or without HVAR, keeps HarfBuzz's whole-unit advances: away from the default instance each glyph can be
+  up to ½ font unit off Chrome on macOS.
+- **Malformed HVAR falls back.** An HVAR table that fails its structural checks is ignored and the font keeps
+  HarfBuzz's whole-unit advances, as above; it never makes `registerFont` or `measureText` throw.
 - **Headless: a family split across files by unicode-range** (`registerFont(family, data, { unicodeRange })`, the
   `@font-face` descriptor's syntax), as Fontsource ships its families: files may share a family, weight and style when
-  each has a range (overlaps resolve to the last registered, as in CSS) or their cmaps are disjoint.
+  each has a range (overlaps resolve to the last registered, as in CSS) or their cmaps are disjoint. The same file
+  registered twice with the same range is an error, as before.
 - **`verify:hvar`** (verify/hvar-fonttools.py, verify/hvar-fonttools.ts): the HVAR advances against fontTools 4.62.1
-  (`pip install fonttools==4.62.1 brotli`), on the Inter Variable files from the `@fontsource-variable/inter`
+  (`pip install fonttools==4.62.1 brotli`), on the Inter Variable files from the `@fontsource-variable/inter` 5.3.0
   devDependency, plus any font paths given on the command line.
+- **Parity sweep** now includes Inter Variable at 300-800: 7,344 widths (6,126 bit-exact, max 0.000427px) and
+  141,226 line counts, 0 headless-mismatch (verify/HEADLESS_RESULTS.md). `node verify/stats.ts` counts each variable
+  instance as a distinct face. `npm test`: 186 tests (90 + 96).
 
 ## 0.1.1 (2026-10-06)
 
