@@ -5,6 +5,8 @@ export type ParsedFont = {
   sizePx: number
   // The px size glyph advances are taken at, where a platform's differs from sizePx (canvas.ts sizedFor).
   advancePx?: number
+  // How glyph advances are rounded to 1/65536 px where a platform's differs from HarfBuzz's (canvas.ts sizedFor).
+  advanceRounding?: 'float32-trunc'
   families: string[]
 }
 
