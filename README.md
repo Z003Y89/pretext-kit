@@ -42,7 +42,7 @@ npm's `@chenglou/pretext` 0.0.9 predates the per-engine line breakers the kit is
 # Pretext's build is tsc alone; its other dev dependencies float (no npm lockfile) and, on 2026-10-05, no longer
 # resolve with `npm install` (oxlint peer conflict), so build with its pinned TypeScript directly:
 git clone https://github.com/chenglou/pretext && (cd pretext && git checkout f10d888 && npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json)
-git clone <this repo> pretext-kit && (cd pretext-kit && npm install && npm run build)
+git clone https://github.com/Z003Y89/pretext-kit && (cd pretext-kit && npm install && npm run build)
 npm install ./pretext ./pretext-kit
 npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
 ```

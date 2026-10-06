@@ -1,6 +1,6 @@
 {
   "name": "pretext-kit",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Exact text-sizing helpers built on Pretext",
   "license": "MIT",
   "repository": {
