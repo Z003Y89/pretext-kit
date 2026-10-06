@@ -94,20 +94,29 @@ export async function runCheck(input: CheckInput, env: CheckEnv): Promise<Report
   const byLocale = localeTexts(source)
   const rowKeys = new Set<string>()
   const unchecked = new Set<string>()
-  const rowPlans: { name: string; locale: string; texts: Map<string, string>; shown: string }[] = []
+  const rowPlans: { name: string; locale: string; texts: Map<string, string>; shown: string; blocked?: string }[] = []
   for (const [name, row] of Object.entries(rows)) {
     for (const item of row.items) {
+      if (!Object.hasOwn(slots, item.slot)) throw new RangeError(`row "${name}": item "${item.key}" uses unknown slot "${item.slot}"`)
       rowKeys.add(item.key)
       if (item.shortKey !== undefined) rowKeys.add(item.shortKey)
     }
     for (const [locale, messages] of byLocale) {
       const tries = new Map<string, string[]>()
+      let blocked: string | undefined
       for (const key of rowKeys) {
         const text = messages.get(key)
         if (text === undefined || !row.items.some((i) => i.key === key || i.shortKey === key)) continue
         const variants = fillSamples({ key, text, slot: '', locale }, input.samples)
-        if (variants.some((v) => v.issues.includes('unsupported-message'))) continue
+        if (variants.some((v) => v.issues.includes('unsupported-message'))) {
+          blocked ??= key
+          continue
+        }
         tries.set(key, variants.map((v) => v.text))
+      }
+      if (blocked !== undefined) {
+        rowPlans.push({ name, locale, texts: new Map(), shown: messages.get(blocked)!, blocked })
+        continue
       }
       if (!row.items.some((i) => tries.has(i.key))) continue
       const count = Math.max(...[...tries.values()].map((t) => t.length))
@@ -170,6 +179,10 @@ export async function runCheck(input: CheckInput, env: CheckEnv): Promise<Report
       for (const plan of rowPlans) {
         const row = rows[plan.name]!
         const base = { locale: plan.locale, key: plan.name, slot: plan.name, condition: condition.name, text: plan.shown }
+        if (plan.blocked !== undefined) {
+          add({ ...base, key: plan.blocked, kind: 'unsupported-message', measured: { width: 0, box: 0, lines: 0, fontPx: 0 } }, platform)
+          continue
+        }
         if (row.items.some((i) => prep.unverifiable.has(i.slot))) {
           add({ ...base, kind: 'unverifiable', measured: { width: 0, box: 0, lines: 0, fontPx: 0 } }, platform)
           continue

@@ -1,7 +1,8 @@
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { clearCache } from '@chenglou/pretext'
+import { clearFonts } from '../headless/fonts.ts'
 import { install, registerFont } from '../headless/index.ts'
+import { sharedState } from '../headless/shared.ts'
 import { fontFamilies, runCheck } from './run.ts'
 import type { CheckPlatform, CheckInput, FontSource, Report } from './types.ts'
 
@@ -10,19 +11,24 @@ export { slotFromStyle } from './style.ts'
 export type * from './types.ts'
 
 const TNUM = '"tnum" 1'
-const registered = new Set<string>()
 
 async function register(family: string, source: FontSource, data: Uint8Array, featureSettings: string | undefined): Promise<void> {
-  const id = JSON.stringify([family, source.weight, source.style, source.unicodeRange, featureSettings, createHash('sha1').update(data).digest('hex')])
-  try {
-    await registerFont(family, data, { weight: source.weight, style: source.style, unicodeRange: source.unicodeRange, featureSettings })
-    registered.add(id)
-  } catch (error) {
-    if (!registered.has(id)) throw error
-  }
+  await registerFont(family, data, { weight: source.weight, style: source.style, unicodeRange: source.unicodeRange, featureSettings })
 }
 
 export async function checkLabels(input: CheckInput): Promise<Report> {
+  const before = { ...sharedState().options }
+  clearFonts()
+  clearCache()
+  try {
+    return await check(input)
+  } finally {
+    Object.assign(sharedState().options, before)
+    clearCache()
+  }
+}
+
+async function check(input: CheckInput): Promise<Report> {
   const slots = typeof input.slots === 'function' ? await input.slots() : input.slots
   const tabular = new Set<string>()
   for (const [name, slot] of Object.entries(slots)) {

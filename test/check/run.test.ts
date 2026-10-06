@@ -70,19 +70,86 @@ test('switching platform inside one process needs the cache cleared', async () =
   assert.notEqual(at('linux', true), mac)
 })
 
-test('the report is the same on every run', async () => {
-  const input: CheckInput = {
-    fonts: [inter],
-    labels: { de: { a: 'Speichern unter', b: 'Abbrechen und schließen', c: 'Zahlungspflichtig' }, fr: { a: 'Enregistrer sous', b: 'Annuler' } },
-    slots: { s: tight({ uses: ['*'], policy: { truncate: 'end' } }), t: tight({ uses: ['a'], policy: { lines: 1 }, width: 30 }) },
-    conditions: [{ name: 'x' }, { name: 'y', zoom: 1.5 }],
+test('issues are ordered by slot, condition, locale, key and platform', async () => {
+  await registerFont('Probe3', new Uint8Array(readFileSync(variablePath)))
+  const width = (platform: 'macos' | 'linux') => {
+    install({ platform })
+    clearCache()
+    return measureNaturalWidth(prepareWithSegments(sample, '500 16px Probe3'))
   }
-  const first = JSON.stringify(await checkLabels(input))
-  const second = JSON.stringify(await checkLabels(input))
-  assert.equal(first, second)
-  const report = JSON.parse(first)
-  const order = [...report.failures, ...report.warnings].map((i: { slot: string }) => i.slot)
-  assert.deepEqual(order.filter((s: string) => s === 't'), order.filter((s: string) => s === 't').sort())
+  const mac = width('macos')
+  const linux = width('linux')
+  assert.ok(Math.abs(mac - linux) > 3 / 64)
+  const input: CheckInput = {
+    fonts: [inter, { family: 'Inter V', path: variablePath, weight: [100, 900] }],
+    labels: { en: { x: 'Save', 'v.k': sample }, de: { x: 'Speichern' } },
+    slots: {
+      b: tight({ width: 20, uses: ['x'] }),
+      v: { width: (mac + linux) / 2, font: '500 16px Inter V', policy: 'as-is', uses: ['v.k'] },
+      a: tight({ width: 20, uses: ['x'] }),
+    },
+    conditions: [{ name: 'c1' }, { name: 'c2', textScale: 1.3 }],
+  }
+  const report = await checkLabels(input)
+  const sequence = report.failures.map((i) => [i.slot, i.condition, i.locale, i.key, i.platforms[0]])
+  const split = mac > linux ? 'macos' : 'windows'
+  assert.deepEqual(sequence, [
+    ['a', 'c1', 'de', 'x', 'macos'],
+    ['a', 'c1', 'en', 'x', 'macos'],
+    ['a', 'c2', 'de', 'x', 'macos'],
+    ['a', 'c2', 'en', 'x', 'macos'],
+    ['b', 'c1', 'de', 'x', 'macos'],
+    ['b', 'c1', 'en', 'x', 'macos'],
+    ['b', 'c2', 'de', 'x', 'macos'],
+    ['b', 'c2', 'en', 'x', 'macos'],
+    ['v', 'c1', 'en', 'v.k', split],
+    ['v', 'c2', 'en', 'v.k', 'macos'],
+    ['v', 'c2', 'en', 'v.k', 'windows'],
+  ])
+  assert.equal(JSON.stringify(await checkLabels(input)), JSON.stringify(report))
+})
+
+test('each call starts from a clean font registry', async () => {
+  const roboto = new Uint8Array(readFileSync(fontFile('Roboto-Regular.ttf')))
+  const text = 'Zahlungspflichtig abonnieren'
+  const run = (fonts: CheckInput['fonts']) =>
+    checkLabels({ fonts, labels: [{ key: 'k', text, slot: 's' }], slots: { s: { width: 1, font: '400 16px Brand', policy: 'as-is' } }, platforms: ['linux'] })
+  const first = await run([{ family: 'Brand', data: roboto }])
+  const second = await run([{ family: 'Brand', path: variablePath, weight: [100, 900] }])
+  assert.notEqual(first.failures[0]?.measured.width, second.failures[0]?.measured.width)
+  const third = await run([{ family: 'Brand', data: roboto }])
+  assert.deepEqual(third, first)
+  const dropped = await run([{ family: 'Other', data: roboto }])
+  assert.equal(dropped.failures[0]?.kind, 'uncovered')
+})
+
+test('the caller keeps the install options it had', async () => {
+  install({ platform: 'windows', onMissingGlyph: 'notdef' })
+  await checkLabels({ fonts: [inter], labels: [], slots: {} })
+  const ctx = new OffscreenCanvas(1, 1).getContext('2d') as unknown as { font: string; measureText: (t: string) => { width: number } }
+  ctx.font = '16px Inter'
+  assert.ok(ctx.measureText('\u4fdd').width > 0)
+  install()
+})
+
+test('an ICU row item warns for its row and locale and the row is not evaluated', async () => {
+  const report = await checkLabels({
+    fonts: [inter],
+    labels: { en: { file: 'File', count: '{n, plural, one {# file} other {# files}}' } },
+    slots: { bar: { width: 9999, font: '16px Inter', policy: 'as-is' } },
+    rows: { top: { width: 1, gap: 0, items: [{ key: 'file', slot: 'bar' }, { key: 'count', slot: 'bar' }] } },
+    platforms: ['linux'],
+  })
+  assert.deepEqual(report.warnings.map((i) => [i.kind, i.slot, i.locale, i.key]), [['unsupported-message', 'top', 'en', 'count']])
+  assert.deepEqual(report.failures, [])
+  assert.equal(report.checked, 0)
+})
+
+test('a row item with an unknown slot throws even when no locale has its text', async () => {
+  await assert.rejects(
+    checkLabels({ fonts: [inter], labels: {}, slots: {}, rows: { top: { width: 100, gap: 0, items: [{ key: 'k', slot: 'ghost' }] } } }),
+    (e: Error) => e instanceof RangeError && /"top"/.test(e.message) && /"ghost"/.test(e.message),
+  )
 })
 
 test('a tabular slot measures 1111 and 0000 equally and a proportional slot does not', async () => {

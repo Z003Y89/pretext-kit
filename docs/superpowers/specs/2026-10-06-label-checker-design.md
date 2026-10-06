@@ -87,7 +87,7 @@ type Report = {
   schema: 1
   failures: Issue[], warnings: Issue[], notes: Issue[]        // notes: row-collapsed
   unchecked: string[]                                         // keys no slot or row uses
-  checked: number                                             // label × condition × platform verdicts
+  checked: number                                             // label and row verdicts, per condition and platform
 }
 // Stable: issues sorted by slot or row, condition, locale, key, platform; numbers rounded to 1/64 px; no
 // timestamps or paths. Two runs (before and after a font change) diff line by line.
