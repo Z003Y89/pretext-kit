@@ -47,7 +47,7 @@ export function fillSamples(label: Label, samples: CheckInput['samples']): Texts
   if (ICU.test(label.text)) return [{ text: '', issues: ['unsupported-message'] }]
   const names = [...label.text.matchAll(PLACEHOLDER)].map((m) => m[1])
   if (names.length === 0) return [{ text: label.text, issues: [] }]
-  const tries = samples?.[label.key]
+  const tries = samples !== undefined && Object.hasOwn(samples, label.key) ? samples[label.key] : undefined
   const sets = tries === undefined || tries.length === 0 ? [{}] : tries
   return sets.map((values: Record<string, string | number>) => {
     let missing = false
@@ -62,18 +62,29 @@ export function fillSamples(label: Label, samples: CheckInput['samples']): Texts
   })
 }
 
+function localeTag(locale: string): string | undefined {
+  if (locale === 'und') return undefined
+  try {
+    return Intl.getCanonicalLocales(locale.replaceAll('_', '-'))[0]
+  } catch {
+    return undefined
+  }
+}
+
 export function transformText(text: string, transform: Slot['textTransform'], locale: string): string {
-  const tag = locale === 'und' ? undefined : locale
+  const tag = localeTag(locale)
   if (transform === 'uppercase') return text.toLocaleUpperCase(tag)
   if (transform === 'lowercase') return text.toLocaleLowerCase(tag)
   if (transform !== 'capitalize') return text
+  const words = new Intl.Segmenter(tag, { granularity: 'word' })
+  const graphemes = new Intl.Segmenter(tag, { granularity: 'grapheme' })
   let out = ''
-  for (const { segment, isWordLike } of new Intl.Segmenter(tag, { granularity: 'word' }).segment(text)) {
+  for (const { segment, isWordLike } of words.segment(text)) {
     if (!isWordLike) {
       out += segment
       continue
     }
-    const first = new Intl.Segmenter(tag, { granularity: 'grapheme' }).segment(segment)[Symbol.iterator]().next().value
+    const first = graphemes.segment(segment)[Symbol.iterator]().next().value
     const head = first === undefined ? '' : first.segment
     out += head.toLocaleUpperCase(tag) + segment.slice(head.length)
   }

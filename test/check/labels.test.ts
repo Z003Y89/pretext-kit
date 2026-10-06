@@ -29,11 +29,11 @@ test('regex characters in a pattern are literal', () => {
 })
 
 test('unmatched keys are unchecked, sorted and de-duplicated', () => {
-  const r = normalizeLabels({ de: { menu: { open: 'Öffnen' } }, en: { menu: { open: 'Open' }, zed: 'z' } }, { s: slot(['toolbar.*']) })
+  const r = normalizeLabels({ en: { menu: { open: 'Open' }, zed: 'z' }, de: { menu: { open: 'Öffnen' } } }, { s: slot(['toolbar.*']) })
   assert.deepEqual(r.labels, [])
   assert.deepEqual(r.unchecked, ['de:menu.open', 'en:menu.open', 'en:zed'])
-  const twice = normalizeLabels([], {})
-  assert.deepEqual(twice, { labels: [], unchecked: [] })
+  const dup = normalizeLabels({ en: { 'a.b': 'x', a: { b: 'y' } } }, { s: slot(['toolbar.*']) })
+  assert.deepEqual(dup.unchecked, ['en:a.b'])
 })
 
 test('label arrays pass through', () => {
@@ -92,4 +92,27 @@ test('uppercase uses the locale', () => {
 test('capitalize upper-cases the first letter of each word', () => {
   assert.equal(transformText('save all changes', 'capitalize', 'en'), 'Save All Changes')
   assert.equal(transformText('iptal et', 'capitalize', 'tr'), 'İptal Et')
+})
+
+test('repeated placeholders are all replaced', () => {
+  const label: Label = { key: 'k', text: '{a} {a} {b}', slot: 's' }
+  assert.deepEqual(fillSamples(label, { k: [{ a: 1, b: 2 }] }), [{ text: '1 1 2', issues: [] }])
+  assert.deepEqual(fillSamples(label, { k: [{ a: 1 }] }), [{ text: '1 1 {b}', issues: ['missing-sample'] }])
+})
+
+test('inherited property names are not sample lists', () => {
+  for (const key of ['constructor', 'hasOwnProperty', 'valueOf']) {
+    assert.deepEqual(fillSamples({ key, text: '{n} x', slot: 's' }, {}), [{ text: '{n} x', issues: ['missing-sample'] }], key)
+  }
+})
+
+test('locale tags that are not BCP 47 never throw', () => {
+  assert.equal(transformText('iptal', 'uppercase', 'tr_TR'), 'İPTAL')
+  assert.equal(transformText('Straße', 'uppercase', 'en_US'), transformText('Straße', 'uppercase', 'en-US'))
+  for (const locale of ['', 'xx!!', 'pt_BR']) {
+    for (const t of ['uppercase', 'lowercase', 'capitalize'] as const) {
+      assert.doesNotThrow(() => transformText('save all', t, locale), `${locale} ${t}`)
+    }
+  }
+  assert.equal(transformText('save all', 'capitalize', 'en_US'), 'Save All')
 })
