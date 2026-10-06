@@ -81,7 +81,8 @@ test('textScale collapses earlier, zoom does not', () => {
   const box = full + 1
   assert.equal(run(rowOf(box), { name: 'a' }).stage, 0)
   const scaled = run(rowOf(box), { name: 'a', textScale: 1.3 })
-  assert.ok(scaled.stage > 0)
+  assert.equal(scaled.kind, 'row-collapsed')
+  assert.equal(scaled.stage, 3)
   near(scaled.box, box)
   const zoomed = run(rowOf(box), { name: 'a', zoom: 1.3 })
   assert.equal(zoomed.stage, 0)
@@ -144,4 +145,34 @@ test('misconfigured rows throw a RangeError naming the row', () => {
   assert.throws(() => run(rowOf(0)), (e: Error) => e instanceof RangeError && /row "bar"/.test(e.message))
   assert.throws(() => run(rowOf(500), { name: 'bad', zoom: 0 }), (e: Error) => e instanceof RangeError && /row "bar".*"bad"/.test(e.message))
   assert.throws(() => run(rowOf(500), { name: 'bad', textScale: -1 }), RangeError)
+})
+
+test('an uncovered character is an uncovered result, not a throw, and other items do not hide it', () => {
+  const map = new Map(texts)
+  map.set('help', 'Fertig ✅')
+  const r = run(rowOf(50), { name: 'c' }, map)
+  assert.equal(r.kind, 'uncovered')
+  assert.match(r.detail ?? '', /U\+2705/)
+  assert.equal(r.stage, 0)
+  assert.equal(r.width, 0)
+  assert.equal(r.box, 50)
+  map.set('edit.short', 'Edit ✅')
+  assert.equal(run(rowOf(full - 30), { name: 'c' }, map).kind, 'uncovered')
+})
+
+test('a row with every item text missing passes with width 0 and reports every key', () => {
+  const r = run(rowOf(100), { name: 'c' }, new Map())
+  assert.equal(r.kind, 'pass')
+  assert.equal(r.width, 0)
+  assert.deepEqual(r.skipped, ['file', 'edit', 'view', 'share', 'help'])
+})
+
+test('a bad gap or a non-finite box throws a RangeError naming the row and condition', () => {
+  const named = (e: Error) => e instanceof RangeError && /row "bar".*condition "c"/.test(e.message)
+  assert.throws(() => run({ ...rowOf(500), gap: -1 }), named)
+  assert.throws(() => run({ ...rowOf(500), gap: Number.NaN }), named)
+  assert.throws(() => run({ ...rowOf(500), gap: Infinity }), named)
+  assert.throws(() => run(rowOf(() => Number.NaN)), named)
+  assert.throws(() => run(rowOf(() => Infinity)), named)
+  assert.equal(run({ ...rowOf(9999), gap: 0 }).kind, 'pass')
 })

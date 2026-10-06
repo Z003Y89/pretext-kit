@@ -12,7 +12,7 @@ export type Verdict = {
   detail?: string
 }
 
-const round64 = (x: number): number => Math.round(x * 64) / 64
+export const round64 = (x: number): number => Math.round(x * 64) / 64
 const noHeight = (): number => 0
 
 function options(slot: ResolvedSlot): PrepareOptions {
@@ -48,6 +48,13 @@ function useLocale(locale: string): void {
   if (tag === lastLocale) return
   setLocale(tag)
   lastLocale = tag
+}
+
+// Matched by name: src/check must not import src/headless, which the browser entry stays free of.
+export function uncoveredDetail(error: unknown): string | null {
+  if (!(error instanceof Error) || error.name !== 'HeadlessCoverageError') return null
+  const codePoint = /U\+[0-9A-F]{4,6}/.exec(error.message)
+  return codePoint === null ? error.message : codePoint[0]
 }
 
 export function naturalWidth(text: string, slot: ResolvedSlot, locale: string): number {
@@ -147,9 +154,8 @@ export function evaluateLabel(text: string, slot: ResolvedSlot, locale: string):
   try {
     return judge(transformed, slot)
   } catch (error) {
-    // Matched by name: src/check must not import src/headless, which the browser entry stays free of.
-    if (!(error instanceof Error) || error.name !== 'HeadlessCoverageError') throw error
-    const codePoint = /U\+[0-9A-F]{4,6}/.exec(error.message)
-    return { kind: 'uncovered', measured: measured(slot, 0, 0, slot.sizePx), detail: codePoint === null ? error.message : codePoint[0] }
+    const detail = uncoveredDetail(error)
+    if (detail === null) throw error
+    return { kind: 'uncovered', measured: measured(slot, 0, 0, slot.sizePx), detail }
   }
 }
