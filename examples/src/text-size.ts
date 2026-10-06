@@ -1,5 +1,5 @@
 // text-size: an app-wide text-size setting (0.8–1.5×) on a screen of fixed width. The kit fits every
-// label again within the scaled range; the fixed-size CSS keeps its boxes and lets the text spill.
+// label again within the scaled range; the best-effort CSS keeps its boxes and lets the text spill.
 
 import { byId, columnWidth, createTimer, frameCost, setReadout, startPage } from './page.ts'
 import { createPair, cssFactsText } from './pair.ts'

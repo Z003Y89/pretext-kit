@@ -1,4 +1,4 @@
-// The kit's screen and the fixed-size CSS screen, side by side (or stacked when the page is narrow).
+// The kit's screen and the best-effort CSS screen, side by side (or stacked when the page is narrow).
 
 import { buildScreen, measureOverflow, paintCss, paintKit } from './screen.ts'
 import type { Fonts, Overflow, ScreenDom, ScreenLayout } from './screen.ts'

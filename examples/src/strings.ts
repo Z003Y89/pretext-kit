@@ -1,5 +1,5 @@
 // The app screen's strings in three languages. Real UI copy, not lorem ipsum: German compounds and
-// French phrases are what break fixed-size layouts in practice.
+// French phrases are what break plain layouts in practice.
 //
 // Both sides get the same strings. Soft hyphens enter in two places: German UI labels carry soft hyphens
 // written by hand at their compound joints (Tages|abschluss|bericht), where a German reader splits
