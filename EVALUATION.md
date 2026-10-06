@@ -45,7 +45,7 @@ Pretext agreeing with the browser at the widths or sizes the judgement needs; wh
 | C9 | `watchFonts` | On each `loadingdone` event with at least one face, calls Pretext's `clearCache()` and then the callback; never after unsubscribing. | unit tests only (stand-in `FontFaceSet`) |
 | C10 | `stack`, `findIndexAt`, `anchorDelta`; `shrinkwrapRich`, `balanceRich` | Arithmetic over heights and tops; the rich twins are C1/C2 over `measureRichInlineStats`. | unit tests only; **not browser-swept** |
 
-C9 and C10 rest on `npm test` alone (186 tests, 90 + 96, on a stand-in Canvas, §6), not on a browser. The sweep's
+C9 and C10 rest on `npm test` alone (190 tests, 90 + 100, on a stand-in Canvas, §6), not on a browser. The sweep's
 labels hold no white space that collapses, so `label.text` is the label as given there; the collapsed-text rule
 (and `keepEnd.from` indexing it, with doubled spaces, leading spaces and CRLF) is tested by `npm test` only.
 
@@ -124,7 +124,7 @@ recomputed from the corpora, non-pass counts from the listing), and prints the t
 intervals' upper ends, i.e. one-sided 97.5%: Wilson score (≈ 3.84/n at 0 failures for large n) and, beside it, exact
 Clopper-Pearson (≈ 3.69/n at 0; the "3.7/n" often quoted is this one). "Judged against the painting" counts every
 case that is neither pretext-gap nor unreliable, so it includes the 12,931 platform cases as judged and not failing.
-Logic tests: `npm test`, 186 tests (90 + 96, `node --test`; 160 in 0.1.1, 150 when the sweeps below were run, before the final
+Logic tests: `npm test`, 190 tests (90 + 100, `node --test`; 160 in 0.1.1, 150 when the sweeps below were run, before the final
 review's fixes added ten).
 
 ## 3. Results

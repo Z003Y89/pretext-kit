@@ -38,7 +38,7 @@ Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; 
 - **Parity sweep** now includes Inter Variable at 300-800: 7,344 widths (6,126 bit-exact, max 0.000427px) and
   141,226 line counts, 0 headless-mismatch (verify/HEADLESS_RESULTS.md). `node verify/stats.ts` counts a variable file
   once in its clustered units (instances share the file, HVAR store and code path): 310 string × face units, Wilson
-  upper 1.22%; 346 text × font units, 1.10%. `npm test`: 186 tests (90 + 96).
+  upper 1.22%; 346 text × font units, 1.10%. `npm test`: 190 tests (90 + 100).
 
 ## 0.1.1 (2026-10-06)
 
