@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { clearCache, measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
 import { checkLabels } from '../../src/check/index.ts'
 import { runCheck, tabularFont } from '../../src/check/run.ts'
@@ -9,7 +10,7 @@ import { install, registerFont } from '../../src/headless/index.ts'
 
 const fontFile = (name: string) => new URL(`../fonts/${name}`, import.meta.url)
 const inter = { family: 'Inter', data: new Uint8Array(readFileSync(fontFile('Inter-Regular.ttf'))) }
-const variablePath = new URL('../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2', import.meta.url).pathname
+const variablePath = fileURLToPath(new URL('../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2', import.meta.url))
 const ALL = ['macos', 'windows', 'linux']
 
 const tight = (more: Partial<Slot> = {}): Slot => ({ width: 40, font: '16px Inter', policy: 'as-is', ...more })
