@@ -1,8 +1,12 @@
 # Changelog
 
-## 0.2.0 — unreleased
+## 0.2.0 — 2026-10-06
 
-The label checker, and fractional-size models for the headless Linux and Windows profiles. `package.json` stays at 0.1.2 until the release.
+The label checker, and fractional-size models for the headless Linux and Windows profiles.
+
+Release assets: to be recorded after the maintainer's pack (RELEASING.md step 3): the SHA-256 of `chenglou-pretext-0.0.10-main.f10d888.tgz` and `pretext-kit-0.2.0.tgz`, with the Node and npm versions that packed them. `pretext-kit-0.2.0.sbom.cdx.json` has no fixed sum, because the SBOM records a timestamp and a random serial number.
+
+macOS: pending maintainer run (release gate rows 2 and 6).
 
 - **`pretext-kit/check` and `pretext-kit/check/browser`.** `checkLabels` checks every UI label against the slot it is
   shown in, per language, text scale, zoom and platform, with each slot's own policy (as-is, `shrinkTo`, `lines`,

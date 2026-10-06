@@ -1,7 +1,7 @@
 # Third-party notices
 
-What ships in, or is needed at runtime by, pretext-kit 0.1.2, and what the repository uses only for testing. A
-machine-readable CycloneDX SBOM of the packed package's runtime tree, `pretext-kit-0.1.2.sbom.cdx.json`, is built
+What ships in, or is needed at runtime by, pretext-kit 0.2.0, and what the repository uses only for testing. A
+machine-readable CycloneDX SBOM of the packed package's runtime tree, `pretext-kit-0.2.0.sbom.cdx.json`, is built
 beside the tarballs by `verify/pack-release.sh` and attached to the release. The SBOM is not byte-reproducible: it
 records a timestamp and a random serial number.
 
@@ -29,7 +29,7 @@ pretext-kit itself is [MIT](https://github.com/Z003Y89/pretext-kit/blob/main/LIC
 
 ## Test and example assets: not shipped
 
-None of these is in the npm tarball (`files` is `dist` and this file, plus npm's README, LICENSE and package.json); they are in the repository, or installed as
+None of these is in the npm tarball (`files` is `dist`, `bin` and this file, plus npm's README, LICENSE and package.json); they are in the repository, or installed as
 devDependencies, for the tests, the parity sweeps and the examples.
 
 | asset | licence | where |

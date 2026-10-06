@@ -45,12 +45,12 @@ pretext-kit is not on npm yet. Each [GitHub release](https://github.com/Z003Y89/
 tarballs, installed by URL with no npm account or registry publish involved: the kit, and the Pretext it needs.
 
 ```sh
-npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.2/pretext-kit-0.1.2.tgz
+npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.2.0/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.2.0/pretext-kit-0.2.0.tgz
 npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-kit/check and check-labels (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
 Check the downloads against the SHA-256 sums: `chenglou-pretext-0.0.10-main.f10d888.tgz` is
-`9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`; `pretext-kit-0.1.2.tgz`'s sum is in
+`9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`; `pretext-kit-0.2.0.tgz`'s sum is in
 [CHANGELOG.md](CHANGELOG.md) and the release notes, not here, because this README ships inside that tarball and so
 cannot hold its own hash. Both builds are reproducible in content: `npm run pack:release` from the tagged commits
 gives tarballs whose contents are identical file for file on any machine, and whose compressed bytes (and so sums)
