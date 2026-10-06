@@ -1,14 +1,14 @@
 # macOS evidence for the release gate (PROTOCOL.md §8 rows 2 and 6): verify:headless, verify:check and
 # verify:fractional on a macos-latest runner, laid out as ci.yml's parity job (this repository in pretext-kit/, chenglou/
-# pretext at the pinned commit in pretext/). A one-off measurement, since macOS minutes cost 10x: it runs on a pull
-# request only when this file changes, or by hand. A headless-mismatch or check-mismatch is the measurement, not a
-# failure: the sweep steps may fail without failing the job, and every result is printed to the job log and uploaded
-# as the artifact macos-parity-results.
+# pretext at the pinned commit in pretext/). Since macOS minutes cost 10x, it runs on a pull request only when this
+# file, the headless stand-in (src/headless) or the sweeps (verify) change, or by hand. A headless-mismatch or
+# check-mismatch is the measurement, not a failure: the sweep steps may fail without failing the job, and every result
+# is printed to the job log and uploaded as the artifact macos-parity-results.
 name: macOS parity
 
 on:
   pull_request:
-    paths: ['.github/workflows/macos-parity.yml']
+    paths: ['.github/workflows/macos-parity.yml', 'src/headless/**', 'verify/**']
   workflow_dispatch:
 
 permissions:
