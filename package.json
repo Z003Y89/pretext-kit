@@ -3,6 +3,9 @@
   "version": "0.1.2",
   "description": "Exact text-sizing helpers built on Pretext",
   "license": "MIT",
+  "bin": {
+    "pretext-kit": "bin/pretext-kit.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Z003Y89/pretext-kit.git"
@@ -35,6 +38,7 @@
   },
   "files": [
     "dist",
+    "bin",
     "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {

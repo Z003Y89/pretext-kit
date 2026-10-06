@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "failures": [
+    {
+      "locale": "de",
+      "key": "button.export",
+      "slot": "button",
+      "condition": "default",
+      "kind": "overflow",
+      "text": "Als Datei exportieren",
+      "measured": {
+        "width": 157.515625,
+        "box": 90,
+        "lines": 2,
+        "fontPx": 16
+      },
+      "missing": {
+        "px": 67.515625
+      },
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "locale": "en",
+      "key": "button.export",
+      "slot": "button",
+      "condition": "default",
+      "kind": "overflow",
+      "text": "Export as file",
+      "measured": {
+        "width": 98.6875,
+        "box": 90,
+        "lines": 2,
+        "fontPx": 16
+      },
+      "missing": {
+        "px": 8.6875
+      },
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    }
+  ],
+  "warnings": [
+    {
+      "locale": "de",
+      "key": "title.intro",
+      "slot": "title",
+      "condition": "default",
+      "kind": "truncated",
+      "text": "Willkommen zurück in Ihrem Arbeitsbereich",
+      "measured": {
+        "width": 328.640625,
+        "box": 200,
+        "lines": 1,
+        "fontPx": 16
+      },
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "locale": "en",
+      "key": "title.intro",
+      "slot": "title",
+      "condition": "default",
+      "kind": "truncated",
+      "text": "Welcome back to your workspace",
+      "measured": {
+        "width": 256.828125,
+        "box": 200,
+        "lines": 1,
+        "fontPx": 16
+      },
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "locale": "de",
+      "key": "toolbar",
+      "slot": "toolbar",
+      "condition": "default",
+      "text": "Speichern | Freigeben und Zusammenarbeiten",
+      "kind": "row-collapsed",
+      "measured": {
+        "width": 104.921875,
+        "box": 220,
+        "lines": 1,
+        "fontPx": 16,
+        "stage": 1
+      },
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    }
+  ],
+  "unchecked": [],
+  "checked": 30
+}
