@@ -10,7 +10,7 @@ The label checker, and a fractional-size model for the headless Linux profile. `
   `slotFromStyle` builds slots from computed styles and `conditionGrid` builds condition products. The Node entry runs
   on `pretext-kit/headless` (macOS, Windows and Linux profiles); the browser entry uses the page's own fonts and
   cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 375,564 cases, 0
-  check-mismatch, 7,434 pretext-gap, 7 of 7 planted bugs caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
+  check-mismatch, 7,292 pretext-gap, 7 of 7 planted bugs caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
   `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and
   `pretext-kit/check/browser` do not. Placeholders are `{name}` and `{{name}}`. README "Label checker" lists the limits,
   among them one call at a time (a call wipes fonts registered through `pretext-kit/headless`) and the gap at a box

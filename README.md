@@ -642,8 +642,9 @@ Each slot declares what its design does with a label that is too long. The box i
 
 A "word" under `overflowWrap: 'normal'` is the text between two of the browser's break opportunities (spaces, the break
 after a hyphen-minus, soft hyphens, CJK breaks; Pretext's own segmentation): an unbroken word paints at its natural
-width, so it fits when that width is at most the box plus 1/64 px, and a word ending at a soft hyphen fits only with the
-hyphen it paints when the line breaks there. The issue's `missing.px` is the widest failing word's width less the box,
+width, so it fits when that width is at most the box plus 1/64 px (lines are then counted and clamped at that width too,
+so such a word stays whole), and a word ending at a soft hyphen fits only with the hyphen it paints when the line breaks
+there. The issue's `missing.px` is the widest failing word's width less the box,
 `measured.width` that word's width, and its `detail` names the word. `measured.lines` on such an `overflow` is the line
 count Pretext gives at the box with words broken mid-word (`'break-word'`), not what the browser paints under
 `'normal'`, where the word stays whole and can take fewer lines. Under `'break-word'`
@@ -791,12 +792,14 @@ note and is neither a failure nor a warning (so it is not in the counts).
   which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart can differ by
   one 1/64 px step. The model was derived on Chromium 141, not 149; `opsz` on Linux is unmeasured.
 - **Text at a box exactly the measured width.** In the sweep (EVALUATION.md C11, verify/CHECK_RESULTS.md) 6,300 of the
-  7,434 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it, 12 are rows and 1,050 are `overflowWrap: 'normal'`
-  slots at the widest word's own width (all under zoom 130%, within about 1/16 zoomed px of it; none at zoom 100%).
-  Mostly, not only, soft-hyphenated text: 5,037 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle,
+  7,292 pretext-gaps sit at the exact boundary box, 72 at 1.1 times it, 12 are rows and 908 are `overflowWrap: 'normal'`
+  slots within 1/32 px of the widest word's own width (all under zoom 130%, none at zoom 100%), from two Chromium causes
+  the checker does not model: at text 130% · zoom 130% Chromium lays out the zoomed 20.8px like an unzoomed 27.02 to
+  27.03px, not 27.04px (322 per policy; the Linux fractional-size model covers sizes, not zoom), and it snaps zoomed slot,
+  icon and text widths to its 1/64 px layout grid. Mostly, not only, soft-hyphenated text: 5,027 involve soft hyphens (2,445 `nowrap` width cases (as-is, truncate middle,
   shrinkTo), where Chromium's text is wider than Pretext's natural width (for as-is at text 100% and zoom 100%, 0.125 to
-  0.828px, most often 0.25px; up to 1.23 zoomed px over all conditions), and 2,592 line-break cases (lines and truncate
-  end, with either `overflowWrap`), where Chromium breaks differently); the other 2,397 have none (English "Just tried":
+  0.828px, most often 0.25px; up to 1.23 zoomed px over all conditions), and 2,582 line-break cases (lines and truncate
+  end, with either `overflowWrap`), where Chromium breaks differently); the other 2,265 have none (English "Just tried":
   DOM 3 lines, Pretext 2). At a box exactly as wide as
   Pretext's width the checker can pass a label that overflows in the DOM. Leave slack of up to about 1px on boxes sized
   from a measured width, most of all for soft-hyphenated German and French.
