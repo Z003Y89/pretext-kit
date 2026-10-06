@@ -3,7 +3,7 @@
 How a release `v<version>` is cut (the steps are the same for every version). Nothing goes to the npm registry: the
 assets are attached to a GitHub release and installed by URL.
 
-1. **Prepare the commit.** `npm test`, `npm run check` and `npm run build` pass, CI is green on the commit, `version` in
+1. **Prepare the commit.** Every row of the release gate in PROTOCOL.md §8 holds on it. `npm test`, `npm run check` and `npm run build` pass, CI is green on the commit, `version` in
    package.json is the new version, and CHANGELOG.md has its dated entry.
 2. **Pack.** With `../pretext` holding chenglou/pretext at f10d888:
 
