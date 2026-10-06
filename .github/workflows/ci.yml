@@ -135,4 +135,6 @@ jobs:
         if: matrix.node == 24
         with:
           name: release-tarballs
-          path: pretext-kit/dist-release/*.tgz
+          path: |
+            pretext-kit/dist-release/*.tgz
+            pretext-kit/dist-release/*.sbom.cdx.json

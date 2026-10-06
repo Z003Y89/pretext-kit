@@ -4,6 +4,10 @@
 #   chenglou-pretext-0.0.10-main.f10d888.tgz  an UNOFFICIAL, labelled snapshot of chenglou/pretext main at f10d888,
 #                                             built for pretext-kit; not a release by Pretext's authors
 #   pretext-kit-<version>.tgz                 this package, `npm pack` (prepack rebuilds dist)
+#   pretext-kit-<version>.sbom.cdx.json       a CycloneDX SBOM of that tarball's runtime tree: the packed package
+#                                             unpacked, its devDependencies dropped, the Pretext snapshot and the
+#                                             optional peers (harfbuzzjs, wawoff2) installed, then
+#                                             `npm sbom --sbom-format cyclonedx --omit dev`
 #
 #   verify/pack-release.sh [--pretext=DIR] [--out=DIR]
 #
@@ -54,5 +58,18 @@ EOF
 
 echo "== pretext-kit"
 (cd "$root" && npm pack --pack-destination "$OUT")
+
+version="$(node -p "require('$root/package.json').version")"
+kit_tgz="$OUT/pretext-kit-$version.tgz"
+pretext_tgz="$OUT/chenglou-pretext-$SNAPSHOT_VERSION.tgz"
+echo "== SBOM of $kit_tgz"
+# Unpacked into a directory named pretext-kit, which npm sbom names the root component after.
+mkdir "$work/sbom"
+tar -xzf "$kit_tgz" -C "$work/sbom"
+mv "$work/sbom/package" "$work/sbom/pretext-kit"
+node -e "const f = require('node:fs'), p = process.argv[1], pkg = JSON.parse(f.readFileSync(p, 'utf8')); delete pkg.devDependencies; f.writeFileSync(p, JSON.stringify(pkg, null, 2))" "$work/sbom/pretext-kit/package.json"
+(cd "$work/sbom/pretext-kit" \
+  && npm install --no-save --no-audit --no-fund --ignore-scripts "$pretext_tgz" harfbuzzjs@1.6.2 wawoff2@2.0.1 \
+  && npm sbom --sbom-format cyclonedx --omit dev > "$OUT/pretext-kit-$version.sbom.cdx.json")
 
 ls -l "$OUT"
