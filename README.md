@@ -504,8 +504,9 @@ The claim is scoped exactly so:
   Both start from the size Blink keys the font by, the size in whole hundredths computed in float32 (10.15px becomes
   10.14px), by which HarfBuzz scales kerning. **Linux:** glyph advances at that size truncated to 1/64 px
   (`test/headless/fractional-size.test.ts`); derived and measured on Chromium 141.0.7390.37, and confirmed with
-  Chromium 149 in CI. **Windows:** each glyph advance is its font units times float32(size / upem), multiplied in
-  float32 and truncated to 1/65536 px (`test/headless/fractional-size-windows.test.ts`). Measured by `npm run
+  Chromium 149 in CI (run [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670),
+  `ubuntu-latest`: 1,464 of 1,464 widths exact). **Windows:** each glyph advance is its font units times
+  float32(size / upem), multiplied in float32 and truncated to 1/65536 px (`test/headless/fractional-size-windows.test.ts`). Measured by `npm run
   verify:fractional` on `windows-latest` with Chromium 149.0.7827.55 (CI run
   [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670)): 488 sizes × 3 strings, all 1,464
   widths exact, against 411 before the model. That is a fit exact on this data, not a derivation from Chromium's
@@ -839,8 +840,9 @@ note and is neither a failure nor a warning (so it is not in the counts).
 
 - **Platforms differ.** The three Chromium profiles measure differently (variable-font advances; fractional sizes on
   Linux and Windows), which is why an issue lists its platforms. Chromium only: no WebKit or Gecko profile.
-- **Fractional font sizes.** See [the headless limits](#the-claim-and-its-limits). `'linux'` (Chromium 141 and 149) and
-  `'windows'` (Chromium 149) model them, exact for the first use of a size in a page; `'macos'` measures at the size
+- **Fractional font sizes.** See [the headless limits](#the-claim-and-its-limits). `'linux'` (Chromium 141, and 149 in CI
+  run [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670)) and `'windows'` (Chromium 149)
+  model them, exact for the first use of a size in a page; `'macos'` measures at the size
   asked for, unmeasured. On Linux Chromium reuses the glyph metrics of a nearby fractional size measured earlier in
   the same page, which the stand-in does not model, so a page with two fractional sizes a few hundredths of a px apart
   can differ by one 1/64 px step; on Windows that reuse is unmeasured. The Windows model is exact on its data (static

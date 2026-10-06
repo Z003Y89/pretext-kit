@@ -38,7 +38,7 @@ The label checker, and fractional-size models for the headless Linux and Windows
 - **Headless: the `'linux'` profile models Chromium on Linux's fractional font sizes** (the size in float32 hundredths,
   advances at it truncated to 1/64 px; `src/headless/canvas.ts`, `test/headless/fractional-size.test.ts`). Derived and
   measured on Chromium 141, exact for the first use of a size in a page; Chromium's reuse of glyph metrics between
-  nearby fractional sizes later in a page is not modelled. Confirmed with Chromium 149 in CI.
+  nearby fractional sizes later in a page is not modelled. Confirmed with Chromium 149 in CI (run https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670, `ubuntu-latest`: 1,464 of 1,464 widths exact).
 - **Headless: the `'windows'` profile models Chromium on Windows's fractional font sizes** (the size in float32
   hundredths, as on Linux, by which HarfBuzz scales kerning; each glyph advance its font units times float32(size /
   upem), multiplied in float32 and truncated to 1/65536 px; `src/headless/canvas.ts`,
