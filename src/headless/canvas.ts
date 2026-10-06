@@ -290,7 +290,9 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
     buffer.addCodePoints(context, runStart - start, runEnd - runStart)
     buffer.guessSegmentProperties()
     if (shaping.language !== null) buffer.setLanguage(shaping.language)
-    shape(font, buffer, shaping.features)
+    // The face's @font-face features come first, so the context's kern and liga switches override them.
+    const features = runFace.features.length === 0 ? shaping.features : [...runFace.features.map(f => new Feature(f.tag, f.value)), ...shaping.features]
+    shape(font, buffer, features)
     const infos = buffer.getGlyphInfos()
     const positions = buffer.getGlyphPositions()
     let run = 0

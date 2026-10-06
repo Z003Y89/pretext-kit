@@ -15,7 +15,12 @@ export type FaceOptions = {
   // when each has a unicodeRange, or when their cmaps are disjoint. Where ranges overlap, the file
   // registered last draws the code point, as CSS checks the last-defined @font-face rule first.
   unicodeRange?: string
+  // The @font-face font-feature-settings descriptor ('"tnum" 1, "ss01"'; a bare tag means 1, 'normal'
+  // none). Canvas applies these beneath its own kern and liga switches, as Blink does.
+  featureSettings?: string
 }
+
+export type FontFeature = { tag: string; value: number }
 
 export type FaceAxis = { tag: string; min: number; default: number; max: number }
 
@@ -28,6 +33,7 @@ export type FontFace = {
   axes: FaceAxis[]
   // The unicode-range as sorted, inclusive [first, last] pairs; null is all of Unicode.
   unicodeRange: [number, number][] | null
+  features: FontFeature[]
   // The HarfBuzz face of the copy of this module that registered it; read others through hbFace().
   face: Face
   // The sfnt bytes and collection index, so another copy of this module (with its own HarfBuzz
@@ -152,6 +158,25 @@ export function parseUnicodeRange(value: string): [number, number][] {
   return ranges.sort((a, b) => a[0] - b[0])
 }
 
+const featureRe = /^"([\x20-\x7E]{4})"(?:\s+(on|off|\d+))?$/
+
+// Parses a CSS font-feature-settings value into tag/value pairs; 'normal' is none. Invalid syntax
+// throws a RangeError, as an unrecognised unicodeRange does.
+export function parseFeatureSettings(value: string): FontFeature[] {
+  if (value.trim().toLowerCase() === 'normal') return []
+  const features: FontFeature[] = []
+  for (const raw of value.split(',')) {
+    const token = raw.trim()
+    const match = featureRe.exec(token)
+    if (match === null) {
+      throw new RangeError(`registerFont: featureSettings ${JSON.stringify(value)} has an invalid feature ${JSON.stringify(token)}`)
+    }
+    const setting = match[2]
+    features.push({ tag: match[1]!, value: setting === undefined || setting === 'on' ? 1 : setting === 'off' ? 0 : parseInt(setting, 10) })
+  }
+  return features
+}
+
 function inRanges(ranges: [number, number][], codePoint: number): boolean {
   for (let i = 0; i < ranges.length; i++) if (codePoint >= ranges[i]![0] && codePoint <= ranges[i]![1]) return true
   return false
@@ -221,7 +246,8 @@ export async function registerFont(family: string, data: Uint8Array, face?: Face
   }
 
   const unicodeRange = face?.unicodeRange === undefined ? null : parseUnicodeRange(face.unicodeRange)
-  const entry: FontFace = { family, weightMin, weightMax, style, upem: hb.upem, axes, unicodeRange, face: hb, data: sfnt, index }
+  const features = face?.featureSettings === undefined ? [] : parseFeatureSettings(face.featureSettings)
+  const entry: FontFace = { family, weightMin, weightMax, style, upem: hb.upem, axes, unicodeRange, features, face: hb, data: sfnt, index }
   // Several files share a family, weight and style only as CSS lets them: each with its
   // unicode-range, or drawing disjoint code points, so a second copy of one file is still an error.
   // Where only one of the two has a unicode-range, it draws only the code points of its cmap inside
