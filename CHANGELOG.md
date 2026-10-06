@@ -1,13 +1,15 @@
 # Changelog
 
-## 0.1.1 (unreleased)
+## 0.1.1 (2026-10-06)
 
 Packaging and platform coverage; no change to the helpers' behaviour.
 
-Release assets (SHA-256; both tarballs rebuild byte for byte with `npm run pack:release`, see verify/RELEASING.md):
+Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2). `npm run pack:release` rebuilds them
+with contents identical file for file on any machine, and with identical compressed bytes (and so sums) when the
+same Node and npm versions pack them; gzip output differs across Node/zlib versions. See verify/RELEASING.md.
 
 - `chenglou-pretext-0.0.10-main.f10d888.tgz`: `9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`
-- `pretext-kit-0.1.1.tgz`: `c0830cd21f08ecb3e8649739b86cf84dad3439084fed6886cb5c0f42e15e8824`
+- `pretext-kit-0.1.1.tgz`: `e3c85d131d683083f11dc5232b354903a9f10d53aa58e340c2703b9cd2312b45`
 - `pretext-kit-0.1.1.sbom.cdx.json`: no fixed sum, because the SBOM records a timestamp and a random serial number.
 
 - **Release tarballs.** Each GitHub release carries `pretext-kit-0.1.1.tgz` and
@@ -29,12 +31,14 @@ Release assets (SHA-256; both tarballs rebuild byte for byte with `npm run pack:
 - **Licences and SBOM.** THIRD_PARTY_NOTICES.md lists what ships, what is needed at runtime and the test-only
   fonts (not shipped). `verify/pack-release.sh` also writes `pretext-kit-0.1.1.sbom.cdx.json`, a CycloneDX 1.5 SBOM
   of the packed package's runtime tree (`npm sbom --sbom-format cyclonedx --omit dev`).
-- **Linux headless parity, independently reported**: one run on Chromium 141 under Xvfb (not the pinned 149; raw
-  data not in the repository) agreed with macOS (EVALUATION §3).
+- **Headless parity on Linux and Windows**, measured by CI run https://github.com/Z003Y89/pretext-kit/actions/runs/37407438278 with Chromium 149: Linux 3,720/4,992
+  widths bit-exact, max 0.001862px, 0 headless-mismatch in 71,818 line counts; Windows 3,842/4,992, max 0.000427px,
+  0 headless-mismatch. No whole-px rounding needed on either. An earlier independent Linux run on Chromium 141 gave
+  the same tallies (EVALUATION §3).
 - **Variable fonts: known limitation, not fixed.** A headless sweep of Inter Variable found only the default
   instance within the 0.02px bar (non-default instances up to 0.055px off, 11 line-count mismatches): the stand-in
   rounds interpolated advances to whole font units. Documented in README and EVALUATION §8; the sweep is held on the
-  branch `v0.1.1-variable-font`.
+  branch `v0.1.1-variable-font`; the fix is landing in 0.1.2.
 - **`verify:headless`** runs off macOS (the results file names the OS it ran on) and takes `--headless` for
   machines with no display (Playwright's headless Chromium, named as such in the results file).
 

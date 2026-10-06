@@ -11,7 +11,7 @@ claims, the confidence bounds, the threats to validity and the known limitations
 
 - **`pretext-kit/headless`**: Pretext and every helper in Node, vitest, jest (jsdom too) and CI, shaping your own
   font files with HarfBuzz, so "does „Zahlungspflichtig abonnieren“ fit this button at 160px?" becomes a unit test.
-  Against Chromium on macOS with the same font files: every Inter and Roboto width bit-exact, and of 71,818 line
+  Against Chromium on macOS, Linux and Windows with the same font files: every Inter and Roboto width bit-exact, and of 71,818 line
   counts none differing from Pretext inside Chromium. Registered fonts and Chromium's rules only
   ([the claim and its limits](#the-claim-and-its-limits)).
 
@@ -45,8 +45,10 @@ npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optio
 Check the downloads against the SHA-256 sums: `chenglou-pretext-0.0.10-main.f10d888.tgz` is
 `9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`; `pretext-kit-0.1.1.tgz`'s sum is in
 [CHANGELOG.md](CHANGELOG.md) and the release notes, not here, because this README ships inside that tarball and so
-cannot hold its own hash. Both builds are reproducible: `npm run pack:release` from the tagged commits gives the
-same bytes (checked with npm 11.4.2 by packing twice). [verify/RELEASING.md](verify/RELEASING.md) is the release
+cannot hold its own hash. Both builds are reproducible in content: `npm run pack:release` from the tagged commits
+gives tarballs whose contents are identical file for file on any machine, and whose compressed bytes (and so sums)
+are identical when packed with the same Node and npm versions; gzip output differs across Node/zlib versions. The
+release ships tarballs packed with Node 24.4.1 and npm 11.4.2. [verify/RELEASING.md](verify/RELEASING.md) is the release
 procedure.
 
 **The Pretext tarball is an unofficial, labelled snapshot, not a release by Pretext's authors.** The kit needs Pretext
@@ -56,7 +58,7 @@ against, and Pretext has not released since. `chenglou-pretext-0.0.10-main.f10d8
 built with Pretext's pinned TypeScript; only its `package.json` differs: version `0.0.10-main.f10d888`, a description
 saying it is an unofficial snapshot, and no install or pack scripts. Its LICENSE (MIT) and README are Pretext's.
 `verify/pack-release.sh` rebuilds both tarballs (and the release's CycloneDX SBOM) from the two repositories, and `verify/consumer-smoke.mjs` installs
-them into a fresh project and runs the kit there (CI is configured to do both on every push). When Pretext publishes 0.0.10, install
+them into a fresh project and runs the kit there (CI does both on every push). When Pretext publishes 0.0.10, install
 it from npm instead and drop the snapshot.
 
 Or build from source, the route the evaluation used:
@@ -76,8 +78,7 @@ is the first release with the line breakers above. The `-0` admits 0.0.10's prer
 `0.0.10-main.f10d888` satisfies it, as will a future 0.0.10, while npm's stale 0.0.9 does not. (A build from `main`
 still says 0.0.9, which npm does not check for the folder installs above.) The optional peers are `harfbuzzjs`
 `^1.6.2` and `wawoff2` `^2.0.1` (1.6.2 and 2.0.1 are the versions verified). The package declares Node `>=22`: CI
-is configured to run the tests on Node 22 and 24 on Linux, Windows and macOS, and the consumer smoke test on Node 22
-and 24 (results pending its first run); locally, Node 22.23.3 passed both. Running
+runs the tests on Node 22 and 24 on Linux, Windows and macOS, and the consumer smoke test on Node 22 and 24. Running
 the repository's own TypeScript tests needs Node 22.18 or later, where type stripping is on by default.
 
 ## When CSS is enough
@@ -412,7 +413,7 @@ A runnable version is `examples/vitest-label-fit.test.ts`.
 
 ### The claim and its limits
 
-On macOS Chrome, for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas, and
+On Chrome (Chromium 149 measured on macOS, Linux and Windows), for code points covered by the registered fonts, `measureText` widths equal Chrome's Canvas, and
 Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. Measured twice:
 
 - **Parity sweep** (`npm run verify:headless`, [verify/HEADLESS_RESULTS.md](verify/HEADLESS_RESULTS.md)), Chromium
@@ -425,7 +426,7 @@ Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. M
 The sweep launches Chromium headed, as users see it. `npm run verify:headless -- --headless` uses Playwright's
 headless Chromium instead, for machines with no display, and says so in HEADLESS_RESULTS.md: on the Mac above it gave
 the same widths and 0 headless-mismatch, but 179 pretext-gaps rather than 176, as headless Chromium's page wraps three
-more lines differently (so CI is configured to run headed, under xvfb on Linux).
+more lines differently (so CI runs headed, under xvfb on Linux).
 
 The claim is scoped exactly so:
 
@@ -445,20 +446,18 @@ The claim is scoped exactly so:
   default instance matches Chromium: Inter Variable (`@fontsource-variable/inter`) at 400 is bit-exact, while 300 and
   500-800 differ by up to 0.055px and changed 11 of 69,408 line counts on macOS Chromium 149. The stand-in rounds each
   glyph's interpolated advance to whole font units and Chromium does not (EVALUATION §8). Register static instance
-  files for other weights until that is fixed.
+  files for other weights. This is the 0.1.1 behaviour; the fix is landing in 0.1.2.
 - **Weights.** A weight with no matching registered face (600 or 700 with only a Regular file) silently measures the
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
 - **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
   so Pretext uses its Blink rules. WebKit and Gecko profiles are not supported.
-- **Platforms.** Parity is claimed for macOS Chrome only. Since 0.1.1, CI is configured to measure it on Linux
-  (FreeType) and Windows (DirectWrite) too: the `parity` job runs the same sweep, headed, on `ubuntu-latest` (under
-  xvfb) and `windows-latest` with Node 24, and uploads each run's HEADLESS_RESULTS.md as the artifact
-  `headless-results-<os>`. A headless-mismatch there is recorded, not treated as a CI failure. Linux: one
-  independent run on Chromium 141 (not the pinned 149; raw data not in the repository) agreed: every Inter and
-  Roboto width bit-exact, max |Δ| 0.0019px, 0 headless-mismatch in 71,818 line counts, so for Chromium 141 on Linux
-  `install({ rounding: 'whole-px' })` is not needed (EVALUATION §3). That one run does not make Linux a claimed
-  platform. CI results: **[PLACEHOLDER, to be filled from the first CI run: the Linux and Windows widths (cases,
-  exact, max |Δ|) and line counts (headless-mismatch, pretext-gap), and whether either platform is now claimed.]**
+- **Platforms.** Parity is measured for Chromium 149 on macOS (locally), Linux and Windows (CI run
+  [37407438278](https://github.com/Z003Y89/pretext-kit/actions/runs/37407438278), artifacts `headless-results-ubuntu-latest` and `headless-results-windows-latest`). The
+  `parity` job runs the same sweep, headed, on `ubuntu-latest` (under xvfb) and `windows-latest` with Node 24.
+  Linux: 3,720 of 4,992 widths bit-exact (every Inter and Roboto one), max |Δ| 0.001862px; 0 headless-mismatch in
+  71,818 line counts (178 pretext-gap). Windows: 3,842 bit-exact, max |Δ| 0.000427px; 0 headless-mismatch (179
+  pretext-gap). So `install({ rounding: 'whole-px' })` is not needed on either with Chromium 149. An earlier
+  independent Linux run on Chromium 141 (raw data not in the repository) gave the same tallies (EVALUATION §3).
 
 ### Install order
 

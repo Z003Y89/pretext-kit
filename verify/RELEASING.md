@@ -11,8 +11,12 @@ and installed by URL.
    npm run pack:release      # dist-release/: the Pretext snapshot, pretext-kit-<version>.tgz, the CycloneDX SBOM
    ```
 
-3. **Verify the hashes.** `shasum -a 256 dist-release/*.tgz` must equal the sums in CHANGELOG.md. The build is
-   reproducible: packing again from the same commit gives the same bytes. The kit's sum lives in CHANGELOG.md and the
+3. **Verify the hashes.** `shasum -a 256 dist-release/*.tgz` must equal the sums in CHANGELOG.md when packed with the
+   Node and npm versions CHANGELOG names (0.1.1: Node 24.4.1, npm 11.4.2). With other versions the sums differ, since
+   gzip output differs across Node/zlib versions, but the contents are identical file for file: compare
+   `tar -xzf` of both instead. For 0.1.1:
+   `9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`  chenglou-pretext-0.0.10-main.f10d888.tgz and
+   `e3c85d131d683083f11dc5232b354903a9f10d53aa58e340c2703b9cd2312b45`  pretext-kit-0.1.1.tgz. The kit's sum lives in CHANGELOG.md and the
    release notes, not in README.md, because README.md ships inside the tarball and so cannot hold its own hash; edit
    README.md first, then pack, then record the sum. The SBOM has no fixed sum, because it records a timestamp and a
    random serial number.
