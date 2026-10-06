@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Rebuilds the evaluation's evidence from fresh clones: clones pretext-kit and Pretext at pinned commits side by
 # side, builds Pretext, installs the kit's locked dependencies and Playwright's pinned browsers, then runs the logic
-# tests, the type check, the browser sweep and the headless parity sweep, and compares the sweep's tallies with the
-# committed verify/RESULTS.md. It does not rerun the bench, the mutation tests (node verify/mutants.ts) or
+# tests, the type check, the browser sweep, the headless parity sweep and the label checker's oracle sweep, and
+# compares the sweep's tallies with the committed verify/RESULTS.md. It does not rerun the bench, the mutation tests (node verify/mutants.ts) or
 # verify/stats.ts's bounds, and it can only reproduce on a Mac like the one the results were recorded on.
 #
 #   verify/reproduce.sh [--dir=DIR] [--kit-repo=PATH_OR_URL] [--kit-commit=SHA] [--sweep=chromium@1]
@@ -74,6 +74,9 @@ else
 fi
 step compare node verify/stats.ts --compare-log="$LOGS/verify.log" --results="$LOGS/RESULTS.committed.md"
 step verify-headless npm run verify:headless
+# The label checker's oracle sweep (verify/CHECK_RESULTS.md): headed Chromium, the checker on this OS's platform.
+# PW_CHROMIUM, if set in the environment, picks the Chromium executable; on Linux run the script under xvfb-run.
+step verify-check npm run verify:check
 
 echo
 echo "== tallies"
@@ -82,10 +85,12 @@ grep -E '^(chromium|webkit|firefox)@[0-9.]+ \w+: [0-9]+ cases' "$LOGS/verify.log
 grep -E '^(FAIL|kit-mismatch) ' "$LOGS/verify.log" | head -20
 tail -n 1 "$LOGS/compare.log"
 grep -E '^(widths|lines): |^mutant |^FAIL' "$LOGS/verify-headless.log"
+grep -E 'check-mismatch|pretext-gap|^mutant |^FAIL' "$LOGS/verify-check.log" | head -20
 if [ "$SWEEP" = all ]; then
   echo "RESULTS.md written by this run differs from the committed one in:"; git diff --stat -- verify/RESULTS.md verify/results verify/baseline.json
 fi
 echo "HEADLESS_RESULTS.md written by this run differs from the committed one in:"; git diff --stat -- verify/HEADLESS_RESULTS.md
+echo "CHECK_RESULTS.md written by this run differs from the committed one in:"; git diff --stat -- verify/CHECK_RESULTS.md
 echo
 if [ ${#failed[@]} -gt 0 ]; then echo "failed steps: ${failed[*]}"; exit 1; fi
 echo "all steps passed"

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.0 — unreleased
+
+The label checker, and a fractional-size model for the headless Linux profile. `package.json` stays at 0.1.2 until the release.
+
+- **`pretext-kit/check` and `pretext-kit/check/browser`.** `checkLabels` checks every UI label against the slot it is
+  shown in, per language, text scale, zoom and platform, with each slot's own policy (as-is, `shrinkTo`, `lines`,
+  `truncate`), rows with collapse stages, and a stable, diffable report (failures, warnings, notes, unchecked keys);
+  `slotFromStyle` builds slots from computed styles and `conditionGrid` builds condition products. The Node entry runs
+  on `pretext-kit/headless` (macOS, Windows and Linux profiles); the browser entry uses the page's own fonts and
+  cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 208,740 cases, 0
+  check-mismatch, 5,260 pretext-gap, 6 of 6 planted bugs caught (verify/CHECK_RESULTS.md); not yet run on macOS or Windows.
+  README "Label checker" lists the limits, among them one call at a time (a call wipes fonts registered through
+  `pretext-kit/headless`) and soft-hyphenated text at the exact boundary.
+- **`check-labels` command** (`bin`, `npx pretext-kit check-labels [--config] [--json] [--strict] [--platform]`):
+  exit 0, 1 on failures (or warnings with `--strict`), 2 on a usage or config error; label files by its own minimal glob.
+- **Headless: `featureSettings` on `registerFont`**, the `@font-face` descriptor (`"tnum" 1`), so tabular digits can be
+  measured; the checker uses it for slots with `numeric: 'tabular'`.
+- **Headless: the `'linux'` profile models Chromium on Linux's fractional font sizes** (the size in float32 hundredths,
+  advances at it truncated to 1/64 px; `src/headless/canvas.ts`, `test/headless/fractional-size.test.ts`). Derived and
+  measured on Chromium 141, exact for the first use of a size in a page; Chromium's reuse of glyph metrics between
+  nearby fractional sizes later in a page is not modelled. `'macos'` and `'windows'` are unchanged.
+- **`verify:check`** (verify/check-labels.ts) in CI on Linux and Windows, uploading CHECK_RESULTS.md as
+  `check-results-<os>` without failing the build on a check-mismatch, as for the parity sweep.
+
 ## 0.1.2 (2026-10-06)
 
 Headless variable fonts and split families; the browser-side helpers are unchanged.
