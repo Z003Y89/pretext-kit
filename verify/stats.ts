@@ -298,11 +298,19 @@ function report(): void {
   console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × family × weight (8 cases each)', wUnits, wMiss))
   // Distinct string × face pairs: a requested weight with no face of its own measures the face CSS matching picks
   // (Chromium synthesises bold from it; the stand-in uses the nearest), so it is not a separate unit.
+  // A variable face ("as 100 900") is a face at every weight it is measured at: each instance is a distinct unit.
   const faces = new Map<string, number[]>()
-  for (const m of hr.matchAll(/ as (\d+) "([^"]+)"/g)) faces.set(m[2]!, [...(faces.get(m[2]!) ?? []), Number(m[1])])
-  const nStrings = Number(/^(\d+) strings × \d+ families × weights ([\d/]+)/m.exec(hr)?.[1])
-  const weights = (/^\d+ strings × \d+ families × weights ([\d/]+)/m.exec(hr)?.[1] ?? '').split('/').map(Number)
-  if (faces.size === 0 || !(nStrings > 0) || weights.length === 0) throw new Error('HEADLESS_RESULTS.md: fonts or strings not found')
+  const variable = new Set<string>()
+  for (const m of hr.matchAll(/ as (\d+)( \d+)? "([^"]+)"/g)) {
+    if (m[2] !== undefined) variable.add(m[3]!)
+    else faces.set(m[3]!, [...(faces.get(m[3]!) ?? []), Number(m[1])])
+  }
+  const sweep = /^(\d+) strings × \d+ families × weights ([\d/]+)(?: \(([^:]+): ([\d/]+)\))?/m.exec(hr)
+  const nStrings = Number(sweep?.[1])
+  const weights = (sweep?.[2] ?? '').split('/').map(Number)
+  const variableWeights = (sweep?.[4] ?? '').split('/').filter(x => x !== '').map(Number)
+  for (const fam of variable) faces.set(fam, variableWeights)
+  if (faces.size === 0 || !(nStrings > 0) || weights.length === 0 || (variable.size > 0 && variableWeights.length === 0)) throw new Error('HEADLESS_RESULTS.md: fonts or strings not found')
   // CSS font matching: at or below 500 the nearest lighter face first, above 500 the nearest heavier first.
   const faceFor = (have: number[], want: number): number => {
     const sorted = [...have].sort((x, y) => x - y)
@@ -319,7 +327,7 @@ function report(): void {
   }
   let distinct = 0
   for (const [fam, have] of faces) {
-    for (const face of new Set(weights.map(x => faceFor(have, x)))) distinct += nStrings - (skipped.get(`${fam}|${face}`)?.size ?? 0)
+    for (const face of new Set((variable.has(fam) ? variableWeights : weights).map(x => faceFor(have, x)))) distinct += nStrings - (skipped.get(`${fam}|${face}`)?.size ?? 0)
   }
   console.log(unitRow(`widths within ${w[5]}px of Chromium's Canvas`, 'string × distinct face', distinct, wMiss))
   console.log(`| line count equal to Pretext in Chromium (judged: not pretext-gap or unreliable) | case | ${lJudged} | ${lMis} | ${pct(wilsonUpper(lMis, lJudged))} | ${pct(clopperPearsonUpper(lMis, lJudged))} |`)

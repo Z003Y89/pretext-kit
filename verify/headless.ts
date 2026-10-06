@@ -666,7 +666,13 @@ const md: string[] = [
     `- ${r.m.name}, e.g. ${r.example!.c.font} / ${r.example!.c.corpus} "${r.example!.c.label}" @ ${r.example!.width}px: Node ${r.example!.node}, Chromium-Pretext ${r.example!.chrome}`),
   '',
 ]
-writeFileSync(join(here, 'HEADLESS_RESULTS.md'), md.join('\n'))
+// The fontTools section is written by hand from `npm run verify:hvar`, not by this sweep: keep it as it stands.
+const resultsPath = join(here, 'HEADLESS_RESULTS.md')
+const hvarHeading = '\n## Variable-font advances against fontTools\n'
+let previous = ''
+try { previous = readFileSync(resultsPath, 'utf8') } catch {}
+const hvarAt = previous.indexOf(hvarHeading)
+writeFileSync(resultsPath, md.join('\n') + (hvarAt === -1 ? '' : previous.slice(hvarAt)))
 console.log('wrote verify/HEADLESS_RESULTS.md')
 console.log(`widths: ${widthCases.length} cases, ${widthResult.exact} exact, max ${px(widthResult.max)}px, ${widthResult.misses.length} misses`)
 console.log(`lines: ${lineResults.length} cases, ${mismatches} headless-mismatch, ${count(lineResults, 'pretext-gap')} pretext-gap, ${count(lineResults, 'unreliable')} unreliable`)
