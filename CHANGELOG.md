@@ -11,7 +11,7 @@ The label checker, and fractional-size models for the headless Linux and Windows
   on `pretext-kit/headless` (macOS, Windows and Linux profiles); the browser entry uses the page's own fonts and
   cannot check tabular digits (`unverifiable`). Oracle sweep on Linux, Chromium 141.0.7390.37: 473,736 cases (375,564
   verdict cases and 98,172 near-miss cases), 0 check-mismatch, 10,255 pretext-gap (7,292 and 2,963), 8 of 8 planted bugs
-  caught (verify/CHECK_RESULTS.md); the same tallies on Linux in CI with Chromium 149; on Windows in CI (Chromium
+  caught (verify/CHECK_RESULTS.md); the same tallies on Linux in CI with Chromium 149 (run https://github.com/Z003Y89/pretext-kit/actions/runs/37493529824); on Windows in CI (Chromium
   149.0.7827.55, run https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670) 0 check-mismatch, 12,424
   pretext-gap, 8 of 8 caught. Not yet run on macOS.
   `pretext-kit/check` and the CLI need the optional peer `harfbuzzjs` (and `wawoff2` for WOFF2 fonts); the root entry and

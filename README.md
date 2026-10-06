@@ -897,8 +897,8 @@ note and is neither a failure nor a warning (so it is not in the counts).
   stand-in installed afterwards. Await each call before the next; use `fonts` rather than `registerFont` beforehand.
 - **The CLI's glob is its own** and minimal: `*`, `**` and `?`; it skips dot entries and `node_modules`.
 - **Not in this version:** ICU plural/select expansion, CSS parsing, WebKit and Gecko profiles, React Native.
-- **Evidence.** The sweep, with Inter Regular only, ran on Linux (Chromium 141 in a container, and Chromium 149 in CI:
-  0 check-mismatch, 10,255 pretext-gap each) and on Windows in CI (Chromium 149, run
+- **Evidence.** The sweep, with Inter Regular only, ran on Linux (Chromium 141 in a container, and Chromium 149 in CI, run
+  [37493529824](https://github.com/Z003Y89/pretext-kit/actions/runs/37493529824): 0 check-mismatch, 10,255 pretext-gap each) and on Windows in CI (Chromium 149, run
   [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670): 0 check-mismatch, 12,424
   pretext-gap). It has not been run on macOS, so the `'macos'` verdicts are unverified; run `npm run verify:check` on a
   Mac to measure them. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
