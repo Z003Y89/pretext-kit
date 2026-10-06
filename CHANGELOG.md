@@ -25,6 +25,10 @@ Packaging and platform coverage; no change to the helpers' behaviour.
   run's advances in 1/65536 px as Blink does. Inter Variable at wght 300-800 measured up to 0.055px off before, with
   11 line-count mismatches in the parity sweep; now max 0.000092px and none. Default instances and static fonts
   measure as before.
+  Limits: verified against Chromium for Inter Variable's `wght` axis only (several axes, `opsz` and `wdth` are
+  checked against fontTools, exact, not against Chromium); a font with avar version 2, without HVAR, or whose HVAR
+  is malformed keeps HarfBuzz's whole-unit advances (up to ½ font unit per glyph off), and a malformed HVAR never
+  makes `measureText` throw.
 - **Headless: a family split across files by unicode-range** (`registerFont(family, data, { unicodeRange })`, the
   `@font-face` descriptor's syntax), as Fontsource ships its families: files may share a family, weight and style when
   each has a range (overlaps resolve to the last registered, as in CSS) or their cmaps are disjoint.

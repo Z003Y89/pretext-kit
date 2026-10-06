@@ -436,9 +436,14 @@ The claim is scoped exactly so:
 - **Weights.** A weight with no matching registered face (600 or 700 with only a Regular file) silently measures the
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
 - **Variable fonts and split families.** A variable font is shaped at the requested weight on its `wght` axis
-  (and `opsz`, `wdth`), with advances unrounded as Chrome on macOS has them. A family your CSS splits into several
+  (and `opsz`, `wdth`), with its advances unrounded, as Chrome on macOS keeps them. That is verified against Chromium
+  for Inter Variable's `wght` axis only; instances on several axes, or on `opsz` or `wdth`, are checked against
+  fontTools (exact) but not against Chromium. A family your CSS splits into several
   files by `unicode-range` (Fontsource does) is registered file by file, each with the same range:
   `registerFont('Inter Variable', data, { unicodeRange: 'U+0000-00FF,U+0131,…' })`.
+- **Variable fonts the stand-in does not unround.** A variable font with avar version 2, or without an HVAR table
+  (or with one that fails its structural checks), keeps HarfBuzz's own advances, rounded to whole font units: away
+  from the default instance each glyph can be up to ½ font unit off Chrome on macOS.
 - **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
   so Pretext uses its Blink rules. WebKit and Gecko profiles are not supported.
 - **Platforms.** Parity is claimed for macOS Chrome only. Since 0.1.1, CI measures it on Linux (FreeType; whole-px
