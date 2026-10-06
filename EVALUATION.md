@@ -328,7 +328,7 @@ are in the table above; their causes are in §6 and §8.
 ### Label checker (C11)
 
 From `npm run verify:check` (`verify/check-labels.ts`), recorded in `verify/CHECK_RESULTS.md`: 2026-10-06, pretext-kit
-at 43d01a5, which is not in the published history: the sweep was rerun on the final code after the review fixes (src/check and src/headless changed after 0a55e12, where it was first run: labels grouped by locale, duplicate samples planned once, font-feature edge cases, CLI robustness) with the same totals, and `git diff 0a55e12 7a6d38d -- src verify/check-labels*.ts test` showed `src` unchanged and the harness unchanged except 3 lines in `verify/check-labels-cases.ts` (`applyEdit` matches mutant sources on LF endings, commit 2b27623; no change to what is measured) and one test file modified for it (`test/check/sweep-cases.test.ts`, 12 lines; none added); Chromium 141.0.7390.37 (Playwright 1.61.0, headed on an X display, executable from `PW_CHROMIUM`), Pretext
+at 79a4b05, which is not in the published history: the sweep was rerun on the final code after the review fixes (src/check and src/headless changed after 0a55e12, where it was first run: labels grouped by locale, duplicate samples planned once, font-feature edge cases, CLI robustness) with the same totals, and `git diff 0a55e12 7a6d38d -- src verify/check-labels*.ts test` showed `src` unchanged and the harness unchanged except 3 lines in `verify/check-labels-cases.ts` (`applyEdit` matches mutant sources on LF endings, commit 2b27623; no change to what is measured) and one test file modified for it (`test/check/sweep-cases.test.ts`, 12 lines; none added); Chromium 141.0.7390.37 (Playwright 1.61.0, headed on an X display, executable from `PW_CHROMIUM`), Pretext
 0.0.9 (f10d888), harfbuzzjs 1.6.2, Node v22.22.0, Linux 6.18.44-fc-v70 x64; the checker is `checkLabels` in Node with
 `platforms: ['linux']`, font Inter-Regular.ttf registered as "CK Inter". This is not the maintainer's Mac and not the
 Chromium 149 the other sections use (§6).
@@ -577,7 +577,7 @@ before paint), not speed. The kit and the DOM baselines agreed on every height a
 ## 7. Reproduction
 
 ```sh
-verify/reproduce.sh                        # everything: about 25 minutes with the browsers cached (before the label checker's step, which took 89 s of Chromium and 83 s of checker runs on the machine in CHECK_RESULTS.md)
+verify/reproduce.sh                        # everything: about 25 minutes with the browsers cached (before the label checker's step, which took 94 s of Chromium and 80 s of checker runs on the machine in CHECK_RESULTS.md)
 verify/reproduce.sh --sweep=chromium@1     # the browser sweep in Chromium at factor 1 only: about 3 minutes
 ```
 
@@ -608,7 +608,7 @@ per-case listing `verify/dist/check-cases.md` and `verify/dist/check-results.jso
 `check-cases.md` with `CHECK_RESULTS.md` and `check-run.log` as `check-results-<os>`), and exits non-zero on any
 check-mismatch or uncaught mutant. Expected, on the recorded environment: `208740 cases: 0 check-mismatch, 5260 pretext-gap,
 0 excluded, 203480 pass`, six mutants caught (43,024 / 68,122 / 704 / 27,719 / 36 / 134 check-mismatches); the run took
-Chromium 89 s and the checker runs 83 s. On another OS, platform or Chromium the tallies differ and that is the measurement (§6);
+Chromium 94 s and the checker runs 80 s. On another OS, platform or Chromium the tallies differ and that is the measurement (§6);
 a Windows or macOS run has not been recorded. The unit tests are `npm run test:check`.
 
 **Continuous integration** (`.github/workflows/ci.yml`, since 0.1.1) lays the two repositories out the same way and

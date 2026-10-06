@@ -1,12 +1,12 @@
 # Label checker oracle sweep results
 
-Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit 43d01a5.
+Run on 2026-10-06 by `npm run verify:check` (verify/check-labels.ts), pretext-kit 79a4b05.
 
 - Chromium 141.0.7390.37 (Playwright 1.61.0, headed on X display :99, executable /opt/pw-browsers/chromium from PW_CHROMIUM), `<html lang="en">`, each slot `lang` its label's locale
 - Pretext 0.0.9 (../pretext f10d888); harfbuzzjs 1.6.2
 - Node v22.22.0, Linux 6.18.44-fc-v70, x64
 - checker: `checkLabels` in Node, `platforms: ['linux']` (this OS's), font Inter-Regular.ttf from test/fonts registered as "CK Inter"
-- Chromium 89s; checker runs (control and 6 mutants, 4 at a time) 83s
+- Chromium 94s; checker runs (control and 6 mutants, 4 at a time) 80s
 
 ## Method
 
