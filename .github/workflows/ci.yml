@@ -1,0 +1,138 @@
+# CI for pretext-kit. Every job lays the repositories out as verify/reproduce.sh does: this repository in pretext-kit/
+# and chenglou/pretext at the pinned commit in pretext/ beside it (the kit's devDependency is file:../pretext), with
+# Pretext built by its pinned TypeScript (its own `npm install` no longer resolves; see README, Install).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  PRETEXT_COMMIT: f10d888c0f3dfc5877fbca5e4570ee04111e7001
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: pretext-kit
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: pretext-kit
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: chenglou/pretext
+          ref: ${{ env.PRETEXT_COMMIT }}
+          path: pretext
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Build Pretext (pinned tsc)
+        working-directory: pretext
+        run: npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run check
+
+  # Headless parity (verify/HEADLESS_RESULTS.md) off macOS. A headless-mismatch here is the measurement, not a CI
+  # failure: the sweep step may fail without failing the workflow, and its results are uploaded either way.
+  parity:
+    name: parity (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: pretext-kit
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: pretext-kit
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: chenglou/pretext
+          ref: ${{ env.PRETEXT_COMMIT }}
+          path: pretext
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Build Pretext (pinned tsc)
+        working-directory: pretext
+        run: npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      # Headed, as on macOS: Linux has no display, so the headed Chromium runs under a virtual X server.
+      - name: verify:headless (Linux, headed under xvfb)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: xvfb-run -a npm run verify:headless 2>&1 | tee verify/headless-run.log
+      - name: verify:headless (Windows, headed)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: npm run verify:headless 2>&1 | tee verify/headless-run.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: headless-results-${{ matrix.os }}
+          path: |
+            pretext-kit/verify/HEADLESS_RESULTS.md
+            pretext-kit/verify/headless-run.log
+          if-no-files-found: warn
+
+  # The release tarballs, packed as verify/pack-release.sh packs them for a release, installed into a fresh project.
+  consumer-smoke:
+    name: consumer smoke (ubuntu-latest, node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: pretext-kit
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: pretext-kit
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: chenglou/pretext
+          ref: ${{ env.PRETEXT_COMMIT }}
+          path: pretext
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Build Pretext (pinned tsc)
+        working-directory: pretext
+        run: npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json
+      - run: npm ci --no-audit --no-fund
+      - name: Pack both tarballs
+        run: bash verify/pack-release.sh --pretext=../pretext
+      - name: Install them into a fresh project and run the smoke script
+        run: node verify/consumer-smoke.mjs dist-release/chenglou-pretext-0.0.10-main.f10d888.tgz dist-release/pretext-kit-*.tgz
+      - uses: actions/upload-artifact@v7
+        if: matrix.node == 24
+        with:
+          name: release-tarballs
+          path: pretext-kit/dist-release/*.tgz
