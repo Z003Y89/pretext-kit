@@ -8,7 +8,7 @@
 > recording, run `npm install && npx playwright install chromium webkit firefox && npm run bench` from the
 > repository root, and leave the Mac untouched for about 15 minutes (this run's length).
 
-Run on 2026-10-05 by `npm run bench` (verify/bench-run.ts, verify/bench.ts), kit at 4854056 2026-10-05 with uncommitted changes,
+Run on 2026-10-05 by `npm run bench` (verify/bench-run.ts, verify/bench.ts), kit at c7db50a 2026-10-05 with uncommitted changes,
 Pretext 0.0.9 at f10d888 2026-10-05, Playwright 1.61.0.
 Machine: Apple M2, 8 cores, 16 GB RAM; macOS 14.6.1 (23G93), Darwin 23.6.0.
 

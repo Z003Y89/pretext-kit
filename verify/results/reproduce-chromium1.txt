@@ -1,4 +1,4 @@
-pretext-kit 4165a35 from <kit-repo>; Pretext f10d888c0f3dfc5877fbca5e4570ee04111e7001; into <dir>; sweep: chromium@1
+pretext-kit 4f43610 from <kit-repo>; Pretext f10d888c0f3dfc5877fbca5e4570ee04111e7001; into <dir>; sweep: chromium@1
 macOS 14.6.1 arm64, node v24.4.1, npm 11.4.2
 == pretext-clone: git clone --quiet https://github.com/chenglou/pretext.git <dir>/pretext
    ok (<dir>/logs/pretext-clone.log)
@@ -8,7 +8,7 @@ macOS 14.6.1 arm64, node v24.4.1, npm 11.4.2
    ok (<dir>/logs/pretext-build.log)
 == kit-clone: git clone --quiet <kit-repo> <dir>/pretext-kit
    ok (<dir>/logs/kit-clone.log)
-== kit-checkout: git -C <dir>/pretext-kit checkout --quiet 4165a35
+== kit-checkout: git -C <dir>/pretext-kit checkout --quiet 4f43610
    ok (<dir>/logs/kit-checkout.log)
 == npm-ci: npm ci --no-audit --no-fund
    ok (<dir>/logs/npm-ci.log)

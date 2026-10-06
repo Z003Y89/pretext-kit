@@ -289,9 +289,9 @@ are in the table above; their causes are in §6 and §8.
 (this checkout's `src` is never edited; the worktree is removed at the end), and runs `npm test` and a reduced sweep:
 Chromium at factor 1, the affected helpers only (`node verify/run.ts --only=chromium --factors=1 --helpers=…`, which
 writes no RESULTS.md and never touches the baseline). An unmutated control run comes first and must have no
-kit-mismatch. Its output, run at 18db330, is committed as `verify/results/mutants.txt`; the control gave every
-helper's tally as in RESULTS.md and `npm test` passing. The rows from 18db330 predate the four labels added below and the
-truncateMiddle fix (7c71815), so their truncateMiddle counts are over 56,496 cases of the earlier code, not 61,632.
+kit-mismatch. Its output, run at 79908ea, is committed as `verify/results/mutants.txt`; the control gave every
+helper's tally as in RESULTS.md and `npm test` passing. The rows from 79908ea predate the four labels added below and the
+truncateMiddle fix (5d108be), so their truncateMiddle counts are over 56,496 cases of the earlier code, not 61,632.
 
 | planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |
 |---|---|---:|---:|---:|---|
@@ -307,8 +307,8 @@ truncateMiddle fix (7c71815), so their truncateMiddle counts are over 56,496 cas
 | FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | fitFontSize | 161616 | 0 (not caught here) | 161312 | fails (2 failing) |
 | FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | clamp | 808080 | 267 | 807241 | fails (2 failing) |
 | FIT_TOLERANCE removed (0 instead of 1/64) (subtle) | truncateMiddle | 56496 | 74 | 56422 | fails (2 failing) |
-| cuts at code points, not grapheme clusters (subtle), rerun at 43a53af | clamp | 808080 | 43 | 807460 | fails (1 failing) |
-| cuts at code points, not grapheme clusters (subtle), rerun at 43a53af | truncateMiddle | 61632 | 128 | 61501 | fails (1 failing) |
+| cuts at code points, not grapheme clusters (subtle), rerun at 5dee1bf | clamp | 808080 | 43 | 807460 | fails (1 failing) |
+| cuts at code points, not grapheme clusters (subtle), rerun at 5dee1bf | truncateMiddle | 61632 | 128 | 61501 | fails (1 failing) |
 | fontFromStyle drops italic (subtle) | fontFromStyle | 180 | 4 | 176 | fails (2 failing) |
 | fontFromStyle drops letter spacing (subtle) | fontFromStyle | 180 | 4 | 176 | fails (3 failing) |
 
@@ -329,8 +329,8 @@ everywhere, and the zeros are findings:
   split emoji or accent is visible, this was closed: a unit test cuts labels with ZWJ families, flags, skin tones,
   decomposed accents and Hangul jamo at many widths and checks both cuts against `Intl.Segmenter`
   (`test/middle.test.ts`); the sweep checks both cuts against its own `Intl.Segmenter` (a cut inside a grapheme is a
-  kit-mismatch); and four such labels joined the path corpus (`verify/corpora.ts`). Rerun at 43a53af, the mutant is
-  caught by 128 truncateMiddle cases and the new unit test (the same at 8f3aa2e, after the fix below); the rows above are that run's
+  kit-mismatch); and four such labels joined the path corpus (`verify/corpora.ts`). Rerun at 5dee1bf, the mutant is
+  caught by 128 truncateMiddle cases and the new unit test (the same at b96cf7f, after the fix below); the rows above are that run's
   (`verify/results/mutants.txt` notes the replaced ones). The full sweep was rerun with the four labels (§3).
 - **The new labels found a kit bug.** In WebKit 26.5 the Hangul jamo label in Georgia and Times New Roman at
   80-84px (18 cases over the three factors) came back as `한….txt`, 84.30 and 84.84px wide by Pretext's own
@@ -341,7 +341,7 @@ everywhere, and the zeros are findings:
 - **fontFromStyle dropping italic, or letter spacing**, is caught by the variant cases (4 each), and only by them.
 
 **One mutant escaped the sweep, and that was a defect.** A first round of the gross mutants, against the harness as
-it stood at 9804f84 (a throwaway branch `mutants-tmp` in a separate worktree, since deleted), gave the same counts as
+it stood at 35f3e2e (a throwaway branch `mutants-tmp` in a separate worktree, since deleted), gave the same counts as
 above for the other six. But with fontFromStyle cases at weight 400, normal style and no letter spacing only,
 dropping the weight from `fontFromStyle`'s font string changed nothing
 the sweep could see: Canvas serialises weight 400 away, so `"16px Georgia"` and `"400 16px Georgia"` compare equal,
@@ -369,9 +369,9 @@ label), or bugs in the rich twins, `watchFonts` or the list helpers, which no br
 
 ## 5. Cost
 
-From `verify/BENCH.md` (`npm run bench`, `verify/bench-run.ts`, `verify/bench.ts`), merged into kit-v1 at 18db330;
-it was rendered at 8b21eaa from the same measurements as the reviewed 011be73 (the numbers are identical). BENCH.md
-records its run as of 4854056 "with uncommitted changes". Machine: Apple M2, 8 cores, 16 GB, macOS 14.6.1; browser
+From `verify/BENCH.md` (`npm run bench`, `verify/bench-run.ts`, `verify/bench.ts`), merged into kit-v1 at 79908ea;
+it was rendered at 1225678 from the same measurements as the reviewed e55f319 (the numbers are identical). BENCH.md
+records its run as of c7db50a "with uncommitted changes". Machine: Apple M2, 8 cores, 16 GB, macOS 14.6.1; browser
 builds as in §2.
 
 **It was measured on a loaded machine, so every timing is an upper bound.** Screen recording (replayd, 79-93% CPU)
@@ -474,9 +474,9 @@ changes changed (the fontFromStyle cases and the overflow sentences).
 factor-1 tallies, not WebKit's, Firefox's or the zoomed ones:
 
 Run 2026-10-06 on the same Mac (macOS 14.6.1, Node 24.4.1, npm 11.4.2, Playwright's browsers already cached), into
-a new directory under the session's scratch space: `verify/reproduce.sh --kit-commit=4165a35 --sweep=chromium@1`,
+a new directory under the session's scratch space: `verify/reproduce.sh --kit-commit=4f43610 --sweep=chromium@1`,
 169 s wall time. Its output is committed as `verify/results/reproduce-chromium1.txt` (paths shortened to `<dir>`
-and `<kit-repo>`; the per-step logs stayed in the scratch directory). Earlier runs at 9f46f09 and 729410b, before
+and `<kit-repo>`; the per-step logs stayed in the scratch directory). Earlier runs at 9f4525d and 1d60eb6, before
 the four new path labels, gave the same results with the earlier truncateMiddle count. Every step passed:
 
 - `npm test`: 85 + 65 tests, 0 failing; `npm run check` clean.
@@ -487,9 +487,9 @@ the four new path labels, gave the same results with the earlier truncateMiddle 
   counts in §4. The HEADLESS_RESULTS.md it wrote differs from the committed one in one character: Pretext's
   abbreviated commit hash (`f10d888c` for `f10d888`, git's abbreviation length in a fresh clone).
 
-The first attempt, at 8da68c5, failed at its first build step: Pretext's `npm install` no longer resolves (its dev
+The first attempt, at 554f857, failed at its first build step: Pretext's `npm install` no longer resolves (its dev
 dependencies float without a lockfile, and an oxlint release now conflicts with a pinned peer), which also broke the
-README's install line. Both now run Pretext's pinned `tsc` directly (9f46f09); the dist it builds is identical, file
+README's install line. Both now run Pretext's pinned `tsc` directly (9f4525d); the dist it builds is identical, file
 for file, to the one the recorded runs used. Not reproduced from a fresh clone: WebKit, Firefox, the zoom factors,
 and any other machine.
 

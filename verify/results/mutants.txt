@@ -1,5 +1,5 @@
-Preparing worktree (detached HEAD 18db330)
-worktree of 18db330 at <tmp>/kit; chromium@1
+Preparing worktree (detached HEAD 79908ea)
+worktree of 79908ea at <tmp>/kit; chromium@1
 control shrinkwrap: 161616 cases, 0 kit-mismatch; npm test passes
 control balance: 161616 cases, 0 kit-mismatch; npm test passes
 control fitFontSize: 161616 cases, 0 kit-mismatch; npm test passes
@@ -24,7 +24,7 @@ control fontFromStyle: 180 cases, 0 kit-mismatch; npm test passes
 | fontFromStyle drops italic (subtle) | fontFromStyle | 180 | 4 | 176 | fails (2 failing) |
 | fontFromStyle drops letter spacing (subtle) | fontFromStyle | 180 | 4 | 176 | fails (3 failing) |
 
-Mutants planted in a worktree of 18db330; sweep: chromium@1, the affected helpers only. A mutant is caught if any of its rows has a kit-mismatch.
+Mutants planted in a worktree of 79908ea; sweep: chromium@1, the affected helpers only. A mutant is caught if any of its rows has a kit-mismatch.
 
 | planted bug | helper swept | cases | kit-mismatch (caught) | pass | npm test |
 |---|---|---:|---:|---:|---|
@@ -45,8 +45,8 @@ Mutants planted in a worktree of 18db330; sweep: chromium@1, the affected helper
 | fontFromStyle drops italic (subtle) | fontFromStyle | 180 | 4 | 176 | fails (2 failing) |
 | fontFromStyle drops letter spacing (subtle) | fontFromStyle | 180 | 4 | 176 | fails (3 failing) |
 
-Rerun of one mutant at 43a53af, after the truncateMiddle grapheme-boundary unit test, sweep check and four labels
+Rerun of one mutant at 5dee1bf, after the truncateMiddle grapheme-boundary unit test, sweep check and four labels
 were added (`node verify/mutants.ts --mutant='code points'`); its two rows above are replaced with this run's.
-Before (18db330): clamp 43, truncateMiddle 0 (56496 cases, 56493 pass), npm test passing.
-Rerun again at 8f3aa2e (after the truncateMiddle end-shortening fix, 7c71815): the same two rows, clamp 43 and
+Before (79908ea): clamp 43, truncateMiddle 0 (56496 cases, 56493 pass), npm test passing.
+Rerun again at b96cf7f (after the truncateMiddle end-shortening fix, 5d108be): the same two rows, clamp 43 and
 truncateMiddle 128 of 61632, npm test failing (1).
