@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { clearCache, measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext'
+import { setLocale } from '@chenglou/pretext'
+import { localeSwitches } from '../../src/check/evaluate.ts'
 import { checkLabels } from '../../src/check/index.ts'
 import { runCheck, tabularFont } from '../../src/check/run.ts'
 import type { CheckInput, Slot } from '../../src/check/types.ts'
@@ -275,4 +277,60 @@ test('tabularFont rewrites quoted, unquoted and listed families and leaves gener
   assert.equal(tabularFont('16px Other, Inter', alias), '16px Other, "Inter __tnum"')
   assert.equal(tabularFont('16px Other', alias), null)
   assert.equal(tabularFont('16px Inter', () => null), null)
+})
+
+test('label order does not change the report and interleaved locales do not switch per label', async () => {
+  const locales = ['de', 'en', 'fr']
+  const keys = ['a', 'b', 'c', 'd']
+  const labels = keys.flatMap((key) => locales.map((locale) => ({ key, text: `${locale} ${key} Speichern unter`, slot: 'button', locale })))
+  const input = (list: typeof labels): CheckInput => ({ fonts: [inter], labels: list, slots: { button: tight() }, conditions: [{ name: 'a' }, { name: 'b' }] })
+  const before = localeSwitches()
+  const interleaved = await checkLabels(input(labels))
+  const switches = localeSwitches() - before
+  const grouped = await checkLabels(input([...labels].sort((x, y) => (x.locale < y.locale ? -1 : 1))))
+  assert.deepEqual(interleaved, grouped)
+  assert.equal(interleaved.checked, labels.length * 2 * 3)
+  assert.ok(switches <= 2 * 3 * locales.length, `${switches} locale switches`)
+})
+
+test('a locale the caller set between runs does not leave the cache stale', async () => {
+  const input: CheckInput = { fonts: [inter], labels: [{ key: 'a', text: 'Save as', slot: 'button', locale: 'en' }], slots: { button: tight() } }
+  await checkLabels(input)
+  setLocale('tr')
+  const before = localeSwitches()
+  await checkLabels(input)
+  assert.ok(localeSwitches() > before)
+})
+
+test('samples that fill to the same text are checked and reported once', async () => {
+  const report = await checkLabels({
+    fonts: [inter],
+    labels: [{ key: 'files', text: '{n} files in the folder', slot: 'button', locale: 'en' }],
+    slots: { button: tight() },
+    samples: { files: [{ n: 5 }, { n: '5' }, { n: 7 }] },
+  })
+  assert.equal(report.checked, 6)
+  for (const issue of report.failures) {
+    assert.equal(new Set(issue.platforms).size, issue.platforms.length)
+  }
+  assert.deepEqual(report.failures.map((i) => i.platforms), [ALL, ALL])
+})
+
+test('row samples that differ only in an unshown way are not planned twice', async () => {
+  const report = await checkLabels({
+    fonts: [inter],
+    labels: { en: { 'row.a': 'Save {n}', 'row.b': 'Share' } },
+    slots: { tool: tight({ width: 200 }) },
+    rows: { bar: { width: 30, gap: 4, items: [{ key: 'row.a', slot: 'tool' }, { key: 'row.b', slot: 'tool' }] } },
+    samples: { 'row.a': [{ n: 1 }, { n: '1' }] },
+  })
+  assert.equal(report.checked, 3)
+  assert.deepEqual(report.failures.map((i) => i.platforms), [ALL])
+})
+
+test('condition names must be unique', async () => {
+  await assert.rejects(
+    checkLabels({ fonts: [inter], labels: [{ key: 'a', text: 'Hi', slot: 'button' }], slots: { button: tight() }, conditions: [{ name: 'x' }, { name: 'y' }, { name: 'x', zoom: 2 }] }),
+    (error: Error) => error instanceof RangeError && /condition "x".*(twice|more than once|unique)/.test(error.message),
+  )
 })

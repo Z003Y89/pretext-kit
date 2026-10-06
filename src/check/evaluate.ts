@@ -43,11 +43,22 @@ function measured(slot: ResolvedSlot, width: number, lines: number, fontPx: numb
 
 // setLocale clears Pretext's caches, so it runs only when the locale changes.
 let lastLocale: string | undefined | null = null
+let switches = 0
 function useLocale(locale: string): void {
   const tag = localeTag(locale)
   if (tag === lastLocale) return
   setLocale(tag)
   lastLocale = tag
+  switches++
+}
+
+// A caller's own setLocale between runs makes the remembered locale stale, so each run starts and ends unsure.
+export function forgetLocale(): void {
+  lastLocale = null
+}
+
+export function localeSwitches(): number {
+  return switches
 }
 
 // Matched by name: src/check must not import src/headless, which the browser entry stays free of.

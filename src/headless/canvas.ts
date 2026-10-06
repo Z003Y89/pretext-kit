@@ -314,7 +314,9 @@ function shapeWord(codePoints: number[], graphemeEnds: Uint8Array, start: number
     buffer.guessSegmentProperties()
     if (shaping.language !== null) buffer.setLanguage(shaping.language)
     // The face's @font-face features come first, so the context's kern and liga switches override them.
-    const features = runFace.features.length === 0 ? shaping.features : [...runFace.features.map(f => new Feature(f.tag, f.value)), ...shaping.features]
+    // A face an older copy of the package registered has no features field.
+    const own = runFace.features ?? []
+    const features = own.length === 0 ? shaping.features : [...own.map(f => new Feature(f.tag, f.value)), ...shaping.features]
     shape(font, buffer, features)
     const infos = buffer.getGlyphInfos()
     const positions = buffer.getGlyphPositions()

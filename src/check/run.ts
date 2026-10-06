@@ -1,6 +1,6 @@
 import { DEFAULT_CONDITION, resolveSlot } from './conditions.ts'
 import type { ResolvedSlot } from './conditions.ts'
-import { evaluateLabel, round64 } from './evaluate.ts'
+import { evaluateLabel, forgetLocale, round64 } from './evaluate.ts'
 import { fillSamples, localeTexts, normalizeLabels } from './labels.ts'
 import { evaluateRow } from './rows.ts'
 import type { CheckInput, CheckPlatform, Condition, Issue, Report, Slot } from './types.ts'
@@ -83,13 +83,44 @@ function prepare(slots: Record<string, Slot>, condition: Condition, env: CheckEn
 type Fields = Pick<Issue, 'kind' | 'locale' | 'key' | 'slot' | 'condition' | 'text' | 'measured' | 'missing' | 'detail'>
 
 export async function runCheck(input: CheckInput, env: CheckEnv): Promise<Report> {
+  forgetLocale()
+  try {
+    return await run(input, env)
+  } finally {
+    forgetLocale()
+  }
+}
+
+const sortByLocale = <T extends { locale: string }>(list: T[]): T[] => list.sort((a, b) => (a.locale < b.locale ? -1 : a.locale > b.locale ? 1 : 0))
+
+function distinct<T>(list: T[], key: (item: T) => string): T[] {
+  const seen = new Set<string>()
+  return list.filter((item) => {
+    const id = key(item)
+    return seen.has(id) ? false : (seen.add(id), true)
+  })
+}
+
+async function run(input: CheckInput, env: CheckEnv): Promise<Report> {
   const slots = typeof input.slots === 'function' ? await input.slots() : input.slots
   const source = typeof input.labels === 'function' ? await input.labels() : input.labels
   const conditions = input.conditions ?? [DEFAULT_CONDITION]
+  const names = new Set<string>()
+  for (const { name } of conditions) {
+    if (names.has(name)) throw new RangeError(`condition "${name}" is named twice; condition names must be unique`)
+    names.add(name)
+  }
   const platforms = input.platforms ?? env.platforms
   const rows = input.rows ?? {}
   const { labels, unchecked: unusedKeys } = normalizeLabels(source, slots)
-  const planned = labels.map((label) => ({ label, locale: label.locale ?? 'und', variants: fillSamples(label, input.samples) }))
+  // Switching Pretext's locale clears its caches, so each pass runs one locale at a time; the report is sorted afterwards.
+  const planned = sortByLocale(
+    labels.map((label) => ({
+      label,
+      locale: label.locale ?? 'und',
+      variants: distinct(fillSamples(label, input.samples), (v) => JSON.stringify([v.text, v.issues])),
+    })),
+  )
 
   const byLocale = localeTexts(source)
   const rowKeys = new Set<string>()
@@ -122,10 +153,14 @@ export async function runCheck(input: CheckInput, env: CheckEnv): Promise<Report
       const count = Math.max(...[...tries.values()].map((t) => t.length))
       for (let n = 0; n < count; n++) {
         const texts = new Map([...tries].map(([key, t]) => [key, t[Math.min(n, t.length - 1)]!]))
-        rowPlans.push({ name, locale, texts, shown: row.items.map((i) => texts.get(i.key)).filter((t) => t !== undefined).join(' | ') })
+        const shown = row.items.map((i) => texts.get(i.key)).filter((t) => t !== undefined).join(' | ')
+        if (!rowPlans.some((p) => p.name === name && p.locale === locale && p.blocked === undefined && [...texts].every(([key, text]) => p.texts.get(key) === text))) {
+          rowPlans.push({ name, locale, texts, shown })
+        }
       }
     }
   }
+  sortByLocale(rowPlans)
 
   const found = new Map<string, Issue>()
   let checked = 0
@@ -139,7 +174,7 @@ export async function runCheck(input: CheckInput, env: CheckEnv): Promise<Report
     const id = JSON.stringify(rounded)
     const existing = found.get(id)
     if (existing === undefined) found.set(id, { ...rounded, platforms: [platform] })
-    else existing.platforms.push(platform)
+    else if (!existing.platforms.includes(platform)) existing.platforms.push(platform)
   }
 
   for (const condition of conditions) {

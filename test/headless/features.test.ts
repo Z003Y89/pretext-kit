@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { parseFeatureSettings } from '../../src/headless/fonts.ts'
 import { install, registerFont } from '../../src/headless/index.ts'
+import { sharedState } from '../../src/headless/shared.ts'
 
 const inter = new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.ttf', import.meta.url)))
 await registerFont('Inter', inter)
@@ -38,4 +39,11 @@ test('invalid syntax throws', async () => {
     { tag: 'ss01', value: 1 },
     { tag: 'liga', value: 0 },
   ])
+})
+
+test('a face registered by an older copy without a features field still measures', async () => {
+  await registerFont('Inter Old', inter)
+  const face = sharedState().faces.find((f) => f.family === 'Inter Old')!
+  delete (face as { features?: unknown }).features
+  assert.equal(width('Inter Old', '1111'), width('Inter', '1111'))
 })
