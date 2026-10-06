@@ -4,8 +4,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import {
-  FACTORS, HAND_LABELS, MUTANTS, POLICIES, ROW_FAMILY, STYLES, TEXT_SCALES, applyEdit, applyMutant, conditions, grid64, rowTotal,
-  rowWidths, shortLines, slotCases, stageWidths, sweepTexts, vacuousCells,
+  FACTORS, HAND_LABELS, MUTANTS, POLICIES, ROW_FAMILY, STYLES, TEXT_SCALES, applyEdit, applyMutant, conditions, grid64, policyKey, rowTotal,
+  rowWidths, shortLines, slotCases, stageWidths, sweepTexts, unbreakablePieces, vacuousCells,
 } from '../../verify/check-labels-cases.ts'
 import { CORPORA } from '../../verify/corpora.ts'
 
@@ -29,8 +29,8 @@ test('the sweep texts: the three corpora then the 60 hand-written labels, ids in
 
 test('slot widths: each policy at 0.9/1/1.1 of its own boundary at each text scale, on the 1/64 px grid, with the reserve scaled', () => {
   const texts = [{ id: 't0', source: 's', text: 'a b', locale: 'en' as const, style: STYLES.corpusIcon }]
-  const at1 = { natural: 100.3, naturalMin: 75.2, twoLines: 50.1 }
-  const at13 = { natural: 130.39, naturalMin: 97.76, twoLines: 65.13 }
+  const at1 = { natural: 100.3, naturalMin: 75.2, twoLines: 50.1, widestPiece: 60.7 }
+  const at13 = { natural: 130.39, naturalMin: 97.76, twoLines: 65.13, widestPiece: 40.2 }
   const cases = slotCases(texts, [[at1], [at1], [at13]])
   assert.equal(cases.length, POLICIES.length * FACTORS.length * TEXT_SCALES.length)
   const at = (policy: string, factor: number, scale: number) => cases.find(c => c.policy === policy && c.factor === factor && c.scale === scale)!.width
@@ -41,6 +41,12 @@ test('slot widths: each policy at 0.9/1/1.1 of its own boundary at each text sca
   assert.equal(at('truncate end', 0.9, 1), grid64(50.1 * 0.9 + 20))
   assert.equal(at('as-is', 1, 1.3), grid64(130.39 + 20 * 1.3))
   assert.equal(at('lines', 1.1, 1.3), grid64(65.13 * 1.1 + 20 * 1.3))
+  assert.equal(at('lines (normal)', 1, 1), grid64(60.7 + 20))
+  assert.equal(at('truncate end (normal)', 0.9, 1), grid64(60.7 * 0.9 + 20))
+  assert.equal(at('lines (normal)', 1, 1.3), grid64(65.13 + 20 * 1.3))
+  assert.deepEqual(cases.filter(c => c.scale === 1 && c.factor === 1).map(c => c.key.split('.')[1]), [
+    'as-is', 'shrinkTo', 'lines', 'truncate-end', 'truncate-middle', 'lines-normal', 'truncate-end-normal',
+  ])
   assert.equal(new Set(cases.map(c => c.key)).size, cases.length)
   assert.equal(grid64(10), 10)
   assert.equal(grid64(10 + 1 / 128), 10 + 1 / 64)
@@ -106,7 +112,7 @@ test('applyMutant applies edits to one file in order and writes each file once',
 
 test('every mutant applies to the current src exactly once per edit', () => {
   const read = (file: string) => readFileSync(new URL(`../../src/${file}`, import.meta.url), 'utf8')
-  assert.equal(MUTANTS.length, 6)
+  assert.equal(MUTANTS.length, 7)
   for (const m of MUTANTS) {
     let changed = 0
     applyMutant(m, read, (file, source) => {
@@ -115,4 +121,14 @@ test('every mutant applies to the current src exactly once per edit', () => {
     })
     assert.ok(changed >= 1, m.name)
   }
+})
+
+test('unbreakable pieces: segments of text split at every break, glue and controls joined, other kinds dropped', () => {
+  assert.deepEqual(unbreakablePieces(['Die', ' ', 'Benach', '\u00AD', 'richtigungen'], ['text', 'space', 'text', 'soft-hyphen', 'text']), ['Die', 'Benach', 'richtigungen'])
+  assert.deepEqual(unbreakablePieces(['Nebenrollen-', 'Takes'], ['text', 'text']), ['Nebenrollen-', 'Takes'])
+  assert.deepEqual(unbreakablePieces(['a', '\u200B', 'b', '\u0001', 'c'], ['text', 'zero-width-glue', 'text', 'control', 'text']), ['a\u200Bb\u0001c'])
+  assert.deepEqual(unbreakablePieces(['a', '\u200B', 'b', '\n', 'c'], ['text', 'zero-width-break', 'text', 'hard-break', 'text']), ['a', 'b', 'c'])
+  assert.deepEqual(unbreakablePieces([], []), [])
+  assert.equal(policyKey('truncate end (normal)'), 'truncate-end-normal')
+  assert.equal(policyKey('as-is'), 'as-is')
 })

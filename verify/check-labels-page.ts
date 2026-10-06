@@ -5,8 +5,9 @@
 import { measureLineStats, measureNaturalWidth, prepareWithSegments, setLocale } from '@chenglou/pretext'
 import { clamp, fitFontSize, prepareLabel, prepareSizes } from '../src/index.ts'
 import { FIT_TOLERANCE } from '../src/fit.ts'
-import { FAMILY, LINE_HEIGHT_RATIO, LINES, SHRINK_BY, TNUM_FAMILY } from './check-labels-cases.ts'
+import { FAMILY, LINE_HEIGHT_RATIO, LINES, SHRINK_BY, TNUM_FAMILY, unbreakablePieces } from './check-labels-cases.ts'
 import type { PolicyName, Style, SweepCondition } from './check-labels-cases.ts'
+import type { PreparedTextWithSegments } from '@chenglou/pretext'
 
 export type LoadedFace = { family: string, status: string }
 export type MeasureItem = { text: string, locale: string, style: Style }
@@ -19,7 +20,8 @@ export type Ref = { kind: RefKind, fontPx: number, lines: number, next: number |
 // ref.fontPx; overflowNext at ref.next; scrollOverflow*: the same by scrollWidth > clientWidth, a cross-check. lines:
 // the text's line boxes (rects of a range over it, by top), and heightLines its height over the line height (-1 when
 // no whole number, each line allowed 1/64 px of layout rounding); overflow, for lines too, a line wider than the box.
-// clamped: scrollHeight > clientHeight under -webkit-line-clamp. textWidth and boxWidth: zoomed px.
+// clamped: scrollHeight > clientHeight under -webkit-line-clamp; for truncate end (normal) overflow too, a line
+// cut at the box by text-overflow. textWidth and boxWidth: zoomed px.
 export type Dom = {
   overflow?: boolean, overflowNext?: boolean, lines?: number, heightLines?: number, clamped?: boolean,
   scrollOverflow?: boolean, scrollOverflowNext?: boolean,
@@ -41,7 +43,7 @@ declare global {
   interface Window {
     ck: {
       load: (families: string[]) => Promise<LoadedFace[]>
-      measure: (items: MeasureItem[], scale: number) => { natural: number, naturalMin: number, twoLines: number }[]
+      measure: (items: MeasureItem[], scale: number) => { natural: number, naturalMin: number, twoLines: number, widestPiece: number }[]
       naturals: (items: MeasureItem[], scale: number) => number[]
       labels: (cases: PageCase[], condition: SweepCondition) => PageResult[]
       rows: (rows: PageRow[], condition: SweepCondition) => RowResult[]
@@ -81,6 +83,11 @@ function fits(text: string, style: Style, px: number, spacing: number, width: nu
   return fitFontSize(sizes, { width, maxLines }, () => 0) !== null
 }
 
+// overflow-wrap: normal: whether a piece no break opportunity splits fails the kit's one-line fit test.
+function pieceTooWide(prepared: PreparedTextWithSegments, style: Style, px: number, spacing: number, width: number): boolean {
+  return unbreakablePieces(prepared.segments, prepared.kinds).some(piece => !fits(piece, style, px, spacing, width, 1))
+}
+
 function reference(c: PageCase, cond: SweepCondition): Ref {
   const g = geometry(c.style, c.width, cond)
   const text = transform(c.text, c.style, c.locale)
@@ -94,6 +101,11 @@ function reference(c: PageCase, cond: SweepCondition): Ref {
       return plain(fits(text, c.style, g.px, g.spacing, g.box, LINES) ? 'pass' : 'too-many-lines')
     case 'truncate end':
       return plain(clamp(prepared, g.box, LINES).truncated ? 'truncated' : 'pass')
+    case 'lines (normal)':
+      if (pieceTooWide(prepared, c.style, g.px, g.spacing, g.box)) return plain('overflow')
+      return plain(fits(text, c.style, g.px, g.spacing, g.box, LINES) ? 'pass' : 'too-many-lines')
+    case 'truncate end (normal)':
+      return plain(clamp(prepared, g.box, LINES).truncated || pieceTooWide(prepared, c.style, g.px, g.spacing, g.box) ? 'truncated' : 'pass')
     case 'truncate middle': {
       const collapsed = prepareLabel(text, fontAt(c.style, g.px)).text
       return plain(fits(collapsed, c.style, g.px, g.spacing, g.box, 1) ? 'pass' : 'truncated')
@@ -168,7 +180,11 @@ function slotElement(c: PageCase, cond: SweepCondition, cssSize: number): { slot
     slot.append(icon)
   }
   const text = document.createElement('div')
-  text.className = c.policy === 'lines' ? 'text wrap' : c.policy === 'truncate end' ? 'text clamp' : 'text nowrap'
+  const classes: Record<PolicyName, string> = {
+    'as-is': 'nowrap', 'shrinkTo': 'nowrap', 'truncate middle': 'nowrap', 'lines': 'wrap', 'truncate end': 'clamp',
+    'lines (normal)': 'wrap normal', 'truncate end (normal)': 'clamp normal',
+  }
+  text.className = `text ${classes[c.policy]}`
   text.textContent = c.text
   slot.append(text)
   return { slot, text }
@@ -226,7 +242,9 @@ if (typeof window !== 'undefined') {
           if (measureLineStats(prepared, mid / 64).lineCount <= LINES) hi = mid
           else lo = mid
         }
-        return { natural, naturalMin, twoLines: Math.max(hi / 64, measureLineStats(prepared, 0).maxLineWidth) }
+        const widestPiece = Math.max(0, ...unbreakablePieces(prepared.segments, prepared.kinds).map(piece =>
+          measureNaturalWidth(prepareWithSegments(piece, fontAt(style, style.size * scale), opts))))
+        return { natural, naturalMin, twoLines: Math.max(hi / 64, measureLineStats(prepared, 0).maxLineWidth), widestPiece }
       })
     },
 
@@ -263,7 +281,7 @@ if (typeof window !== 'undefined') {
       return cases.map((c, i) => {
         const { text, next } = els[i]!
         const dom: Dom = {}
-        if (c.policy === 'lines') {
+        if (c.policy === 'lines' || c.policy === 'lines (normal)') {
           const lh = c.style.size * LINE_HEIGHT_RATIO * cond.textScale * cond.zoom
           const h = text.getBoundingClientRect().height
           const n = Math.round(h / lh)
@@ -272,6 +290,9 @@ if (typeof window !== 'undefined') {
           Object.assign(dom, overflow(text))
         } else if (c.policy === 'truncate end') {
           dom.clamped = text.scrollHeight > text.clientHeight
+        } else if (c.policy === 'truncate end (normal)') {
+          dom.clamped = text.scrollHeight > text.clientHeight
+          Object.assign(dom, overflow(text))
         } else {
           Object.assign(dom, overflow(text))
           if (next !== undefined) {

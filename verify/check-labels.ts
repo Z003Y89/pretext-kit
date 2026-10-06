@@ -1,8 +1,9 @@
 // Oracle sweep of the label checker (pretext-kit/check) against Chromium: `npm run verify:check`.
 //
 // About 2,300 label texts (every run of whole words of at most 40 characters in the Latin, German and French
-// corpora, plus 60 toolbar and tab labels) in five slots each, one per policy (as-is, shrinkTo, lines, truncate
-// end, truncate middle), at 0.9/1/1.1 of the width where that policy changes its verdict, under text scales
+// corpora, plus 60 toolbar and tab labels) in seven slots each, one per policy (as-is, shrinkTo, lines, truncate
+// end, truncate middle, and lines and truncate end again with overflow-wrap: normal), at 0.9/1/1.1 of the width
+// where that policy changes its verdict, under text scales
 // 1/1.15/1.3 by zoom 1/1.3; and a five-item toolbar row per locale at every collapse stage's boundary.
 //
 // Each case is judged three ways: by the checker (checkLabels in Node, the stand-in measuring Inter from
@@ -29,7 +30,7 @@ import { chromium } from 'playwright'
 import type { Label, Platform, RowMap, Slot } from '../src/check/types.ts'
 import { clopperPearsonUpper, pct, wilsonUpper } from './bounds.ts'
 import {
-  FACTORS, FAMILY, FONT_FILE, HAND_LABELS, ICON_WIDTH, LINE_HEIGHT_RATIO, LINES, MAX_CHARS, MUTANTS, POLICIES, ROW_FAMILY, ROW_GAP,
+  FACTORS, FAMILY, FONT_FILE, HAND_LABELS, ICON_WIDTH, LINE_HEIGHT_RATIO, LINES, MAX_CHARS, MUTANTS, NORMAL_WRAP, POLICIES, ROW_FAMILY, ROW_GAP,
   ROW_STYLE, SHRINK_BY, TEXT_SCALES, TNUM_FAMILY, ZOOMS, applyMutant, conditions, rowTotal, rowWidths, slotCases, stageWidths,
   sweepTexts, vacuousCells,
 } from './check-labels-cases.ts'
@@ -92,6 +93,7 @@ body { margin: 0; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: ${LINES}; overflow: hidden; text-overflow: ellipsis;
   white-space: normal; overflow-wrap: break-word; word-break: normal; line-break: auto; hyphens: manual;
 }
+.wrap.normal, .clamp.normal { overflow-wrap: normal; }
 .row { display: flex; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
 .item { flex: none; display: flex; }
 </style>
@@ -194,10 +196,11 @@ const fontOf = (style: Style): string => `${style.size}px "${FAMILY}"`
 const policyOf = (p: PolicyName, style: Style): Slot['policy'] =>
   p === 'as-is' ? 'as-is'
     : p === 'shrinkTo' ? { shrinkTo: style.size - SHRINK_BY }
-      : p === 'lines' ? { lines: LINES }
-        : p === 'truncate end' ? { truncate: 'end', lines: LINES } : { truncate: 'middle' }
-const slotOf = (style: Style, width: number, policy: Slot['policy']): Slot => ({
+      : p === 'lines' || p === 'lines (normal)' ? { lines: LINES }
+        : p === 'truncate end' || p === 'truncate end (normal)' ? { truncate: 'end', lines: LINES } : { truncate: 'middle' }
+const slotOf = (style: Style, width: number, policy: Slot['policy'], overflowWrap?: Slot['overflowWrap']): Slot => ({
   width, font: fontOf(style), lineHeight: style.size * LINE_HEIGHT_RATIO, policy,
+  ...(overflowWrap === undefined ? {} : { overflowWrap }),
   ...(style.reserve === 0 ? {} : { reserve: style.reserve }),
   ...(style.letterSpacing === 0 ? {} : { letterSpacing: style.letterSpacing }),
   ...(style.transform === 'none' ? {} : { textTransform: style.transform }),
@@ -214,7 +217,7 @@ const groups: NodeGroup[] = TEXT_SCALES.map(scale => {
   for (const c of mine) {
     const t = texts[c.text]!
     labels.push({ key: c.key, text: t.text, slot: c.key, locale: t.locale })
-    slots[c.key] = slotOf(t.style, c.width, policyOf(c.policy, t.style))
+    slots[c.key] = slotOf(t.style, c.width, policyOf(c.policy, t.style), NORMAL_WRAP.includes(c.policy) ? 'normal' : undefined)
   }
   for (const locale of Object.keys(ROW_FAMILY) as Locale[]) {
     for (const i of ROW_FAMILY[locale]) {
@@ -311,14 +314,21 @@ function labelResult(out: NodeOutput, c: SlotCase, i: number, j: number): Result
       cause = `${c.policy}: DOM ${dom.overflow ? 'overflows' : 'fits'} where Pretext ${ref.kind === 'pass' ? 'fits' : 'overflows'}`
       break
     case 'lines':
+    case 'lines (normal)':
       if (dom.lines !== dom.heightLines) return { ...base, outcome: 'excluded', cause: `unreliable: ${dom.lines} line rects, height of ${dom.heightLines} lines` }
       agrees = (dom.lines! <= LINES && dom.overflow === false) === (ref.kind === 'pass')
-      cause = `lines: DOM ${dom.lines} lines${dom.overflow ? ', one wider than the box' : ''}, Pretext ${ref.lines}${ref.kind === 'pass' ? '' : ' (and a line past the box, or more than ' + LINES + ')'}`
+      cause = `${c.policy}: DOM ${dom.lines} lines${dom.overflow ? ', one wider than the box' : ''}, Pretext ${ref.lines}${ref.kind === 'pass' ? '' : ' (and a line past the box, or more than ' + LINES + ')'}`
       break
     case 'truncate end':
       agrees = dom.clamped === (ref.kind === 'truncated')
       cause = `truncate end: DOM ${dom.clamped ? 'clamps' : 'does not clamp'} where Pretext ${ref.kind === 'truncated' ? 'cuts' : 'does not'}`
       break
+    case 'truncate end (normal)': {
+      const cut = dom.clamped === true || dom.overflow === true
+      agrees = cut === (ref.kind === 'truncated')
+      cause = `truncate end (normal): DOM ${dom.clamped ? 'clamps' : dom.overflow ? 'cuts a line at the box' : 'does not cut'} where Pretext ${ref.kind === 'truncated' ? 'cuts' : 'does not'}`
+      break
+    }
     case 'shrinkTo':
       if (ref.kind === 'below-min-size') {
         agrees = dom.overflow === true
@@ -475,13 +485,18 @@ const render = (limit: number): string[] => [
   'the CSS the element gets: text scale multiplies font size, letter spacing, line height and the icon width,',
   'zoom then everything; the box is the slot width less the icon. as-is and truncate middle: one line at the box',
   '(`fitFontSize` at the one size, so with FIT_TOLERANCE; middle after `prepareLabel`\'s white-space collapse); lines:',
-  `the same with ${LINES} lines; truncate end: \`clamp(…, ${LINES}).truncated\`; shrinkTo: the largest of the slot size, every whole px`,
+  `the same with ${LINES} lines; truncate end: \`clamp(…, ${LINES}).truncated\`; the "(normal)" policies, a slot with \`overflowWrap: 'normal'\`:`,
+  'first, each piece between two of Pretext\'s break opportunities (its segments; zero-width glue and controls join the',
+  'text around them) by the one-line test, a piece that fails making lines (normal) `overflow` and truncate end (normal)',
+  '`truncated`, then the rule without the suffix; shrinkTo: the largest of the slot size, every whole px',
   'below it and the minimum that fits one line; rows: each stage\'s natural widths, icon reserves, icons and gaps, the',
   'first stage within the row (plus FIT_TOLERANCE). **DOM:** a flex box of the slot width holding the icon and the text',
   'element: as-is, shrinkTo and truncate middle `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`;',
-  'lines `overflow-wrap: break-word; hyphens: manual`, line count from the tops of',
+  'lines `overflow-wrap: break-word; hyphens: manual` (lines (normal) `overflow-wrap: normal`), line count from the tops of',
   '`getClientRects()` of a range over the text (checked against height ÷ line height; a disagreement is `unreliable`);',
-  `truncate end \`display: -webkit-box; -webkit-line-clamp: ${LINES}\`, clamped when \`scrollHeight > clientHeight\`; shrinkTo`,
+  `truncate end \`display: -webkit-box; -webkit-line-clamp: ${LINES}\`, clamped when \`scrollHeight > clientHeight\` (truncate end (normal)`,
+  '`overflow-wrap: normal`, cut when clamped or when a line is wider than the box, which `text-overflow: ellipsis` cuts on',
+  'any line of the clamp in Chromium); shrinkTo',
   'rendered at the reference\'s size, which must fit, and at the next candidate size up, which must not (none at the',
   'slot size); rows a flex line (`gap`, items `flex: none`) at the reference\'s stage, which must fit (overflow for',
   'row-overflow), and at the stage before, which must not. Text scale is a font-size change in the fixed-width box, zoom',
@@ -516,9 +531,10 @@ const render = (limit: number): string[] => [
   'labels: ' + HAND_LABELS.map(g => `${g.group} (${g.style.name}: ${g.style.size}px${g.style.reserve === 0 ? '' : `, reserve ${g.style.reserve}`}${g.style.letterSpacing === 0 ? '' : `, letter spacing ${g.style.letterSpacing}px`}${g.style.transform === 'none' ? '' : `, ${g.style.transform}`}${g.style.numeric === 'tabular' ? ', tabular-nums' : ''})`).join(', ') + '.',
   '',
   `Slots: each text in ${POLICIES.length} policies (as-is; shrinkTo the size less ${SHRINK_BY}px; lines ${LINES}; truncate end ${LINES} lines;`,
-  `truncate middle), and each text scale (${TEXT_SCALES.join('/')}) its own slots, at ${FACTORS.join('/')} × the box where the policy changes its`,
+  `truncate middle; lines and truncate end again with overflow-wrap: normal), and each text scale (${TEXT_SCALES.join('/')}) its own slots, at ${FACTORS.join('/')} × the box where the policy changes its`,
   `verdict at that text scale (one line at the scaled size and letter spacing; one line at the scaled shrinkTo size; the`,
-  `narrowest width in ${LINES} lines), plus the reserve grown with the text, rounded up to 1/64 px; measured by the kit on Pretext`,
+  `narrowest width in ${LINES} lines; for the "(normal)" policies that or the widest unbreakable piece's natural width,`,
+  `whichever is wider), plus the reserve grown with the text, rounded up to 1/64 px; measured by the kit on Pretext`,
   `in the page. A slot runs in its text scale's conditions, zoom ${ZOOMS.join(' and ')} (zoom grows the box too, so the boundary`,
   `stays): ${cases.length} slots run (${invalid.length} not run, below). Line height ${LINE_HEIGHT_RATIO} × the size. Conditions: ${conds.map(c => c.name).join(', ')}.`,
   `Rows: a five-item toolbar per locale (${Object.keys(ROW_FAMILY).join(', ')}) and text scale, gap ${ROW_GAP}px, icon reserve ${ROW_STYLE.reserve}px, collapsed icon`,

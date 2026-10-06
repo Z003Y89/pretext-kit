@@ -17,12 +17,15 @@ export type Style = {
 
 export type SweepText = { id: string, source: string, text: string, locale: Locale, style: Style }
 
-export type PolicyName = 'as-is' | 'shrinkTo' | 'lines' | 'truncate end' | 'truncate middle'
+// The two "(normal)" policies are lines and truncate end in a slot with overflow-wrap: normal (the others
+// break-word, as a hand-built slot's default).
+export type PolicyName = 'as-is' | 'shrinkTo' | 'lines' | 'truncate end' | 'truncate middle' | 'lines (normal)' | 'truncate end (normal)'
 
 // What the case widths are chosen from, measured at one text scale (zoom 100%):
 // natural: one line at the slot size; naturalMin: one line at the shrinkTo size; twoLines: the narrowest
-// width (1/64 px grid) at which Pretext lays the text out in LINES lines.
-export type Measured = { natural: number, naturalMin: number, twoLines: number }
+// width (1/64 px grid) at which Pretext lays the text out in LINES lines; widestPiece: the natural width of the
+// widest piece no break opportunity splits (unbreakablePieces).
+export type Measured = { natural: number, naturalMin: number, twoLines: number, widestPiece: number }
 
 // scale: the text scale whose conditions (zoom 100% and 130%) the slot is run in, and whose boundary it sits at.
 export type SlotCase = { key: string, text: number, policy: PolicyName, scale: number, factor: number, width: number }
@@ -44,7 +47,8 @@ export const ZOOMS = [1, 1.3]
 export const SHRINK_BY = 4
 export const LINES = 2
 export const LINE_HEIGHT_RATIO = 1.5
-export const POLICIES: PolicyName[] = ['as-is', 'shrinkTo', 'lines', 'truncate end', 'truncate middle']
+export const POLICIES: PolicyName[] = ['as-is', 'shrinkTo', 'lines', 'truncate end', 'truncate middle', 'lines (normal)', 'truncate end (normal)']
+export const NORMAL_WRAP: PolicyName[] = ['lines (normal)', 'truncate end (normal)']
 
 const plain = (name: string, reserve: number): Style => ({ name, size: 16, reserve, letterSpacing: 0, transform: 'none', numeric: 'proportional' })
 export const STYLES = {
@@ -127,11 +131,32 @@ export function sweepTexts(corpora: Corpus[]): SweepText[] {
 // Up to the 1/64 px layout grid, so the DOM box is the width asked for, not one rounded below it.
 export const grid64 = (x: number): number => Math.ceil(x * 64 - 1e-9) / 64
 
+// Under overflow-wrap: normal the verdict also changes where the widest unbreakable piece stops fitting.
 function basis(policy: PolicyName, m: Measured): number {
   if (policy === 'shrinkTo') return m.naturalMin
   if (policy === 'lines' || policy === 'truncate end') return m.twoLines
+  if (NORMAL_WRAP.includes(policy)) return Math.max(m.twoLines, m.widestPiece)
   return m.natural
 }
+
+// The pieces of a prepared text no line breaks under overflow-wrap: normal: Pretext's segments run between break
+// opportunities, and zero-width glue and controls, which hold none, join the text around them.
+export function unbreakablePieces(segments: string[], kinds: string[]): string[] {
+  const out: string[] = []
+  let piece = ''
+  kinds.forEach((kind, i) => {
+    const joins = kind === 'text' || kind === 'zero-width-glue' || kind === 'control'
+    if ((kind === 'text' && kinds[i - 1] === 'text') || !joins) {
+      if (piece !== '') out.push(piece)
+      piece = ''
+    }
+    if (joins) piece += segments[i]
+  })
+  if (piece !== '') out.push(piece)
+  return out
+}
+
+export const policyKey = (policy: PolicyName): string => policy.replace(/\W+/g, '-').replace(/-$/, '')
 
 // Each text in each policy at FACTORS times the box where that policy changes its verdict at each text scale
 // (measured[scale][text], at the scaled size and letter spacing), plus the reserve grown with the text, on the
@@ -145,7 +170,7 @@ export function slotCases(texts: SweepText[], measured: Measured[][]): SlotCase[
       for (const policy of POLICIES) {
         for (const factor of FACTORS) {
           const width = grid64(basis(policy, measured[s]![i]!) * factor + t.style.reserve * scale)
-          out.push({ key: `${t.id}.${policy.replace(' ', '-')}.${scale}.${factor}`, text: i, policy, scale, factor, width })
+          out.push({ key: `${t.id}.${policyKey(policy)}.${scale}.${factor}`, text: i, policy, scale, factor, width })
         }
       }
     })
@@ -263,6 +288,10 @@ export const MUTANTS: Mutant[] = [
   {
     name: 'tabular ignored (alias not used)',
     edits: [{ file: 'check/run.ts', from: '      else merged.font = font\n', to: '' }],
+  },
+  {
+    name: 'ignore overflowWrap',
+    edits: [{ file: 'check/conditions.ts', from: "overflowWrap: merged.overflowWrap ?? 'break-word',", to: "overflowWrap: 'break-word'," }],
   },
 ]
 
