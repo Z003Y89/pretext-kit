@@ -391,3 +391,18 @@ test('one-line policies are unchanged by overflowWrap', () => {
     }
   }
 })
+
+// A word in the window (natural width within 1/64 px past the box) lays every line out at the box plus 1/64 px, so a
+// line of several words that is as wide stays on one line too, where Chromium, whose width is 1/64 px wider than
+// Pretext's, can wrap it (README, Policies).
+test('lines 2 with overflowWrap normal: with one word in the window, a line of several words at box + 1/64 stays whole', () => {
+  const word = 'improvements'
+  const line = 'add mom now'
+  assert.equal(natural(line), natural(word))
+  const box = natural(word) - 1 / 128
+  const both = evaluateLabel(`${word} ${line}`, slotOf(box, { lines: 2 }, normal), 'en')
+  assert.equal(both.kind, 'pass')
+  assert.equal(both.measured.lines, 2)
+  assert.equal(evaluateLabel(line, slotOf(box, { lines: 1 }, normal), 'en').kind, 'too-many-lines')
+  assert.equal(evaluateLabel(`${word} ${line}`, slotOf(box, { lines: 2 }), 'en').kind, 'too-many-lines')
+})
