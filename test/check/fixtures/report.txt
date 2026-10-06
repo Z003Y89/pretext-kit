@@ -3,10 +3,10 @@ button · default
   en button.export  "Export as file"  overflow: 8.6875px too wide
 
 title · default
-  de title.intro  "Willkommen zurück in Ihrem Arbeitsbereich"  truncated
-  en title.intro  "Welcome back to your workspace"  truncated
+  de title.intro  "Willkommen zurück in Ihrem Arbeitsbereich"  truncated: cut at 200px
+  en title.intro  "Welcome back to your workspace"  truncated: cut at 200px
 
 toolbar · default
-  de toolbar  "Speichern | Freigeben und Zusammenarbeiten"  row-collapsed
+  de toolbar  "Speichern | Freigeben und Zusammenarbeiten"  row-collapsed: stage 1
 
 30 checked, 2 failures, 2 warnings

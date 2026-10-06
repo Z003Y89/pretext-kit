@@ -13,23 +13,29 @@ type Options = { config: string | undefined; json: boolean; strict: boolean; pla
 const USAGE = `usage: pretext-kit check-labels [--config <path>] [--json] [--strict] [--platform macos,windows,linux]\n`
 const PLATFORMS: Platform[] = ['macos', 'windows', 'linux']
 
+function platformList(value: string): Platform[] {
+  const names = value.split(',')
+  for (const name of names) {
+    if (!PLATFORMS.includes(name as Platform)) throw new RangeError(`--platform: "${name}" is not one of ${PLATFORMS.join(', ')}`)
+  }
+  return names as Platform[]
+}
+
 function parse(args: string[]): Options {
   const options: Options = { config: undefined, json: false, strict: false, platforms: undefined }
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!
     if (arg === '--json') options.json = true
     else if (arg === '--strict') options.strict = true
-    else if (arg === '--config' || arg === '--platform') {
-      const value = args[++i]
-      if (value === undefined) throw new RangeError(`${arg} needs a value`)
-      if (arg === '--config') options.config = value
-      else {
-        const names = value.split(',')
-        for (const name of names) {
-          if (!PLATFORMS.includes(name as Platform)) throw new RangeError(`--platform: "${name}" is not one of ${PLATFORMS.join(', ')}`)
-        }
-        options.platforms = names as Platform[]
-      }
+    else if (/^--(?:config|platform)(?:=|$)/.test(arg)) {
+      const eq = arg.indexOf('=')
+      const flag = eq < 0 ? arg : arg.slice(0, eq)
+      let value = eq < 0 ? args[++i] : arg.slice(eq + 1)
+      if (value === undefined || (eq < 0 && value.startsWith('--'))) value = ''
+      if (value === '' && flag === '--config') throw new RangeError('--config needs a value')
+      if (flag === '--config') options.config = value
+      else if (value === '') throw new RangeError('--platform needs a value')
+      else options.platforms = platformList(value)
     } else throw new RangeError(`unknown option "${arg}"`)
   }
   return options
@@ -54,6 +60,7 @@ function globPattern(glob: string): RegExp {
 
 function listFiles(dir: string, prefix: string, out: string[]): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
     const path = prefix + entry.name
     if (entry.isDirectory()) listFiles(`${dir}/${entry.name}`, `${path}/`, out)
     else out.push(path)
@@ -75,9 +82,12 @@ export function glob(base: string, pattern: string): string[] {
   return all.filter((p) => matcher.test(p)).sort()
 }
 
-function nest(target: Record<string, unknown>, value: unknown): void {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new RangeError('a locale file must be a JSON object')
-  Object.assign(target, value)
+function merge(target: Record<string, unknown>, value: unknown, where: string): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new RangeError(`${where}: a locale file must be a JSON object`)
+  for (const [key, entry] of Object.entries(value)) {
+    if (Object.hasOwn(target, key)) throw new RangeError(`${where}: top-level key "${key}" is already defined by another file of the same locale`)
+    target[key] = entry
+  }
 }
 
 function loadLabels(labels: Config['labels'], configDir: string): LabelSource {
@@ -89,6 +99,7 @@ function loadLabels(labels: Config['labels'], configDir: string): LabelSource {
   const out: Record<string, Record<string, unknown>> = {}
   for (const path of paths) {
     const name = locale === undefined ? basename(path).replace(/\.json$/, '') : locale(path)
+    if (typeof name !== 'string' || name === '') throw new RangeError(`labels.locale returned no locale name for ${path}`)
     let data: unknown
     try {
       data = JSON.parse(readFileSync(resolve(configDir, path), 'utf8'))
@@ -96,7 +107,7 @@ function loadLabels(labels: Config['labels'], configDir: string): LabelSource {
       throw new RangeError(`${path}: ${error instanceof Error ? error.message : String(error)}`)
     }
     out[name] ??= {}
-    nest(out[name]!, data)
+    merge(out[name]!, data, path)
   }
   return out
 }
@@ -111,7 +122,17 @@ async function loadConfig(path: string): Promise<CheckInput> {
   }
   const config = module.default as Config | undefined
   if (typeof config !== 'object' || config === null) throw new RangeError(`config ${path} must default-export a CheckInput object`)
-  if (!Array.isArray(config.fonts)) throw new RangeError(`config ${path}: fonts must be an array`)
+  const bad = (what: string): never => {
+    throw new RangeError(`config ${path}: ${what}`)
+  }
+  if (config.labels === undefined || config.labels === null) bad('labels is required')
+  if (!Array.isArray(config.fonts)) bad('fonts must be an array')
+  for (const font of config.fonts) {
+    if (typeof font !== 'object' || font === null || typeof font.family !== 'string' || (font.path === undefined && font.data === undefined)) {
+      bad('each font needs a family and a path or data')
+    }
+  }
+  if (config.slots === undefined || config.slots === null) bad('slots is required')
   const dir = dirname(absolute)
   return {
     ...config,
@@ -121,9 +142,14 @@ async function loadConfig(path: string): Promise<CheckInput> {
 }
 
 function missing(issue: Issue): string {
+  const { measured, missing: gap } = issue
   const parts: string[] = []
-  if (issue.missing?.px !== undefined) parts.push(`${issue.missing.px}px too wide`)
-  if (issue.missing?.fitsAtPx !== undefined) parts.push(`fits at ${issue.missing.fitsAtPx}px`)
+  if (issue.kind === 'too-many-lines') parts.push(`${measured.lines} lines in a box of ${measured.box}px`)
+  if (issue.kind === 'below-min-size' && gap?.fitsAtPx !== undefined) parts.push(`fits at ${gap.fitsAtPx}px`)
+  if (issue.kind === 'truncated') parts.push(`cut at ${measured.box}px`)
+  if (issue.kind === 'row-overflow') parts.push(`${measured.width}px in ${measured.box}px`)
+  if (issue.kind === 'row-collapsed') parts.push(`stage ${measured.stage ?? 0}`)
+  if (gap?.px !== undefined && issue.kind !== 'row-overflow') parts.push(issue.kind === 'below-min-size' ? `needs ${gap.px}px more` : `${gap.px}px too wide`)
   if (issue.detail !== undefined) parts.push(issue.detail)
   return parts.length === 0 ? issue.kind : `${issue.kind}: ${parts.join('; ')}`
 }
@@ -157,8 +183,14 @@ export async function main(argv: string[], io: Io): Promise<number> {
     io.stderr(command === undefined ? USAGE : `unknown command "${command}"\n${USAGE}`)
     return 2
   }
+  let options: Options
   try {
-    const options = parse(rest)
+    options = parse(rest)
+  } catch (error) {
+    io.stderr(`${error instanceof Error ? error.message : String(error)}\n${USAGE}`)
+    return 2
+  }
+  try {
     const input = await loadConfig(resolve(io.cwd, options.config ?? 'labels.config.mjs'))
     if (options.platforms !== undefined) input.platforms = options.platforms
     const report = await checkLabels(input)
