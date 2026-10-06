@@ -451,8 +451,8 @@ The claim is scoped exactly so:
   for Inter Variable's `wght` axis only, on macOS: at 300-800, 2,352 widths within 0.0001px and 0 of 69,408 line
   counts differing (0.1.1 rounded the advances to whole font units: up to 0.055px off, 11 line counts differing).
   For other instances the unrounded advance is checked against fontTools 4.62.1, exact: Inter Variable's `wght`,
-  `opsz`+`wght` and standard (`opsz`+`wght`) latin files, 58 instances (`npm run verify:hvar`, results in
-  verify/HEADLESS_RESULTS.md). Nothing committed covers `wdth`. A family your CSS splits into several files by
+  `opsz`+`wght` and standard (`opsz`+`wght`) latin files, 326 instances, 50 of them distinct `wght` values in the
+  `wght` file (`npm run verify:hvar`, results in verify/HEADLESS_RESULTS.md). Nothing committed covers `wdth`. A family your CSS splits into several files by
   `unicode-range` (Fontsource does) is registered file by file, each with its own @font-face unicode-range:
   `registerFont('Inter Variable', data, { unicodeRange: 'U+0000-00FF,U+0131,…' })`. Files sharing a family,
   weight and style must each have a range, or draw disjoint code points; where only one has a range, only its

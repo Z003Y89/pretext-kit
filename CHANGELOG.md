@@ -20,7 +20,7 @@ Release assets (SHA-256 of the tarballs packed with Node 24.4.1 and npm 11.4.2; 
 - **Limits of the fix.** Verified against Chromium for Inter Variable's `wght` axis only, on macOS only (CI's Linux
   and Windows parity numbers are from 0.1.1's sweep, without the variable font). Beyond that, the unrounded advance is
   exact against fontTools 4.62.1 for what `npm run verify:hvar` covers: Inter Variable's latin `wght`, `opsz`+`wght`
-  and standard files, 58 instances, 30,044 glyph × instance pairs; nothing committed covers `wdth`. A font with avar
+  and standard files, 326 instances (50 distinct `wght` values in the `wght` file), 168,868 glyph × instance pairs; nothing committed covers `wdth`. A font with avar
   version 2, or without HVAR, keeps HarfBuzz's whole-unit advances: away from the default instance each glyph can be
   up to ½ font unit off Chrome on macOS.
 - **Malformed HVAR falls back.** An HVAR table that fails its structural checks is ignored and the font keeps

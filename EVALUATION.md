@@ -289,8 +289,9 @@ painting.
 Inter Variable alone (0.1.2; HEADLESS_RESULTS.md, by instance): 2,352 widths, 2,284 bit-exact, max |Δ| 0.000092px;
 69,408 line counts, 0 headless-mismatch, 112 pretext-gap. Before the fix (0.1.1's stand-in, which rounds the
 interpolated advances to whole font units), the same cases gave 232 widths beyond 0.02px (max 0.055115px) and 11
-headless-mismatches (§8). The unrounded advances also match fontTools 4.62.1 exactly on 30,044 glyph × instance
-pairs in three Inter Variable files (`npm run verify:hvar`, HEADLESS_RESULTS.md).
+headless-mismatches (§8). The unrounded advances also match fontTools 4.62.1 exactly on 168,868 glyph × instance
+pairs (326 instances, 50 of them distinct `wght` values in the `wght`-only file) in three Inter Variable files
+(`npm run verify:hvar`, HEADLESS_RESULTS.md).
 
 **Linux, independently reported (raw data not in the repo; Chromium 141, not 149; two local patches).** An
 independent agent ran this headless parity sweep once on Linux and reported the tallies below; we have not reproduced
@@ -573,7 +574,7 @@ and may be off by a line, or a pixel of width, in what the browser paints. RESUL
   computes it) and sums a run's advances in 1/65536 px as Blink does: max |Δ| 0.000092px, 0 line counts differing
   (§3). Limits: verified against Chromium for Inter Variable's `wght` axis only, on macOS only; the unrounded advances
   are exact against fontTools 4.62.1 for what `npm run verify:hvar` covers (Inter Variable's latin `wght`,
-  `opsz`+`wght` and standard files, 58 instances), and nothing committed covers `wdth`. A font with avar version 2,
+  `opsz`+`wght` and standard files, 326 instances, 50 of them `wght`-only), and nothing committed covers `wdth`. A font with avar version 2,
   without HVAR, or with an HVAR that fails its structural checks keeps HarfBuzz's whole-unit advances (up to ½ font
   unit per glyph off Chrome on macOS away from the default instance); a malformed HVAR never makes `measureText`
   throw.

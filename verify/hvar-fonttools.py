@@ -5,9 +5,9 @@
 #
 #   python3 verify/hvar-fonttools.py font.woff2 [more fonts] > out.json
 #
-# For each font with fvar and HVAR it picks axis locations (every axis at its min, default, max and three
-# off-grid values, one axis at a time with the others at default, plus 40 seeded random combinations across all
-# axes), normalizes each with fontTools (fvar, then avar version 1 where present, to F2Dot14), and evaluates
+# For each font with fvar and HVAR it picks axis locations (every axis at its min, default, max, three off-grid
+# values, an integer grid of 17 points across the axis and 30 seeded random fractional values, one axis at a time
+# with the others at default, plus 40 seeded random combinations of those across all axes, de-duplicated), normalizes each with fontTools (fvar, then avar version 1 where present, to F2Dot14), and evaluates
 # every glyph's advance as hmtx + the HVAR delta through fontTools' VarStoreInstancer, unrounded.
 import itertools, json, random, sys
 from fontTools import version as ft_version
@@ -38,7 +38,9 @@ def locations(axes):
     picks = {}
     for ax in axes:
         lo, d, hi = ax.minValue, ax.defaultValue, ax.maxValue
-        picks[ax.axisTag] = sorted({lo, d, hi, (lo + d) / 2 + 0.3, (d + hi) / 2 + 0.7, d + (hi - d) * 0.123})
+        grid = {round(lo + (hi - lo) * k / 16) for k in range(17)}
+        fractional = {round(rng.uniform(lo, hi), 3) for _ in range(30)}
+        picks[ax.axisTag] = sorted({lo, d, hi, (lo + d) / 2 + 0.3, (d + hi) / 2 + 0.7, d + (hi - d) * 0.123} | grid | fractional)
     out = []
     default = {ax.axisTag: ax.defaultValue for ax in axes}
     for ax in axes:
