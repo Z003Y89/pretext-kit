@@ -17,6 +17,13 @@ await registerFont('Split', subset('latin-ext'), { unicodeRange: LATIN_EXT })
 await registerFont('Split', subset('latin'), { unicodeRange: LATIN })
 await registerFont('Latin only', subset('latin'))
 await registerFont('Latin-ext only', subset('latin-ext'))
+// Overlapping ranges with files whose widths tell them apart: Inter Regular, then Roboto over A-Z.
+const inter = new Uint8Array(readFileSync(new URL('../fonts/Inter-Regular.ttf', import.meta.url)))
+const roboto = new Uint8Array(readFileSync(new URL('../fonts/Roboto-Regular.ttf', import.meta.url)))
+await registerFont('Overlap', inter, { unicodeRange: 'U+0000-00FF' })
+await registerFont('Overlap', roboto, { unicodeRange: 'U+0041-005A' })
+await registerFont('Inter only', inter)
+await registerFont('Roboto only', roboto)
 install()
 const ctx = new OffscreenCanvas(1, 1).getContext('2d')!
 
@@ -31,6 +38,13 @@ test('each code point is drawn by the file whose range has it', () => {
     assert.equal(width(`${weight} 16px Split`, 'Zahlung'), width(`${weight} 16px "Latin only"`, 'Zahlung'))
     assert.equal(width(`${weight} 16px Split`, 'Łż'), width(`${weight} 16px "Latin-ext only"`, 'Łż'))
   }
+})
+
+test('where ranges overlap, the file registered last draws the code point', () => {
+  // A-Z are in both ranges: Roboto, registered last, draws them; the rest of Basic Latin is Inter's.
+  assert.notEqual(width('16px "Inter only"', 'H'), width('16px "Roboto only"', 'H'))
+  assert.equal(width('16px Overlap', 'HAMBURG'), width('16px "Roboto only"', 'HAMBURG'))
+  assert.equal(width('16px Overlap', 'hamburg'), width('16px "Inter only"', 'hamburg'))
 })
 
 test('a word mixing the files is shaped in runs of one file each', () => {

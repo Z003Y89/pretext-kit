@@ -163,6 +163,18 @@ function sameSlot(a: FontFace, family: string, min: number, max: number, style: 
   return familyKey(a.family) === familyKey(family) && a.weightMin === min && a.weightMax === max && a.style === style
 }
 
+function sameRanges(a: [number, number][], b: [number, number][]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i]![0] !== b[i]![0] || a[i]![1] !== b[i]![1]) return false
+  return true
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
 export async function registerFont(family: string, data: Uint8Array, face?: FaceOptions): Promise<void> {
   const sfnt = await toSfnt(data)
   const index = face?.index ?? 0
@@ -210,7 +222,13 @@ export async function registerFont(family: string, data: Uint8Array, face?: Face
   for (let i = 0; i < faces.length; i++) {
     const other = faces[i]!
     if (!sameSlot(other, family, weightMin, weightMax, style)) continue
-    if (unicodeRange !== null && other.unicodeRange !== null && other.unicodeRange !== undefined) continue
+    if (unicodeRange !== null && other.unicodeRange !== null && other.unicodeRange !== undefined) {
+      // The same file with the same range twice is a duplicate, not a split.
+      if (sameRanges(unicodeRange, other.unicodeRange) && other.index === index && sameBytes(other.data, sfnt)) {
+        throw new Error(`registerFont: "${family}" ${weightMin}-${weightMax} ${style} is already registered with this file and unicode-range`)
+      }
+      continue
+    }
     cmap ??= new Set(hb.collectUnicodes())
     const otherCmap = hbFace(other).collectUnicodes()
     for (let j = 0; j < otherCmap.length; j++) {

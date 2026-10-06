@@ -134,6 +134,15 @@ describe('font registry', () => {
     await assert.rejects(registerFont('Split', roboto, { weight: 400, style: 'normal' }), /already registered/)
   })
 
+  test('the same file with the same unicodeRange twice is a duplicate', async () => {
+    await registerFont('Split', ttf, { unicodeRange: 'U+0000-00FF' })
+    await assert.rejects(registerFont('split', ttf, { unicodeRange: 'u+0000-00ff' }), /already registered with this file and unicode-range/)
+    // The same file under another range is a split, as is another file under the same range.
+    await registerFont('Split', ttf, { unicodeRange: 'U+0100-024F' })
+    await registerFont('Split', roboto, { unicodeRange: 'U+0000-00FF' })
+    assert.equal(findFaces('Split', 400, 'normal').length, 3)
+  })
+
   test('parseUnicodeRange reads single code points, ranges and wildcards, and rejects the rest', () => {
     assert.deepEqual(parseUnicodeRange('U+0131, u+0000-00ff,U+4??'), [[0, 0xff], [0x131, 0x131], [0x400, 0x4ff]])
     for (const bad of ['U+00FF-0000', 'U+11FFFF', '0041', 'U+0?1', 'U+4??-4FF', '']) {
