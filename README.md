@@ -34,9 +34,25 @@ keeps its label).*
 
 ## Install
 
-pretext-kit is not on npm yet. It needs Pretext from `main` at
-[f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3dfc5877fbca5e4570ee04111e7001) (2026-10-05), since
-npm's `@chenglou/pretext` 0.0.9 predates the per-engine line breakers the kit is verified against:
+pretext-kit is not on npm yet. Each [GitHub release](https://github.com/Z003Y89/pretext-kit/releases) carries two
+tarballs, installed by URL with no npm account or registry publish involved: the kit, and the Pretext it needs.
+
+```sh
+npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.1/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.1.1/pretext-kit-0.1.1.tgz
+npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optional peers; wawoff2 for WOFF2 fonts)
+```
+
+**The Pretext tarball is an unofficial, labelled snapshot, not a release by Pretext's authors.** The kit needs Pretext
+from `main` at [f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3dfc5877fbca5e4570ee04111e7001)
+(2026-10-05), since npm's `@chenglou/pretext` 0.0.9 predates the per-engine line breakers the kit is verified
+against, and Pretext has not released since. `chenglou-pretext-0.0.10-main.f10d888.tgz` is that commit, unmodified,
+built with Pretext's pinned TypeScript; only its `package.json` differs: version `0.0.10-main.f10d888`, a description
+saying it is an unofficial snapshot, and no install or pack scripts. Its LICENSE (MIT) and README are Pretext's.
+`verify/pack-release.sh` rebuilds both tarballs from the two repositories, and `verify/consumer-smoke.mjs` installs
+them into a fresh project and runs the kit there (CI does both on every push). When Pretext publishes 0.0.10, install
+it from npm instead and drop the snapshot.
+
+Or build from source, the route the evaluation used:
 
 ```sh
 # Pretext's build is tsc alone; its other dev dependencies float (no npm lockfile) and, on 2026-10-05, no longer
@@ -48,11 +64,13 @@ npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # only for pretext-kit/headless (optio
 ```
 
 `@chenglou/pretext` is a peer dependency: your app and the kit share one Pretext, and one cache. Its range is
-`>=0.0.10 <0.0.11`: Pretext is pre-1.0, so each 0.0.x release may change what the kit is verified against, and 0.0.10
-is the first release with the line breakers above. The first npm publish of pretext-kit waits for Pretext 0.0.10;
-until then the build from `main` still says 0.0.9, which npm does not check for the folder installs above. The
-optional peers are `harfbuzzjs` `^1.6.2` and `wawoff2` `^2.0.1` (1.6.2 and 2.0.1 are the versions verified). The
-package declares Node `>=24`, the only Node line its tests and the headless parity sweep have run on.
+`>=0.0.10-0 <0.0.11`: Pretext is pre-1.0, so each 0.0.x release may change what the kit is verified against, and 0.0.10
+is the first release with the line breakers above. The `-0` admits 0.0.10's prereleases, so the labelled snapshot
+`0.0.10-main.f10d888` satisfies it, as will a future 0.0.10, while npm's stale 0.0.9 does not. (A build from `main`
+still says 0.0.9, which npm does not check for the folder installs above.) The optional peers are `harfbuzzjs`
+`^1.6.2` and `wawoff2` `^2.0.1` (1.6.2 and 2.0.1 are the versions verified). The package declares Node `>=22`: CI
+runs the tests on Node 22 and 24 on Linux, Windows and macOS, and the consumer smoke test on Node 22 and 24. Running
+the repository's own TypeScript tests needs Node 22.18 or later, where type stripping is on by default.
 
 ## When CSS is enough
 
@@ -396,6 +414,11 @@ Pretext's line counts equal Chrome's page wherever Pretext inside Chrome does. M
   pictographic and separator texts at 120-600px), 0 differing from Pretext inside Chromium.
 - **Initial research**, Chrome 154: 320/352 widths bit-exact, max 0.019px; line counts 2,021/2,024.
 
+The sweep launches Chromium headed, as users see it. `npm run verify:headless -- --headless` uses Playwright's
+headless Chromium instead, for machines with no display, and says so in HEADLESS_RESULTS.md: on the Mac above it gave
+the same widths and 0 headless-mismatch, but 179 pretext-gaps rather than 176, as headless Chromium's page wraps three
+more lines differently (so CI runs headed, under xvfb on Linux).
+
 The claim is scoped exactly so:
 
 - **Registered fonts only.** A code point no registered font covers makes `measureText` throw a `HeadlessCoverageError`
@@ -414,9 +437,14 @@ The claim is scoped exactly so:
   nearest registered face, so register the bold file your CSS uses, with `{ weight: 700 }`.
 - **Chromium profile.** `install()` sets a desktop Chrome user agent, which Pretext reads at the first `prepare()`,
   so Pretext uses its Blink rules. WebKit and Gecko profiles are not supported.
-- **Platforms.** Parity is measured for macOS Chrome. Windows (DirectWrite) and Linux (FreeType; whole-px advances
-  without subpixel positioning) each still need one measured check before they are claimed; if Linux's check shows
-  Chrome rounds, `install({ rounding: 'whole-px' })` is the mode for it.
+- **Platforms.** Parity is claimed for macOS Chrome only. Since 0.1.1, CI measures it on Linux (FreeType; whole-px
+  advances without subpixel positioning) and Windows (DirectWrite) too: the `parity` job runs the same sweep, headed,
+  on `ubuntu-latest` (under xvfb) and `windows-latest` with Node 24, and uploads each run's HEADLESS_RESULTS.md as the
+  artifact `headless-results-<os>`. A headless-mismatch there is recorded, not treated as a CI failure.
+  **[PLACEHOLDER, to be filled from the first CI run: the Linux and Windows widths (cases, exact, max |Δ|) and line
+  counts (headless-mismatch, pretext-gap), and whether either platform is now claimed.]** Until a platform is
+  claimed, treat it as unmeasured; if Linux's results show Chrome rounds, `install({ rounding: 'whole-px' })` is the
+  mode for it.
 
 ### Install order
 
