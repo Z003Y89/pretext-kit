@@ -896,7 +896,8 @@ note and is neither a failure nor a warning (so it is not in the counts).
 - **One call at a time (Node).** `checkLabels` uses Pretext's and the headless stand-in's global state: the font
   registry and install options are shared, so concurrent calls corrupt each other. Each call starts from an empty font
   registry, so **fonts you registered through `pretext-kit/headless` are wiped**, and it leaves the `OffscreenCanvas`
-  stand-in installed afterwards. Await each call before the next; use `fonts` rather than `registerFont` beforehand.
+  stand-in installed afterwards. Await each call before the next; use `fonts` rather than `registerFont` beforehand. Two calls at once with the same font
+  files fail with an "already registered" error from the registry: that is this rule, not a bug in the labels.
 - **The CLI's glob is its own** and minimal: `*`, `**` and `?`; it skips dot entries and `node_modules`.
 - **Not in this version:** ICU plural/select expansion, CSS parsing, WebKit and Gecko profiles, React Native.
 - **Evidence.** The sweep, with Inter Regular only, ran on Linux (Chromium 141 in a container, and Chromium 149 in CI, run
