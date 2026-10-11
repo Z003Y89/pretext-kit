@@ -45,24 +45,23 @@ pretext-kit is not on npm yet. Each [GitHub release](https://github.com/Z003Y89/
 tarballs, installed by URL with no npm account or registry publish involved: the kit, and the Pretext it needs.
 
 ```sh
-npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.2.0/chenglou-pretext-0.0.10-main.f10d888.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.2.0/pretext-kit-0.2.0.tgz
+npm install https://github.com/Z003Y89/pretext-kit/releases/download/v0.2.1/chenglou-pretext-0.0.10-main.c6a7bee.tgz https://github.com/Z003Y89/pretext-kit/releases/download/v0.2.1/pretext-kit-0.2.1.tgz
 npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-kit/check and check-labels (optional peers; wawoff2 for WOFF2 fonts)
 ```
 
-Check the downloads against the SHA-256 sums: `chenglou-pretext-0.0.10-main.f10d888.tgz` is
-`9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`; `pretext-kit-0.2.0.tgz`'s sum is in
-[CHANGELOG.md](CHANGELOG.md) and the release notes, not here, because this README ships inside that tarball and so
-cannot hold its own hash. Both builds are reproducible in content: `npm run pack:release` from the tagged commits
+Check the downloads against the SHA-256 sums in the release notes (a sum is not kept here, because this README ships
+inside the kit's tarball and so cannot hold its own hash, and the release workflow, not a machine of ours, packs the
+release). Both builds are reproducible in content: `npm run pack:release` from the tagged commits
 gives tarballs whose contents are identical file for file on any machine, and whose compressed bytes (and so sums)
 are identical when packed with the same Node and npm versions; gzip output differs across Node/zlib versions. The
 release ships tarballs packed with Node 24.4.1 and npm 11.4.2. [verify/RELEASING.md](verify/RELEASING.md) is the release
 procedure.
 
 **The Pretext tarball is an unofficial, labelled snapshot, not a release by Pretext's authors.** The kit needs Pretext
-from `main` at [f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3dfc5877fbca5e4570ee04111e7001)
-(2026-10-05), since npm's `@chenglou/pretext` 0.0.9 predates the per-engine line breakers the kit is verified
-against, and Pretext has not released since. `chenglou-pretext-0.0.10-main.f10d888.tgz` is that commit, unmodified,
-built with Pretext's pinned TypeScript; only its `package.json` differs: version `0.0.10-main.f10d888`, a description
+from `main` at [c6a7bee](https://github.com/chenglou/pretext/commit/c6a7bee014bf2960ebe5c1a75fc164528f228537)
+(2026-10-06), since npm's `@chenglou/pretext` 0.0.9 predates the per-engine line breakers the kit is verified
+against, and Pretext has not released since. `chenglou-pretext-0.0.10-main.c6a7bee.tgz` is that commit, unmodified,
+built with Pretext's pinned TypeScript; only its `package.json` differs: version `0.0.10-main.c6a7bee`, a description
 saying it is an unofficial snapshot, and no install or pack scripts. Its LICENSE (MIT) and README are Pretext's.
 `verify/pack-release.sh` rebuilds both tarballs (and the release's CycloneDX SBOM) from the two repositories, and `verify/consumer-smoke.mjs` installs
 them into a fresh project and runs the kit there (CI does both on every push). When Pretext publishes 0.0.10, install
@@ -73,7 +72,7 @@ Or build from source, the route the evaluation used:
 ```sh
 # Pretext's build is tsc alone; its other dev dependencies float (no npm lockfile) and, on 2026-10-05, no longer
 # resolve with `npm install` (oxlint peer conflict), so build with its pinned TypeScript directly:
-git clone https://github.com/chenglou/pretext && (cd pretext && git checkout f10d888 && npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json)
+git clone https://github.com/chenglou/pretext && (cd pretext && git checkout c6a7bee && npx -y -p typescript@6.0.2 tsc -p tsconfig.build.json)
 git clone https://github.com/Z003Y89/pretext-kit && (cd pretext-kit && npm install && npm run build)
 npm install ./pretext ./pretext-kit
 npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-kit/check and check-labels (optional peers; wawoff2 for WOFF2 fonts)
@@ -82,7 +81,7 @@ npm i -D harfbuzzjs@1.6.2 wawoff2@2.0.1   # for pretext-kit/headless, pretext-ki
 `@chenglou/pretext` is a peer dependency: your app and the kit share one Pretext, and one cache. Its range is
 `>=0.0.10-0 <0.0.11`: Pretext is pre-1.0, so each 0.0.x release may change what the kit is verified against, and 0.0.10
 is the first release with the line breakers above. The `-0` admits 0.0.10's prereleases, so the labelled snapshot
-`0.0.10-main.f10d888` satisfies it, as will a future 0.0.10, while npm's stale 0.0.9 does not. (A build from `main`
+`0.0.10-main.c6a7bee` satisfies it, as will a future 0.0.10, while npm's stale 0.0.9 does not. (A build from `main`
 still says 0.0.9, which npm does not check for the folder installs above.) The optional peers are `harfbuzzjs`
 `^1.6.2` and `wawoff2` `^2.0.1` (1.6.2 and 2.0.1 are the versions verified). The package declares Node `>=22`: CI
 runs the tests on Node 22 and 24 on Linux, Windows and macOS, and the consumer smoke test on Node 22 and 24. Running
@@ -383,7 +382,7 @@ every case, median 0.024px, max 3.09px).
 ## Versions
 
 pretext-kit is built and verified against Pretext `main` at
-[f10d888](https://github.com/chenglou/pretext/commit/f10d888c0f3dfc5877fbca5e4570ee04111e7001); pin that commit until
+[c6a7bee](https://github.com/chenglou/pretext/commit/c6a7bee014bf2960ebe5c1a75fc164528f228537); pin that commit until
 Pretext's next release. It uses only Pretext's public exports: `prepareWithSegments`, `layout`, `layoutNextLine`,
 `layoutNextLineRange`, `layoutWithLines`, `measureLineStats`, `measureNaturalWidth` and `clearCache`, and from
 `@chenglou/pretext/rich-inline`, `prepareRichInline` and `measureRichInlineStats`. Of a prepared handle's fields it

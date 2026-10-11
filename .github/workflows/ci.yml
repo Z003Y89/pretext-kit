@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  PRETEXT_COMMIT: f10d888c0f3dfc5877fbca5e4570ee04111e7001
+  PRETEXT_COMMIT: c6a7bee014bf2960ebe5c1a75fc164528f228537
 
 jobs:
   test:
@@ -170,7 +170,7 @@ jobs:
       - name: Pack both tarballs
         run: bash verify/pack-release.sh --pretext=../pretext
       - name: Install them into a fresh project and run the smoke script
-        run: node verify/consumer-smoke.mjs dist-release/chenglou-pretext-0.0.10-main.f10d888.tgz dist-release/pretext-kit-*.tgz
+        run: node verify/consumer-smoke.mjs dist-release/chenglou-pretext-0.0.10-main.c6a7bee.tgz dist-release/pretext-kit-*.tgz
       - uses: actions/upload-artifact@v7
         if: matrix.node == 24
         with:
