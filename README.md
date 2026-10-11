@@ -904,7 +904,7 @@ note and is neither a failure nor a warning (so it is not in the counts).
   [37500166670](https://github.com/Z003Y89/pretext-kit/actions/runs/37500166670): 0 check-mismatch, 12,424
   pretext-gap). On macOS (CI runner, Chromium 149, run [37505556735](https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735)) it
   ran before the macOS fractional-size model: 472 check-mismatch, 12,380 pretext-gap, the first Windows run's tallies;
-  with the model (run [37508951442](https://github.com/Z003Y89/pretext-kit/actions/runs/37508951442)) 0 check-mismatch, 12,424 pretext-gap. [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
+  with the model (run [37508951442](https://github.com/Z003Y89/pretext-kit/actions/runs/37508951442)) 0 check-mismatch, 12,424 pretext-gap. At the 0.2.1 pin (Pretext c6a7bee) all three platforms give 0 check-mismatch, with 9,505 pretext-gap on Linux and 11,718 on Windows and macOS (EVALUATION.md, per platform). [EVALUATION.md](EVALUATION.md) C11 and its threats list what else.
 
 ## Not in v1
 

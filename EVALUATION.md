@@ -477,7 +477,7 @@ The verdict cases alone give the counts of the run before (77,090, 107,821, 1,27
 rounding defect for fractional sizes on Linux; the model (CHANGELOG 0.2.0) fixed it, and the sweep records, as a limit, that in-page metric sharing between nearby fractional sizes is not
 modelled and that none of the sweep's nearby pairs shares an entry (17.94 and 18, 27 and 27.04, 21.97 and 22, 16.9 and 17px).
 
-**Per platform.** The same sweep (same cases, same harness) on each platform, the checker under that platform's profile:
+**Per platform.** The same sweep (same cases, same harness) on each platform, the checker under that platform's profile (rows at Pretext f10d888, the pin of 0.2.0, unless a row says Pretext c6a7bee, the pin of 0.2.1):
 
 | platform | Chromium | where | check-mismatch | pretext-gap (verdict + near-miss) | mutants |
 |---|---|---|---:|---:|---:|
@@ -487,6 +487,10 @@ modelled and that none of the sweep's nearby pairs shares an entry (17.94 and 18
 | Windows, before the size model | 149.0.7827.55 | CI run [37496691054](https://github.com/Z003Y89/pretext-kit/actions/runs/37496691054) (PR #7 at a383360) | 472 | 12,380 | 8 of 8: 94,961 / 146,645 / 1,466 / 75,604 / 144 / 1,062 / 41,326 / 51,014 |
 | macOS, before the size model | 149.0.7827.55 | CI run [37505556735](https://github.com/Z003Y89/pretext-kit/actions/runs/37505556735) (PR #8 at ecf8f59), `macos-latest` | 472 (404 + 68) | 12,380 (9,299 + 3,081) | 8 of 8: 94,961 / 146,645 / 1,466 / 75,604 / 144 / 1,062 / 41,326 / 51,014 |
 | macOS | 149.0.7827.55 | CI run [37508951442](https://github.com/Z003Y89/pretext-kit/actions/runs/37508951442) (PR #8 at 0531c70), `macos-latest` | 0 | 12,424 (9,335 + 3,089) | 8 of 8: 94,966 / 147,021 / 1,476 / 75,822 / 144 / 1,062 / 41,326 / 51,082 |
+| Linux, Pretext c6a7bee | 141.0.7390.37 | container, verify/CHECK_RESULTS.md | 0 | 9,505 (6,744 + 2,761) | 8 of 8 |
+| Linux, Pretext c6a7bee | 149.0.7827.55 | CI run [38128203904](https://github.com/Z003Y89/pretext-kit/actions/runs/38128203904) (PR #11 at 6c4a549), `ubuntu-latest` | 0 | 9,505 | 8 of 8: 93,558 / 148,555 / 1,634 / 76,723 / 144 / 1,041 / 39,806 / 51,043 |
+| Windows, Pretext c6a7bee | 149.0.7827.55 | CI run [38128203904](https://github.com/Z003Y89/pretext-kit/actions/runs/38128203904), `windows-latest` | 0 | 11,718 (8,816 + 2,902) | 8 of 8: 94,954 / 146,973 / 1,476 / 75,798 / 144 / 1,062 / 41,152 / 51,045 |
+| macOS, Pretext c6a7bee | 149.0.7827.55 | CI run [38128203871](https://github.com/Z003Y89/pretext-kit/actions/runs/38128203871) (PR #11 at 6c4a549), `macos-latest` | 0 | 11,718 (8,816 + 2,902) | 8 of 8: 94,954 / 146,973 / 1,476 / 75,798 / 144 / 1,062 / 41,152 / 51,045 |
 
 Mutant counts are each mutant's own check-mismatches, in the order of the mutant table above (ignore reserve, treat zoom as
 textScale, ignore textTransform, lines off by one, skip the last collapse stage, tabular ignored, ignore
