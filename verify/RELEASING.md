@@ -18,7 +18,7 @@ remain the manual fallback when it cannot run.
 
 1. **Prepare the commit.** Every row of the release gate in PROTOCOL.md §8 holds on it. `npm test`, `npm run check` and `npm run build` pass, CI is green on the commit, `version` in
    package.json is the new version, and CHANGELOG.md has its dated entry.
-2. **Pack.** With `../pretext` holding chenglou/pretext at f10d888:
+2. **Pack.** With `../pretext` holding chenglou/pretext at c6a7bee:
 
    ```sh
    npm run pack:release      # dist-release/: the Pretext snapshot, pretext-kit-<version>.tgz, the CycloneDX SBOM
@@ -30,8 +30,8 @@ remain the manual fallback when it cannot run.
    compare `tar -xzf` of both instead. For a new release, record the sums the pack gave (and the Node and npm
    versions) in its CHANGELOG.md entry and the release notes. Example, 0.1.1 (Node 24.4.1, npm 11.4.2):
    `9feccf2eeacf941cd6704e8f462c170c0c4bcb1d7d82cefa97e2c95b06e4b4c7`  chenglou-pretext-0.0.10-main.f10d888.tgz and
-   `e3c85d131d683083f11dc5232b354903a9f10d53aa58e340c2703b9cd2312b45`  pretext-kit-0.1.1.tgz; the Pretext snapshot's
-   sum is the same in every release packed with those versions. The kit's sum lives in CHANGELOG.md and the
+   `e3c85d131d683083f11dc5232b354903a9f10d53aa58e340c2703b9cd2312b45`  pretext-kit-0.1.1.tgz; the release workflow
+   gave a different sum (`37fdba37…`) for the f10d888 snapshot of 0.2.0, so compare a sum only with the release notes of its own version. The kit's sum lives in CHANGELOG.md and the
    release notes, not in README.md, because README.md ships inside the tarball and so cannot hold its own hash; edit
    README.md (its install line names `v<version>`) and THIRD_PARTY_NOTICES.md first, then pack, then record the sum.
    CHANGELOG.md is not in the tarball (`npm pack --dry-run` lists what is), so recording the sum there does not change
@@ -39,7 +39,7 @@ remain the manual fallback when it cannot run.
 4. **Smoke-test the local tarballs** on Node 22 and 24:
 
    ```sh
-   node verify/consumer-smoke.mjs dist-release/chenglou-pretext-0.0.10-main.f10d888.tgz dist-release/pretext-kit-<version>.tgz
+   node verify/consumer-smoke.mjs dist-release/chenglou-pretext-0.0.10-main.c6a7bee.tgz dist-release/pretext-kit-<version>.tgz
    ```
 
 5. **Tag and publish.** Pushing the tag starts `release.yml`, which publishes. Manual fallback (as Z003Y89):
@@ -47,7 +47,7 @@ remain the manual fallback when it cannot run.
    ```sh
    git tag -a v<version> -m "pretext-kit v<version>" && git push origin main v<version>
    gh release create v<version> --title "pretext-kit v<version>" --notes-file <notes with the SHA-256 sums> \
-     dist-release/chenglou-pretext-0.0.10-main.f10d888.tgz \
+     dist-release/chenglou-pretext-0.0.10-main.c6a7bee.tgz \
      dist-release/pretext-kit-<version>.tgz \
      dist-release/pretext-kit-<version>.sbom.cdx.json
    ```
@@ -58,8 +58,8 @@ remain the manual fallback when it cannot run.
 
    ```sh
    base=https://github.com/Z003Y89/pretext-kit/releases/download/v<version>
-   curl -fsSLO "$base/chenglou-pretext-0.0.10-main.f10d888.tgz" -fsSLO "$base/pretext-kit-<version>.tgz"
+   curl -fsSLO "$base/chenglou-pretext-0.0.10-main.c6a7bee.tgz" -fsSLO "$base/pretext-kit-<version>.tgz"
    shasum -a 256 *.tgz
-   node <kit>/verify/consumer-smoke.mjs chenglou-pretext-0.0.10-main.f10d888.tgz pretext-kit-<version>.tgz
-   npm install "$base/chenglou-pretext-0.0.10-main.f10d888.tgz" "$base/pretext-kit-<version>.tgz"   # in an empty project
+   node <kit>/verify/consumer-smoke.mjs chenglou-pretext-0.0.10-main.c6a7bee.tgz pretext-kit-<version>.tgz
+   npm install "$base/chenglou-pretext-0.0.10-main.c6a7bee.tgz" "$base/pretext-kit-<version>.tgz"   # in an empty project
    ```

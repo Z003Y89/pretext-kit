@@ -17,7 +17,7 @@ pretext-kit itself is [MIT](https://github.com/Z003Y89/pretext-kit/blob/main/LIC
 
 | package | version | licence | notes |
 |---|---|---|---|
-| `@chenglou/pretext` | `>=0.0.10-0 <0.0.11`; the release's snapshot is `0.0.10-main.f10d888` | MIT, copyright 2026 Pretext contributors | The snapshot tarball is an unofficial build of chenglou/pretext `main` at f10d888, not a release by Pretext's authors. It carries Pretext's own LICENSE and README unchanged. |
+| `@chenglou/pretext` | `>=0.0.10-0 <0.0.11`; the release's snapshot is `0.0.10-main.c6a7bee` | MIT, copyright 2026 Pretext contributors | The snapshot tarball is an unofficial build of chenglou/pretext `main` at c6a7bee, not a release by Pretext's authors. It carries Pretext's own LICENSE and README unchanged. |
 
 ## Optional at runtime (optional peers, loaded only by `pretext-kit/headless`)
 

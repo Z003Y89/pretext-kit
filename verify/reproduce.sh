@@ -20,7 +20,7 @@
 set -uo pipefail
 
 PRETEXT_REPO=https://github.com/chenglou/pretext.git
-PRETEXT_COMMIT=f10d888c0f3dfc5877fbca5e4570ee04111e7001
+PRETEXT_COMMIT=c6a7bee014bf2960ebe5c1a75fc164528f228537
 here="$(cd "$(dirname "$0")" && pwd)"
 DIR=""
 KIT_REPO="$(git -C "$here" rev-parse --show-toplevel)"

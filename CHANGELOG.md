@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-10-11
+
+Moves the pinned Pretext from f10d888 (2026-10-05) to [c6a7bee](https://github.com/chenglou/pretext/commit/c6a7bee014bf2960ebe5c1a75fc164528f228537) (2026-10-06, the merge of chenglou/pretext#446), and repairs the release workflow's last check. No change to the kit's own code.
+
+- **Pretext c6a7bee.** #446 makes Pretext's Chromium profile return from an unfit soft hyphen to a break after an explicit hyphen-minus (and after other dashes and between CJK characters), as Chrome does; it fixes the shape we reported in chenglou/pretext#433 (a line ending `Nebenrollen-Ta-` past the width, where Chrome breaks after `Nebenrollen-`). The `fitFontSize`, `shrinkwrap` and `clamp` answers that rested on that line count change with it. Pretext's maintainer notes the opposite direction for rich inline, where `extraWidth` on a padded span is counted on a line that ends inside the span and Chrome does not count it (a known gap, not fixed). c6a7bee is before Pretext's one-paragraph rich-inline rewrite (#460), whose drift is listed in chenglou/pretext#464; the kit stays on the side of it that it was verified against. Pretext `main` still says 0.0.9, so the labelled snapshot is `0.0.10-main.c6a7bee`.
+- **`verify:check` at the new pin, Linux, Chromium 141.0.7390.37:** 473,736 cases, 0 check-mismatch, 9,505 pretext-gap (6,744 verdict cases and 2,761 near-miss cases; 10,255 at f10d888), 8 of 8 planted bugs caught; `verify:fractional` for the `'linux'` profile 488 of 488 sizes. The pretext-gaps fell by 750. The same sweep in CI with Chromium 149.0.7827.55: Linux (run https://github.com/Z003Y89/pretext-kit/actions/runs/38128203904) the same 0 check-mismatch and 9,505 pretext-gap; Windows (same run) 0 check-mismatch, 11,718 pretext-gap (8,816 + 2,902; 12,424 at f10d888); macOS (run https://github.com/Z003Y89/pretext-kit/actions/runs/38128203871) 0 check-mismatch, 11,718 pretext-gap; 8 of 8 planted bugs caught on each. `verify:fractional` 488 of 488 sizes under each platform's own profile; `verify:headless` on macOS 0 headless-mismatch, 231 pretext-gap in line counts (232 on Linux, 233 on Windows).
+- **Release workflow:** the check of README's install line in an empty project installs the `harfbuzzjs` peer, as README says to; the workflow can create its tag when dispatched for a missing one.
+
 ## 0.2.0 — 2026-10-06
 
 The label checker, and fractional-size models for the headless Linux, Windows and macOS profiles.
